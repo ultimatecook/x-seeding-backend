@@ -22,7 +22,7 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const url = `https://${SHOP_URL}/admin/api/2024-10/${endpoint}.json`;
+    const url = `https://${SHOP_URL}/admin/api/2024-04/${endpoint}.json`;
     
     const response = await fetch(url, {
       method: 'GET',
