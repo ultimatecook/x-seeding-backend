@@ -1,14 +1,6 @@
 {
-  "buildCommand": "echo 'Backend ready'",
-  "outputDirectory": ".",
-  "env": [
-    {
-      "key": "SHOPIFY_STORE_URL",
-      "value": "dosantimed.myshopify.com"
-    },
-    {
-      "key": "SHOPIFY_ACCESS_TOKEN",
-      "value": "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"
-    }
-  ]
+  "env": {
+    "SHOPIFY_STORE_URL": "dosantimed.myshopify.com",
+    "SHOPIFY_ACCESS_TOKEN": "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"
+  }
 }
