@@ -1,4 +1,3 @@
 {
-  "buildCommand": "npm run setup && npm run build",
-  "startCommand": "npm run start"
-}
+  "buildCommand": "npm run setup && npm run build"
+}}
