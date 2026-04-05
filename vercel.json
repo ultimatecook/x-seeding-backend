@@ -1,10 +1,5 @@
 {
   "buildCommand": "npm run setup && npm run build",
-  "functions": {
-    "api/index.js": {
-      "runtime": "nodejs"
-    }
-  },
   "routes": [
     {
       "src": "/(.*)",
