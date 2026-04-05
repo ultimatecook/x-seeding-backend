@@ -1,0 +1,316 @@
+{
+  "buildManifest": {
+    "serverBundles": {
+      "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0": {
+        "id": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
+        "file": "build/server/nodejs_eyJydW50aW1lIjoibm9kZWpzIn0/index.js",
+        "config": {
+          "runtime": "nodejs"
+        }
+      }
+    },
+    "routeIdToServerBundleId": {
+      "routes/api.products": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
+      "routes/auth.login": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
+      "routes/webhooks": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
+      "routes/webhooks.app.scopes_update": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
+      "routes/webhooks.app.uninstalled": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
+      "routes/_index": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
+      "routes/auth.$": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
+      "routes/app.influencers": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
+      "routes/app.additional": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
+      "routes/app._index": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
+      "routes/app.new": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0"
+    },
+    "routes": {
+      "root": {
+        "id": "root",
+        "file": "app/root.jsx",
+        "path": "",
+        "config": {}
+      },
+      "routes/api.products": {
+        "id": "routes/api.products",
+        "parentId": "root",
+        "file": "app/routes/api.products.jsx",
+        "path": "api/products",
+        "config": {
+          "runtime": "nodejs"
+        }
+      },
+      "routes/auth.login": {
+        "id": "routes/auth.login",
+        "parentId": "root",
+        "file": "app/routes/auth.login/route.jsx",
+        "path": "auth/login",
+        "config": {
+          "runtime": "nodejs"
+        }
+      },
+      "routes/webhooks": {
+        "id": "routes/webhooks",
+        "parentId": "root",
+        "file": "app/routes/webhooks.jsx",
+        "path": "webhooks",
+        "config": {
+          "runtime": "nodejs"
+        }
+      },
+      "routes/webhooks.app.scopes_update": {
+        "id": "routes/webhooks.app.scopes_update",
+        "parentId": "routes/webhooks",
+        "file": "app/routes/webhooks.app.scopes_update.jsx",
+        "path": "app/scopes_update",
+        "config": {}
+      },
+      "routes/webhooks.app.uninstalled": {
+        "id": "routes/webhooks.app.uninstalled",
+        "parentId": "routes/webhooks",
+        "file": "app/routes/webhooks.app.uninstalled.jsx",
+        "path": "app/uninstalled",
+        "config": {}
+      },
+      "routes/_index": {
+        "id": "routes/_index",
+        "parentId": "root",
+        "file": "app/routes/_index/route.jsx",
+        "index": true,
+        "config": {
+          "runtime": "nodejs"
+        }
+      },
+      "routes/auth.$": {
+        "id": "routes/auth.$",
+        "parentId": "root",
+        "file": "app/routes/auth.$.jsx",
+        "path": "auth/*",
+        "config": {
+          "runtime": "nodejs"
+        }
+      },
+      "routes/app": {
+        "id": "routes/app",
+        "parentId": "root",
+        "file": "app/routes/app.jsx",
+        "path": "app",
+        "config": {}
+      },
+      "routes/app.influencers": {
+        "id": "routes/app.influencers",
+        "parentId": "routes/app",
+        "file": "app/routes/app.influencers.jsx",
+        "path": "influencers",
+        "config": {
+          "runtime": "nodejs"
+        }
+      },
+      "routes/app.additional": {
+        "id": "routes/app.additional",
+        "parentId": "routes/app",
+        "file": "app/routes/app.additional.jsx",
+        "path": "additional",
+        "config": {
+          "runtime": "nodejs"
+        }
+      },
+      "routes/app._index": {
+        "id": "routes/app._index",
+        "parentId": "routes/app",
+        "file": "app/routes/app._index.jsx",
+        "index": true,
+        "config": {
+          "runtime": "nodejs"
+        }
+      },
+      "routes/app.new": {
+        "id": "routes/app.new",
+        "parentId": "routes/app",
+        "file": "app/routes/app.new.jsx",
+        "path": "new",
+        "config": {
+          "runtime": "nodejs"
+        }
+      }
+    }
+  },
+  "reactRouterConfig": {
+    "appDirectory": "/Users/tiagolocatelli/x-seeding/app",
+    "basename": "/",
+    "buildDirectory": "/Users/tiagolocatelli/x-seeding/build",
+    "future": {
+      "unstable_optimizeDeps": false,
+      "unstable_passThroughRequests": false,
+      "unstable_subResourceIntegrity": false,
+      "unstable_trailingSlashAwareDataRequests": false,
+      "unstable_previewServerPrerendering": false,
+      "v8_middleware": false,
+      "v8_splitRouteModules": false,
+      "v8_viteEnvironmentApi": false
+    },
+    "routes": {
+      "root": {
+        "id": "root",
+        "file": "root.jsx",
+        "path": ""
+      },
+      "routes/api.products": {
+        "id": "routes/api.products",
+        "parentId": "root",
+        "file": "routes/api.products.jsx",
+        "path": "api/products"
+      },
+      "routes/auth.login": {
+        "id": "routes/auth.login",
+        "parentId": "root",
+        "file": "routes/auth.login/route.jsx",
+        "path": "auth/login"
+      },
+      "routes/webhooks": {
+        "id": "routes/webhooks",
+        "parentId": "root",
+        "file": "routes/webhooks.jsx",
+        "path": "webhooks"
+      },
+      "routes/webhooks.app.scopes_update": {
+        "id": "routes/webhooks.app.scopes_update",
+        "parentId": "routes/webhooks",
+        "file": "routes/webhooks.app.scopes_update.jsx",
+        "path": "app/scopes_update"
+      },
+      "routes/webhooks.app.uninstalled": {
+        "id": "routes/webhooks.app.uninstalled",
+        "parentId": "routes/webhooks",
+        "file": "routes/webhooks.app.uninstalled.jsx",
+        "path": "app/uninstalled"
+      },
+      "routes/_index": {
+        "id": "routes/_index",
+        "parentId": "root",
+        "file": "routes/_index/route.jsx",
+        "index": true
+      },
+      "routes/auth.$": {
+        "id": "routes/auth.$",
+        "parentId": "root",
+        "file": "routes/auth.$.jsx",
+        "path": "auth/*"
+      },
+      "routes/app": {
+        "id": "routes/app",
+        "parentId": "root",
+        "file": "routes/app.jsx",
+        "path": "app"
+      },
+      "routes/app.influencers": {
+        "id": "routes/app.influencers",
+        "parentId": "routes/app",
+        "file": "routes/app.influencers.jsx",
+        "path": "influencers"
+      },
+      "routes/app.additional": {
+        "id": "routes/app.additional",
+        "parentId": "routes/app",
+        "file": "routes/app.additional.jsx",
+        "path": "additional"
+      },
+      "routes/app._index": {
+        "id": "routes/app._index",
+        "parentId": "routes/app",
+        "file": "routes/app._index.jsx",
+        "index": true
+      },
+      "routes/app.new": {
+        "id": "routes/app.new",
+        "parentId": "routes/app",
+        "file": "routes/app.new.jsx",
+        "path": "new"
+      }
+    },
+    "routeDiscovery": {
+      "mode": "lazy",
+      "manifestPath": "/__manifest"
+    },
+    "serverBuildFile": "index.js",
+    "serverModuleFormat": "esm",
+    "ssr": true,
+    "allowedActionOrigins": false,
+    "unstable_routeConfig": [
+      {
+        "id": "root",
+        "path": "",
+        "file": "root.jsx",
+        "children": [
+          {
+            "id": "routes/api.products",
+            "file": "routes/api.products.jsx",
+            "path": "api/products"
+          },
+          {
+            "id": "routes/auth.login",
+            "file": "routes/auth.login/route.jsx",
+            "path": "auth/login"
+          },
+          {
+            "id": "routes/webhooks",
+            "file": "routes/webhooks.jsx",
+            "path": "webhooks",
+            "children": [
+              {
+                "id": "routes/webhooks.app.scopes_update",
+                "file": "routes/webhooks.app.scopes_update.jsx",
+                "path": "app/scopes_update"
+              },
+              {
+                "id": "routes/webhooks.app.uninstalled",
+                "file": "routes/webhooks.app.uninstalled.jsx",
+                "path": "app/uninstalled"
+              }
+            ]
+          },
+          {
+            "id": "routes/_index",
+            "file": "routes/_index/route.jsx",
+            "index": true
+          },
+          {
+            "id": "routes/auth.$",
+            "file": "routes/auth.$.jsx",
+            "path": "auth/*"
+          },
+          {
+            "id": "routes/app",
+            "file": "routes/app.jsx",
+            "path": "app",
+            "children": [
+              {
+                "id": "routes/app.influencers",
+                "file": "routes/app.influencers.jsx",
+                "path": "influencers"
+              },
+              {
+                "id": "routes/app.additional",
+                "file": "routes/app.additional.jsx",
+                "path": "additional"
+              },
+              {
+                "id": "routes/app._index",
+                "file": "routes/app._index.jsx",
+                "index": true
+              },
+              {
+                "id": "routes/app.new",
+                "file": "routes/app.new.jsx",
+                "path": "new"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "viteConfig": {
+    "build": {
+      "assetsDir": "assets"
+    }
+  }
+}
