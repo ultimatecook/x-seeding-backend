@@ -1,0 +1,73 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Note that some adapters may set a maximum length for the String type by default, please ensure your strings are long
+// enough when changing adapters.
+// See https://www.prisma.io/docs/orm/reference/prisma-schema-reference#string for more information
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Session {
+  id            String    @id
+  shop          String
+  state         String
+  isOnline      Boolean   @default(false)
+  scope         String?
+  expires       DateTime?
+  accessToken   String
+  userId        BigInt?
+  firstName     String?
+  lastName      String?
+  email         String?
+  accountOwner  Boolean   @default(false)
+  locale        String?
+  collaborator  Boolean?  @default(false)
+  emailVerified Boolean?  @default(false)
+  refreshToken        String?
+  refreshTokenExpires DateTime?
+}
+
+model Influencer {
+  id         Int       @id @default(autoincrement())
+  name       String
+  handle     String
+  followers  Int       @default(0)
+  country    String
+  email      String?
+  createdAt  DateTime  @default(now())
+  seedings   Seeding[]
+}
+
+model Seeding {
+  id                  Int              @id @default(autoincrement())
+  shop                String
+  influencerId        Int
+  influencer          Influencer       @relation(fields: [influencerId], references: [id])
+  status              String           @default("Pending")
+  trackingNumber      String?
+  notes               String?
+  shippingAddress     String?
+  totalCost           Float            @default(0)
+  shopifyDraftOrderId String?
+  shopifyOrderName    String?
+  invoiceUrl          String?
+  createdAt           DateTime         @default(now())
+  products            SeedingProduct[]
+}
+
+model SeedingProduct {
+  id          Int     @id @default(autoincrement())
+  seedingId   Int
+  seeding     Seeding @relation(fields: [seedingId], references: [id], onDelete: Cascade)
+  productId   String
+  variantId   String?
+  productName String
+  price       Float
+  imageUrl    String?
+}
