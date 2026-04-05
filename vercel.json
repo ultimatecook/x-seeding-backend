@@ -1,4 +1,3 @@
 {
-  "buildCommand": "npm run setup && npm run build",
-  "framework": "remix"
+  "buildCommand": "npm run setup && npm run build"
 }
