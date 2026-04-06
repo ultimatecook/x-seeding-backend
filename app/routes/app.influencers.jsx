@@ -64,49 +64,60 @@ function downloadTemplate() {
   URL.revokeObjectURL(url);
 }
 
+// Status: 'idle' | 'loading' | 'done' | 'empty' | 'error'
 function InstagramHandleInput({ inputStyle, onSelect }) {
+  const [mounted, setMounted]     = useState(false);
   const [value, setValue]         = useState('');
   const [results, setResults]     = useState([]);
-  const [loading, setLoading]     = useState(false);
+  const [status, setStatus]       = useState('idle');
   const [open, setOpen]           = useState(false);
   const [activeIdx, setActiveIdx] = useState(-1);
-  const timerRef  = useRef(null);
-  const wrapRef   = useRef(null);
+  const timerRef = useRef(null);
+  const wrapRef  = useRef(null);
 
-  // Close dropdown on outside click
   useEffect(() => {
+    setMounted(true);
     function handler(e) { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); }
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const search = useCallback((q) => {
-    clearTimeout(timerRef.current);
-    if (!q || q.replace('@', '').length < 2) { setResults([]); setOpen(false); return; }
-    timerRef.current = setTimeout(async () => {
-      setLoading(true);
-      try {
-        const res = await fetch(`/api/instagram-search?q=${encodeURIComponent(q.replace('@', ''))}`);
-        const data = await res.json();
-        setResults(data.users || []);
-        setOpen((data.users || []).length > 0);
-      } catch { setResults([]); }
-      finally { setLoading(false); }
-    }, 420);
-  }, []);
-
-  function handleChange(e) {
-    const v = e.target.value;
-    setValue(v);
-    setActiveIdx(-1);
-    search(v);
+  // On SSR render a plain input — avoids hydration mismatch (#418)
+  if (!mounted) {
+    return (
+      <input name="handle" required placeholder="@username" autoComplete="off"
+        style={{ ...inputStyle, display: 'block', marginTop: '6px' }} />
+    );
   }
 
+  function doSearch(q) {
+    clearTimeout(timerRef.current);
+    const clean = q.replace('@', '').trim();
+    if (clean.length < 2) { setResults([]); setOpen(false); setStatus('idle'); return; }
+    timerRef.current = setTimeout(async () => {
+      setStatus('loading');
+      try {
+        const res  = await fetch(`/api/instagram-search?q=${encodeURIComponent(clean)}`);
+        const data = await res.json();
+        const users = data.users || [];
+        setResults(users);
+        setStatus(users.length > 0 ? 'done' : (data.error ? 'error' : 'empty'));
+        setOpen(true);
+      } catch {
+        setResults([]);
+        setStatus('error');
+        setOpen(true);
+      }
+    }, 420);
+  }
+
+  function handleChange(e) { const v = e.target.value; setValue(v); setActiveIdx(-1); doSearch(v); }
+
   function pick(user) {
-    const handle = `@${user.username}`;
-    setValue(handle);
+    setValue(`@${user.username}`);
     setOpen(false);
     setResults([]);
+    setStatus('idle');
     onSelect(user);
   }
 
@@ -115,53 +126,50 @@ function InstagramHandleInput({ inputStyle, onSelect }) {
     if (e.key === 'ArrowDown') { e.preventDefault(); setActiveIdx(i => Math.min(i + 1, results.length - 1)); }
     if (e.key === 'ArrowUp')   { e.preventDefault(); setActiveIdx(i => Math.max(i - 1, 0)); }
     if (e.key === 'Enter' && activeIdx >= 0) { e.preventDefault(); pick(results[activeIdx]); }
-    if (e.key === 'Escape') setOpen(false);
+    if (e.key === 'Escape') { setOpen(false); }
   }
 
   return (
     <div ref={wrapRef} style={{ position: 'relative' }}>
       <div style={{ position: 'relative' }}>
         <input
-          name="handle"
-          required
-          placeholder="@username"
-          value={value}
-          onChange={handleChange}
-          onKeyDown={handleKey}
-          autoComplete="off"
+          name="handle" required placeholder="@username" value={value}
+          onChange={handleChange} onKeyDown={handleKey} autoComplete="off"
           style={{ ...inputStyle, display: 'block', marginTop: '6px', paddingRight: '32px' }}
         />
-        {loading && (
-          <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: C.textMuted }}>…</span>
+        {status === 'loading' && (
+          <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', fontSize: '12px', color: C.textMuted }}>…</span>
         )}
       </div>
-      {open && results.length > 0 && (
+      {open && (
         <div style={{
           position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 100,
           backgroundColor: C.surface, border: `1px solid ${C.border}`, borderRadius: '8px',
           boxShadow: '0 8px 24px rgba(0,0,0,0.10)', overflow: 'hidden',
         }}>
+          {(status === 'empty' || status === 'error') && (
+            <div style={{ padding: '12px 14px', fontSize: '12px', color: C.textMuted }}>
+              {status === 'error'
+                ? 'Instagram search unavailable — type the username manually'
+                : `No accounts found for "${value}"`}
+            </div>
+          )}
           {results.map((u, i) => (
-            <div
-              key={u.username}
-              onMouseDown={() => pick(u)}
-              onMouseEnter={() => setActiveIdx(i)}
+            <div key={u.username} onMouseDown={() => pick(u)} onMouseEnter={() => setActiveIdx(i)}
               style={{
-                display: 'flex', alignItems: 'center', gap: '10px',
-                padding: '10px 14px', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', cursor: 'pointer',
                 backgroundColor: i === activeIdx ? C.accentFaint : 'transparent',
                 borderBottom: i < results.length - 1 ? `1px solid ${C.borderLight}` : 'none',
                 transition: 'background 0.1s',
               }}
             >
-              {u.profilePic ? (
-                <img src={u.profilePic} alt="" style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
-              ) : (
-                <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: C.surfaceHigh, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', color: C.textMuted }}>@</div>
-              )}
+              {u.profilePic
+                ? <img src={u.profilePic} alt="" style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                : <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: C.surfaceHigh, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', color: C.textMuted }}>@</div>
+              }
               <div>
                 <div style={{ fontWeight: '700', fontSize: '13px', color: C.text }}>@{u.username}</div>
-                {u.fullName && <div style={{ fontSize: '11px', color: C.textSub, marginTop: '1px' }}>{u.fullName}{u.followers ? ` · ${(u.followers / 1000).toFixed(0)}K` : ''}</div>}
+                {u.fullName && <div style={{ fontSize: '11px', color: C.textSub, marginTop: '1px' }}>{u.fullName}{u.followers ? ` · ${(u.followers / 1000).toFixed(1)}K` : ''}</div>}
               </div>
             </div>
           ))}

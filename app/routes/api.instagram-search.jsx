@@ -20,11 +20,15 @@ export async function loader({ request }) {
     });
 
     if (!res.ok) {
-      return Response.json({ users: [], error: 'Instagram unavailable' });
+      console.error(`Instagram search HTTP ${res.status} for query: ${q}`);
+      return Response.json({ users: [], error: `Instagram returned ${res.status}` });
     }
 
     const data = await res.json();
-    const users = (data.users || []).slice(0, 3).map(u => ({
+    const raw = data.users || [];
+    console.log(`Instagram search "${q}": ${raw.length} results`);
+
+    const users = raw.slice(0, 3).map(u => ({
       username: u.user.username,
       fullName: u.user.full_name || '',
       profilePic: u.user.profile_pic_url || null,
@@ -33,7 +37,7 @@ export async function loader({ request }) {
 
     return Response.json({ users });
   } catch (err) {
-    console.error('Instagram search error:', err);
-    return Response.json({ users: [], error: 'Search unavailable' });
+    console.error('Instagram search error:', err.message);
+    return Response.json({ users: [], error: err.message });
   }
 }
