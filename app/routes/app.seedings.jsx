@@ -113,7 +113,15 @@ export default function Seedings() {
         <h2 style={{ margin: 0, color: C.text }}>
           Seedings <span style={{ fontSize: '14px', fontWeight: '400', color: C.textMuted }}>({total})</span>
         </h2>
-        <a href="/app/new" style={{ ...btn.primary, textDecoration: 'none', display: 'inline-block' }}>+ New Seeding</a>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <a
+            href={`/api/seedings-export?${searchParams.toString()}`}
+            style={{ ...btn.ghost, textDecoration: 'none', display: 'inline-block' }}
+          >
+            ↓ Export CSV
+          </a>
+          <a href="/app/new" style={{ ...btn.primary, textDecoration: 'none', display: 'inline-block' }}>+ New Seeding</a>
+        </div>
       </div>
 
       {/* Filter bar */}
