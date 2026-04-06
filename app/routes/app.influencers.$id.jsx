@@ -35,7 +35,7 @@ function adminOrderLink(s) {
 
 function openIGPopup(handle) {
   const username = handle.replace(/^@/, '');
-  const url = `https://www.instagram.com/direct/inbox/`;
+  const url = `https://www.instagram.com/${username}/`;
   const w = 480, h = 680;
   const left = Math.round(window.screen.width / 2 - w / 2);
   const top = Math.round(window.screen.height / 2 - h / 2);
