@@ -136,15 +136,26 @@ export default function NewSeeding() {
   const [step, setStep] = useState(1);
   const [selectedInfluencer, setSelectedInfluencer] = useState(null);
   const [selectedProducts, setSelectedProducts]     = useState([]);
+  const [expandedProductId, setExpandedProductId]   = useState(null);
+  const [activeCollection, setActiveCollection]     = useState('All');
 
-  const toggleProduct = (prod) =>
-    setSelectedProducts(prev =>
-      prev.find(p => p.id === prod.id)
-        ? prev.filter(p => p.id !== prod.id)
-        : [...prev, prod]
-    );
+  const allCollections = ['All', ...new Set(products.flatMap(p => p.collections))];
+  const filteredProducts = activeCollection === 'All'
+    ? products
+    : products.filter(p => p.collections.includes(activeCollection));
 
-  const totalCost = selectedProducts.reduce((sum, p) => sum + p.price, 0);
+  const selectVariant = (prod, variant) => {
+    setSelectedProducts(prev => {
+      const without = prev.filter(p => p.id !== prod.id);
+      return [...without, { ...prod, selectedVariant: variant }];
+    });
+    setExpandedProductId(null);
+  };
+
+  const removeProduct = (prodId) =>
+    setSelectedProducts(prev => prev.filter(p => p.id !== prodId));
+
+  const totalCost = selectedProducts.reduce((sum, p) => sum + (p.selectedVariant?.price ?? p.price), 0);
 
   const StepDot = ({ n, label }) => (
     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -171,9 +182,9 @@ export default function NewSeeding() {
         {selectedProducts.map(p => (
           <span key={p.id}>
             <input type="hidden" name="productIds"    value={p.id} />
-            <input type="hidden" name="variantIds"    value={p.variantId ?? ''} />
-            <input type="hidden" name="productNames"  value={p.name} />
-            <input type="hidden" name="productPrices" value={p.price} />
+            <input type="hidden" name="variantIds"    value={p.selectedVariant?.id ?? p.variantId ?? ''} />
+            <input type="hidden" name="productNames"  value={`${p.name}${p.selectedVariant && p.selectedVariant.title !== 'Default Title' ? ` – ${p.selectedVariant.title}` : ''}`} />
+            <input type="hidden" name="productPrices" value={p.selectedVariant?.price ?? p.price} />
             <input type="hidden" name="productImages" value={p.image ?? ''} />
           </span>
         ))}
@@ -207,45 +218,94 @@ export default function NewSeeding() {
         {/* Step 2 — Products */}
         {step === 2 && (
           <div>
+            {/* Collection filter tabs */}
+            {allCollections.length > 1 && (
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '16px' }}>
+                {allCollections.map(col => (
+                  <button key={col} type="button" onClick={() => setActiveCollection(col)}
+                    style={{ padding: '5px 14px', fontSize: '12px', fontWeight: '600', border: '1px solid #000', cursor: 'pointer', borderRadius: '20px', backgroundColor: activeCollection === col ? '#000' : '#fff', color: activeCollection === col ? '#fff' : '#000' }}>
+                    {col}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Product grid */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: '10px', marginBottom: '20px' }}>
-              {products.map(prod => {
+              {filteredProducts.map(prod => {
                 const selected = selectedProducts.find(p => p.id === prod.id);
                 const outOfStock = prod.stock <= 0;
+                const isExpanded = expandedProductId === prod.id;
+                const isSingleVariant = prod.variants.length === 1 && prod.variants[0].title === 'Default Title';
+
                 return (
-                  <button type="button" key={prod.id}
-                    onClick={() => !outOfStock && toggleProduct(prod)}
-                    disabled={outOfStock}
-                    style={{ padding: '0', backgroundColor: outOfStock ? '#fafafa' : selected ? '#000' : '#fff', color: selected ? '#fff' : '#000', border: outOfStock ? '2px solid #eee' : selected ? '2px solid #000' : '2px solid #e5e5e5', cursor: outOfStock ? 'not-allowed' : 'pointer', textAlign: 'left', borderRadius: '6px', overflow: 'hidden', position: 'relative', opacity: outOfStock ? 0.5 : 1 }}>
-                    {prod.image ? (
-                      <div style={{ width: '100%', aspectRatio: '1 / 1', backgroundColor: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                        <img src={prod.image} alt={prod.name}
-                          style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', filter: selected ? 'brightness(0.45)' : 'none' }} />
+                  <div key={prod.id} style={{ display: 'flex', flexDirection: 'column' }}>
+                    <button type="button"
+                      onClick={() => {
+                        if (outOfStock) return;
+                        if (isSingleVariant) {
+                          selected ? removeProduct(prod.id) : selectVariant(prod, prod.variants[0]);
+                        } else {
+                          setExpandedProductId(isExpanded ? null : prod.id);
+                        }
+                      }}
+                      style={{ padding: '0', backgroundColor: outOfStock ? '#fafafa' : selected ? '#000' : isExpanded ? '#f0f0f0' : '#fff', color: selected ? '#fff' : '#000', border: outOfStock ? '2px solid #eee' : selected ? '2px solid #000' : isExpanded ? '2px solid #000' : '2px solid #e5e5e5', cursor: outOfStock ? 'not-allowed' : 'pointer', textAlign: 'left', borderRadius: isExpanded ? '6px 6px 0 0' : '6px', overflow: 'hidden', position: 'relative', opacity: outOfStock ? 0.5 : 1 }}>
+                      {prod.image ? (
+                        <div style={{ width: '100%', aspectRatio: '1 / 1', backgroundColor: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                          <img src={prod.image} alt={prod.name} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', filter: selected ? 'brightness(0.45)' : 'none' }} />
+                        </div>
+                      ) : (
+                        <div style={{ width: '100%', aspectRatio: '1 / 1', backgroundColor: selected ? '#333' : '#f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px' }}>📦</div>
+                      )}
+                      {selected && (
+                        <div style={{ position: 'absolute', top: '8px', right: '8px', width: '20px', height: '20px', borderRadius: '50%', backgroundColor: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 'bold', color: '#000' }}>✓</div>
+                      )}
+                      {outOfStock && (
+                        <div style={{ position: 'absolute', top: '6px', left: '6px', backgroundColor: '#ff4444', color: '#fff', fontSize: '9px', fontWeight: '800', padding: '2px 5px', borderRadius: '3px', textTransform: 'uppercase' }}>No stock</div>
+                      )}
+                      <div style={{ padding: '8px 10px' }}>
+                        <div style={{ fontWeight: '600', fontSize: '11px', marginBottom: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{prod.name}</div>
+                        <div style={{ fontSize: '11px', opacity: 0.6 }}>
+                          €{prod.price.toFixed(2)}
+                          {selected && prod.selectedVariant?.title !== 'Default Title' && (
+                            <span style={{ marginLeft: '4px', fontWeight: '700', opacity: 1 }}>· {prod.selectedVariant.title}</span>
+                          )}
+                        </div>
                       </div>
-                    ) : (
-                      <div style={{ width: '100%', aspectRatio: '1 / 1', backgroundColor: selected ? '#333' : '#f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px' }}>📦</div>
-                    )}
-                    {selected && (
-                      <div style={{ position: 'absolute', top: '8px', right: '8px', width: '22px', height: '22px', borderRadius: '50%', backgroundColor: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 'bold', color: '#000' }}>✓</div>
-                    )}
-                    {outOfStock && (
-                      <div style={{ position: 'absolute', top: '8px', left: '8px', backgroundColor: '#ff4444', color: '#fff', fontSize: '9px', fontWeight: '800', padding: '2px 6px', borderRadius: '3px', textTransform: 'uppercase', letterSpacing: '0.3px' }}>No stock</div>
-                    )}
-                    <div style={{ padding: '10px 12px' }}>
-                      <div style={{ fontWeight: '600', fontSize: '12px', marginBottom: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{prod.name}</div>
-                      <div style={{ fontSize: '12px', opacity: 0.6 }}>
-                        €{prod.price.toFixed(2)}
-                        {!outOfStock && <span style={{ marginLeft: '6px', color: '#aaa' }}>{prod.stock} left</span>}
+                    </button>
+
+                    {/* Variant picker — shown when expanded */}
+                    {isExpanded && !isSingleVariant && (
+                      <div style={{ border: '2px solid #000', borderTop: 'none', borderRadius: '0 0 6px 6px', padding: '8px', backgroundColor: '#fff', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                        {prod.variants.map(v => (
+                          <button key={v.id} type="button"
+                            onClick={() => v.available && selectVariant(prod, v)}
+                            style={{ padding: '4px 8px', fontSize: '11px', fontWeight: '700', border: '1px solid #ddd', borderRadius: '3px', cursor: v.available ? 'pointer' : 'not-allowed', backgroundColor: !v.available ? '#f5f5f5' : '#fff', color: !v.available ? '#ccc' : '#000', textDecoration: !v.available ? 'line-through' : 'none' }}>
+                            {v.title}
+                          </button>
+                        ))}
                       </div>
-                    </div>
-                  </button>
+                    )}
+                  </div>
                 );
               })}
             </div>
+
+            {/* Selected summary */}
             {selectedProducts.length > 0 && (
-              <p style={{ fontSize: '14px', color: '#666', marginBottom: '20px' }}>
-                {selectedProducts.length} product{selectedProducts.length !== 1 ? 's' : ''} selected · Total: <strong style={{ color: '#000' }}>€{totalCost.toFixed(2)}</strong>
-              </p>
+              <div style={{ marginBottom: '20px', padding: '12px 16px', backgroundColor: '#f5f5f5', borderLeft: '3px solid #000', fontSize: '13px' }}>
+                <strong>{selectedProducts.length} product{selectedProducts.length !== 1 ? 's' : ''}</strong> selected · Total: <strong>€{totalCost.toFixed(2)}</strong>
+                <div style={{ marginTop: '6px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                  {selectedProducts.map(p => (
+                    <span key={p.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '2px 8px', backgroundColor: '#000', color: '#fff', borderRadius: '3px', fontSize: '11px', fontWeight: '600' }}>
+                      {p.name}{p.selectedVariant?.title !== 'Default Title' ? ` – ${p.selectedVariant?.title}` : ''}
+                      <button type="button" onClick={() => removeProduct(p.id)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: '0', fontSize: '13px', lineHeight: 1 }}>×</button>
+                    </span>
+                  ))}
+                </div>
+              </div>
             )}
+
             <div style={{ display: 'flex', gap: '8px' }}>
               <button type="button" onClick={() => setStep(1)} style={{ padding: '10px 20px', border: '1px solid #ccc', background: 'white', cursor: 'pointer' }}>← Back</button>
               <button type="button" onClick={() => setStep(3)} disabled={selectedProducts.length === 0}
@@ -262,7 +322,7 @@ export default function NewSeeding() {
             {/* Summary */}
             <div style={{ padding: '16px', backgroundColor: '#f5f5f5', marginBottom: '28px', borderLeft: '3px solid #000' }}>
               <div style={{ fontSize: '13px', fontWeight: '700', marginBottom: '6px' }}>{selectedInfluencer?.handle}</div>
-              <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>{selectedProducts.map(p => p.name).join(', ')}</div>
+              <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>{selectedProducts.map(p => `${p.name}${p.selectedVariant?.title !== 'Default Title' ? ` (${p.selectedVariant?.title})` : ''}`).join(', ')}</div>
               <div style={{ fontSize: '13px', fontWeight: '700' }}>€{totalCost.toFixed(2)}</div>
             </div>
 

@@ -9,7 +9,7 @@ export async function loader({ request }) {
     const res = await admin.graphql(`
       #graphql
       query GetProducts {
-        products(first: 50) {
+        products(first: 100) {
           edges {
             node {
               id
@@ -18,11 +18,20 @@ export async function loader({ request }) {
               featuredImage {
                 url
               }
-              variants(first: 1) {
+              collections(first: 5) {
+                edges {
+                  node {
+                    title
+                  }
+                }
+              }
+              variants(first: 30) {
                 edges {
                   node {
                     id
+                    title
                     price
+                    availableForSale
                   }
                 }
               }
@@ -37,9 +46,17 @@ export async function loader({ request }) {
       id: edge.node.id,
       name: edge.node.title,
       image: edge.node.featuredImage?.url ?? null,
+      stock: edge.node.totalInventory ?? 0,
+      collections: edge.node.collections.edges.map(c => c.node.title),
+      variants: edge.node.variants.edges.map(v => ({
+        id: v.node.id,
+        title: v.node.title,
+        price: parseFloat(v.node.price || 0),
+        available: v.node.availableForSale,
+      })),
+      // fallback for top products section that uses price directly
       price: parseFloat(edge.node.variants.edges[0]?.node?.price || 0),
       variantId: edge.node.variants.edges[0]?.node?.id ?? null,
-      stock: edge.node.totalInventory ?? 0,
     }));
 
     return { products, shop: session.shop };
