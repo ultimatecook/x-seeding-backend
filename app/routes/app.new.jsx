@@ -233,7 +233,7 @@ export default function NewSeeding() {
             )}
 
             {/* Product grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, minmax(0, 1fr))', gap: '8px', marginBottom: '20px', width: '100%' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: '8px', marginBottom: '20px', width: '100%' }}>
               {filteredProducts.map(prod => {
                 const selected = selectedProducts.find(p => p.id === prod.id);
                 const outOfStock = prod.stock <= 0;
