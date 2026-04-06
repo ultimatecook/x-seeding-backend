@@ -210,9 +210,12 @@ export default function NewSeeding() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '10px', marginBottom: '20px' }}>
               {products.map(prod => {
                 const selected = selectedProducts.find(p => p.id === prod.id);
+                const outOfStock = prod.stock <= 0;
                 return (
-                  <button type="button" key={prod.id} onClick={() => toggleProduct(prod)}
-                    style={{ padding: '0', backgroundColor: selected ? '#000' : '#fff', color: selected ? '#fff' : '#000', border: selected ? '2px solid #000' : '2px solid #e5e5e5', cursor: 'pointer', textAlign: 'left', borderRadius: '6px', overflow: 'hidden', position: 'relative' }}>
+                  <button type="button" key={prod.id}
+                    onClick={() => !outOfStock && toggleProduct(prod)}
+                    disabled={outOfStock}
+                    style={{ padding: '0', backgroundColor: outOfStock ? '#fafafa' : selected ? '#000' : '#fff', color: selected ? '#fff' : '#000', border: outOfStock ? '2px solid #eee' : selected ? '2px solid #000' : '2px solid #e5e5e5', cursor: outOfStock ? 'not-allowed' : 'pointer', textAlign: 'left', borderRadius: '6px', overflow: 'hidden', position: 'relative', opacity: outOfStock ? 0.5 : 1 }}>
                     {prod.image ? (
                       <div style={{ width: '100%', aspectRatio: '1 / 1', backgroundColor: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                         <img src={prod.image} alt={prod.name}
@@ -224,9 +227,15 @@ export default function NewSeeding() {
                     {selected && (
                       <div style={{ position: 'absolute', top: '8px', right: '8px', width: '22px', height: '22px', borderRadius: '50%', backgroundColor: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 'bold', color: '#000' }}>✓</div>
                     )}
+                    {outOfStock && (
+                      <div style={{ position: 'absolute', top: '8px', left: '8px', backgroundColor: '#ff4444', color: '#fff', fontSize: '9px', fontWeight: '800', padding: '2px 6px', borderRadius: '3px', textTransform: 'uppercase', letterSpacing: '0.3px' }}>No stock</div>
+                    )}
                     <div style={{ padding: '10px 12px' }}>
                       <div style={{ fontWeight: '600', fontSize: '12px', marginBottom: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{prod.name}</div>
-                      <div style={{ fontSize: '12px', opacity: 0.6 }}>€{prod.price.toFixed(2)}</div>
+                      <div style={{ fontSize: '12px', opacity: 0.6 }}>
+                        €{prod.price.toFixed(2)}
+                        {!outOfStock && <span style={{ marginLeft: '6px', color: '#aaa' }}>{prod.stock} left</span>}
+                      </div>
                     </div>
                   </button>
                 );
