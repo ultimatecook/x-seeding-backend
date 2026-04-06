@@ -12,13 +12,13 @@ export default function App() {
         <Links />
         <style>{`
           *, *::before, *::after { box-sizing: border-box; }
-          html, body { margin: 0; padding: 0; background: #1C1917; color: #F0EAE0; font-family: system-ui, sans-serif; }
-          input::placeholder, textarea::placeholder { color: #5C5650; }
+          html, body { margin: 0; padding: 0; background: #F6F6F7; color: #1A1A1A; font-family: system-ui, sans-serif; }
+          input::placeholder, textarea::placeholder { color: #9CA3AF; }
           input:focus, textarea:focus, select:focus { outline: 2px solid #D97757; outline-offset: 1px; }
           ::-webkit-scrollbar { width: 6px; height: 6px; }
-          ::-webkit-scrollbar-track { background: #1C1917; }
-          ::-webkit-scrollbar-thumb { background: #3A3630; border-radius: 3px; }
-          option { background: #252219; color: #F0EAE0; }
+          ::-webkit-scrollbar-track { background: #F6F6F7; }
+          ::-webkit-scrollbar-thumb { background: #D1D5DB; border-radius: 3px; }
+          option { background: #fff; color: #1A1A1A; }
         `}</style>
       </head>
       <body>
