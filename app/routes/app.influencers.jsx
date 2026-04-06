@@ -243,13 +243,13 @@ export default function Influencers() {
           <input type="hidden" name="intent" value="create" />
 
           {/* Handle with Instagram autocomplete */}
-          <label style={{ ...lbl.base }}>
+          <div style={{ ...lbl.base, display: 'flex', flexDirection: 'column' }}>
             Instagram Handle *
             <InstagramHandleInput
               inputStyle={inputSt}
               onSelect={(user) => setAutoName(user.fullName || '')}
             />
-          </label>
+          </div>
 
           {/* Name — pre-filled from Instagram selection */}
           <label style={{ ...lbl.base }}>
