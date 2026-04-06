@@ -2,7 +2,7 @@ import { useLoaderData, useRouteError } from 'react-router';
 import { useState } from 'react';
 import { boundary } from '@shopify/shopify-app-react-router/server';
 import prisma from '../db.server';
-import { C, card, section, btn } from '../theme';
+import { C, card, section, btn, fmtNum } from '../theme';
 
 const STATUSES = ['Pending', 'Ordered', 'Shipped', 'Delivered', 'Posted'];
 
@@ -55,7 +55,7 @@ export default function Dashboard() {
 
   const stats = [
     { label: 'Total Seedings', value: filtered.length },
-    { label: 'Total Invested', value: `€${Math.round(totalCost).toLocaleString()}` },
+    { label: 'Total Invested', value: `€${fmtNum(totalCost)}` },
     { label: 'Units Sent',     value: totalUnits },
     { label: 'Countries',      value: countries.length || 0 },
   ];

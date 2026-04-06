@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useLoaderData, useActionData, Form, useNavigation, useRouteError, Link } from 'react-router';
 import { boundary } from '@shopify/shopify-app-react-router/server';
 import prisma from '../db.server';
-import { C, btn, input, card, label as lbl, section } from '../theme';
+import { C, btn, input, card, label as lbl, section, fmtNum } from '../theme';
 
 const COUNTRIES = [
   'Afghanistan','Albania','Algeria','Andorra','Angola','Argentina','Armenia','Australia','Austria','Azerbaijan',
@@ -215,7 +215,7 @@ export default function Influencers() {
                     </Link>
                   </td>
                   <td style={{ padding: '12px 12px', color: C.text }}>{inf.name}</td>
-                  <td style={{ padding: '12px 12px', color: C.textSub }}>{inf.followers?.toLocaleString()}</td>
+                  <td style={{ padding: '12px 12px', color: C.textSub }}>{fmtNum(inf.followers)}</td>
                   <td style={{ padding: '12px 12px', color: C.textSub }}>{inf.country}</td>
                   <td style={{ padding: '12px 12px', color: C.textMuted }}>{inf.email || '—'}</td>
                   <td style={{ padding: '12px 12px' }}>

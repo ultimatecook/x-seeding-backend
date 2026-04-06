@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useLoaderData, useActionData, Form, useNavigation, useRouteLoaderData, useRouteError, Link, redirect } from 'react-router';
 import { boundary } from '@shopify/shopify-app-react-router/server';
 import prisma from '../db.server';
-import { C, btn, input, card, section } from '../theme';
+import { C, btn, input, card, section, fmtDate, fmtNum } from '../theme';
 
 function adminOrderLink(s) {
   if (!s.shop) return null;
@@ -136,8 +136,8 @@ export default function CampaignDetail() {
         <div>
           <h2 style={{ margin: '0 0 6px', fontSize: '24px', color: C.text }}>{campaign.title}</h2>
           <div style={{ fontSize: '13px', color: C.textMuted, display: 'flex', gap: '14px' }}>
-            <span>Created {new Date(campaign.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
-            {campaign.budget != null && <span style={{ fontWeight: '700', color: C.accent }}>Budget: €{campaign.budget.toLocaleString()}</span>}
+            <span>Created {fmtDate(campaign.createdAt, 'medium')}</span>
+            {campaign.budget != null && <span style={{ fontWeight: '700', color: C.accent }}>Budget: €{fmtNum(campaign.budget)}</span>}
           </div>
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
@@ -171,7 +171,7 @@ export default function CampaignDetail() {
         <div style={{ marginBottom: '24px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: C.textSub, marginBottom: '6px' }}>
             <span>Budget used</span>
-            <span style={{ fontWeight: '700', color: C.text }}>€{totalCost.toFixed(2)} / €{campaign.budget.toLocaleString()} ({budgetPct.toFixed(0)}%)</span>
+            <span style={{ fontWeight: '700', color: C.text }}>€{totalCost.toFixed(2)} / €{fmtNum(campaign.budget)} ({budgetPct.toFixed(0)}%)</span>
           </div>
           <div style={{ height: '6px', backgroundColor: C.surfaceHigh, borderRadius: '3px', overflow: 'hidden' }}>
             <div style={{ height: '100%', width: `${budgetPct}%`, backgroundColor: budgetPct >= 90 ? C.errorText : budgetPct >= 70 ? '#DD8833' : C.accent, borderRadius: '3px', transition: 'width 0.3s' }} />
@@ -347,7 +347,7 @@ export default function CampaignDetail() {
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span style={{ fontSize: '11px', color: C.textMuted }}>
-                    {new Date(s.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                    {fmtDate(s.createdAt, 'short')}
                   </span>
                   <Form method="post" onSubmit={e => { if (!confirm('Delete this seeding?')) e.preventDefault(); }}>
                     <input type="hidden" name="intent" value="deleteSeeding" />

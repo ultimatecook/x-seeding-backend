@@ -1,7 +1,7 @@
 import { Link, useLoaderData, useRouteError } from 'react-router';
 import { boundary } from '@shopify/shopify-app-react-router/server';
 import prisma from '../db.server';
-import { C, btn, card, section } from '../theme';
+import { C, btn, card, section, fmtNum, fmtDate } from '../theme';
 
 const STATUSES = ['Pending', 'Ordered', 'Shipped', 'Delivered', 'Posted'];
 
@@ -58,7 +58,7 @@ export default function InfluencerDetail() {
 
   const stats = [
     { label: 'Total Seedings', value: seedings.length },
-    { label: 'Total Value',    value: `€${Math.round(totalCost).toLocaleString()}` },
+    { label: 'Total Value',    value: `€${fmtNum(totalCost)}` },
     { label: 'Units Received', value: totalUnits },
     { label: 'Avg per Seeding', value: `€${Math.round(avgCost)}` },
   ];
@@ -84,7 +84,7 @@ export default function InfluencerDetail() {
                 <span style={{ fontSize: '12px', color: C.textMuted }}>📍 {influencer.country}</span>
               )}
               {influencer.followers > 0 && (
-                <span style={{ fontSize: '12px', color: C.textMuted }}>👥 {influencer.followers.toLocaleString()} followers</span>
+                <span style={{ fontSize: '12px', color: C.textMuted }}>👥 {fmtNum(influencer.followers)} followers</span>
               )}
               {influencer.email && (
                 <a href={`mailto:${influencer.email}`} style={{ fontSize: '12px', color: C.accent, textDecoration: 'none' }}>✉ {influencer.email}</a>
@@ -162,7 +162,7 @@ export default function InfluencerDetail() {
                   return (
                     <tr key={s.id} style={{ borderBottom: `1px solid ${C.borderLight}` }}>
                       <td style={{ padding: '12px', color: C.textMuted, whiteSpace: 'nowrap' }}>
-                        {new Date(s.createdAt).toLocaleDateString('en-GB')}
+                        {fmtDate(s.createdAt)}
                       </td>
                       <td style={{ padding: '12px' }}>
                         {s.campaign
