@@ -70,7 +70,8 @@ model SeedingProduct {
   productId   String
   variantId   String?
   productName String
-  price       Float
+  price       Float           // retail price
+  cost        Float?          // cost per unit (Shopify inventoryItem.unitCost)
   imageUrl    String?
 }
 

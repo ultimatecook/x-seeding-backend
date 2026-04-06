@@ -20,7 +20,10 @@ export async function loader({ request }) {
               collections(first: 5) { edges { node { title } } }
               variants(first: 30) {
                 edges {
-                  node { id title price availableForSale }
+                  node {
+                    id title price availableForSale
+                    inventoryItem { unitCost { amount } }
+                  }
                 }
               }
             }
@@ -40,9 +43,11 @@ export async function loader({ request }) {
         id:        v.node.id,
         title:     v.node.title,
         price:     parseFloat(v.node.price || 0),
+        cost:      parseFloat(v.node.inventoryItem?.unitCost?.amount || 0) || null,
         available: v.node.availableForSale,
       })),
       price:     parseFloat(edge.node.variants.edges[0]?.node?.price || 0),
+      cost:      parseFloat(edge.node.variants.edges[0]?.node?.inventoryItem?.unitCost?.amount || 0) || null,
       variantId: edge.node.variants.edges[0]?.node?.id ?? null,
     }));
 

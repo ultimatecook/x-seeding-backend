@@ -23,6 +23,7 @@ export async function action({ request }) {
   const variantIds    = formData.getAll('variantIds');
   const productNames  = formData.getAll('productNames');
   const productPrices = formData.getAll('productPrices').map(Number);
+  const productCosts  = formData.getAll('productCosts').map(v => v ? Number(v) : null);
   const productImages = formData.getAll('productImages');
   const totalCost     = productPrices.reduce((sum, p) => sum + p, 0);
   const notes         = formData.get('notes') || '';
@@ -80,6 +81,7 @@ export async function action({ request }) {
           variantId:   variantIds[i] || null,
           productName: productNames[i],
           price:       productPrices[i],
+          cost:        productCosts[i] ?? null,
           imageUrl:    productImages[i] || null,
         })),
       },
@@ -122,7 +124,8 @@ export default function NewSeeding() {
     setSearch('');
   };
 
-  const totalCost = selectedProducts.reduce((sum, p) => sum + (p.selectedVariant?.price ?? p.price), 0);
+  const totalRetail = selectedProducts.reduce((sum, p) => sum + (p.selectedVariant?.price ?? p.price), 0);
+  const totalCost   = selectedProducts.reduce((sum, p) => sum + (p.selectedVariant?.cost ?? p.cost ?? 0), 0);
 
   const StepDot = ({ n, label }) => (
     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -165,6 +168,7 @@ export default function NewSeeding() {
             <input type="hidden" name="variantIds"    value={p.selectedVariant?.id ?? p.variantId ?? ''} />
             <input type="hidden" name="productNames"  value={`${p.name}${p.selectedVariant && p.selectedVariant.title !== 'Default Title' ? ` – ${p.selectedVariant.title}` : ''}`} />
             <input type="hidden" name="productPrices" value={p.selectedVariant?.price ?? p.price} />
+            <input type="hidden" name="productCosts"  value={p.selectedVariant?.cost ?? p.cost ?? ''} />
             <input type="hidden" name="productImages" value={p.image ?? ''} />
           </span>
         ))}
@@ -278,7 +282,10 @@ export default function NewSeeding() {
                       <div style={{ padding: '7px 8px', backgroundColor: selected ? C.accentFaint : C.surface }}>
                         <div style={{ fontWeight: '600', fontSize: '11px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: selected ? C.accent : C.text }}>{prod.name}</div>
                         <div style={{ fontSize: '11px', color: C.textMuted }}>
-                          €{prod.price.toFixed(2)}
+                          <span title="Retail price">€{prod.price.toFixed(2)}</span>
+                          {prod.cost != null && (
+                            <span title="Cost per unit" style={{ marginLeft: '4px', color: C.textMuted, opacity: 0.75 }}>· cost €{prod.cost.toFixed(2)}</span>
+                          )}
                           {selected?.selectedVariant && selected.selectedVariant.title !== 'Default Title' && (
                             <span style={{ marginLeft: '4px', color: C.accent, fontWeight: '700' }}>· {selected.selectedVariant.title}</span>
                           )}
@@ -304,8 +311,12 @@ export default function NewSeeding() {
             {selectedProducts.length > 0 && (
               <div style={{ marginBottom: '20px', padding: '12px 16px', backgroundColor: C.accentFaint, border: `1px solid ${C.accent}`, borderRadius: '8px', fontSize: '13px' }}>
                 <strong style={{ color: C.accent }}>{selectedProducts.length} product{selectedProducts.length !== 1 ? 's' : ''}</strong>
-                <span style={{ color: C.textSub }}> selected · Total: </span>
-                <strong style={{ color: C.text }}>€{totalCost.toFixed(2)}</strong>
+                <span style={{ color: C.textSub }}> selected · Retail: </span>
+                <strong style={{ color: C.text }}>€{totalRetail.toFixed(2)}</strong>
+                {totalCost > 0 && <>
+                  <span style={{ color: C.textSub }}> · Cost: </span>
+                  <strong style={{ color: C.text }}>€{totalCost.toFixed(2)}</strong>
+                </>}
                 <div style={{ marginTop: '8px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                   {selectedProducts.map(p => (
                     <span key={p.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 10px', backgroundColor: C.surfaceHigh, color: C.text, borderRadius: '20px', fontSize: '11px', fontWeight: '600', border: `1px solid ${C.border}` }}>
@@ -334,7 +345,10 @@ export default function NewSeeding() {
               <div style={{ fontSize: '14px', fontWeight: '700', marginBottom: '4px', color: C.text }}>{selectedInfluencer?.handle}</div>
               {selectedCampaign && <div style={{ fontSize: '12px', color: C.accent, marginBottom: '4px' }}>📁 {selectedCampaign.title}</div>}
               <div style={{ fontSize: '12px', color: C.textSub, marginBottom: '4px' }}>{selectedProducts.map(p => `${p.name}${p.selectedVariant && p.selectedVariant.title !== 'Default Title' ? ` (${p.selectedVariant.title})` : ''}`).join(', ')}</div>
-              <div style={{ fontSize: '14px', fontWeight: '800', color: C.accent }}>€{totalCost.toFixed(2)}</div>
+              <div style={{ fontSize: '14px', fontWeight: '800', color: C.accent }}>
+                Retail €{totalRetail.toFixed(2)}
+                {totalCost > 0 && <span style={{ fontSize: '12px', fontWeight: '600', color: C.textSub, marginLeft: '10px' }}>Cost €{totalCost.toFixed(2)}</span>}
+              </div>
             </div>
 
             <div style={{ padding: '16px', border: `1px solid ${C.border}`, backgroundColor: C.surfaceHigh, borderRadius: '8px', marginBottom: '24px' }}>
