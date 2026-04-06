@@ -210,7 +210,18 @@ export default function Influencers() {
               {influencers.map(inf => (
                 <tr key={inf.id} style={{ borderBottom: `1px solid ${C.borderLight}` }}>
                   <td style={{ padding: '12px 12px', fontWeight: '700' }}>
-                    <Link to={`/app/influencers/${inf.id}`} style={{ color: C.accent, textDecoration: 'none' }}>
+                    <Link to={`/app/influencers/${inf.id}`} style={{ color: C.accent, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{ width: '32px', height: '32px', borderRadius: '50%', overflow: 'hidden', flexShrink: 0, backgroundColor: C.accentFaint, border: `1.5px solid ${C.accent}`, position: 'relative' }}>
+                        <img
+                          src={`https://unavatar.io/instagram/${inf.handle.replace(/^@/, '')}`}
+                          alt=""
+                          onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'flex'; }}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                        />
+                        <div style={{ display: 'none', position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: '800', color: C.accent }}>
+                          {(inf.handle || '@').slice(1, 2).toUpperCase()}
+                        </div>
+                      </div>
                       {inf.handle}
                     </Link>
                   </td>
