@@ -83,8 +83,16 @@ export default function InfluencerDetail() {
       {/* Profile header */}
       <div style={{ ...card.base, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <div style={{ width: '52px', height: '52px', borderRadius: '50%', backgroundColor: C.accentFaint, border: `2px solid ${C.accent}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', fontWeight: '800', color: C.accent, flexShrink: 0 }}>
-            {(influencer.handle || '@').slice(1, 2).toUpperCase()}
+          <div style={{ width: '52px', height: '52px', borderRadius: '50%', backgroundColor: C.accentFaint, border: `2px solid ${C.accent}`, flexShrink: 0, overflow: 'hidden', position: 'relative' }}>
+            <img
+              src={`https://unavatar.io/instagram/${influencer.handle.replace(/^@/, '')}`}
+              alt=""
+              onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'flex'; }}
+              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+            />
+            <div style={{ display: 'none', width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center', fontSize: '20px', fontWeight: '800', color: C.accent, position: 'absolute', inset: 0 }}>
+              {(influencer.handle || '@').slice(1, 2).toUpperCase()}
+            </div>
           </div>
           <div>
             <div style={{ fontSize: '20px', fontWeight: '800', color: C.text, marginBottom: '2px' }}>{influencer.handle}</div>
