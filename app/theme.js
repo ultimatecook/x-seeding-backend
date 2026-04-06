@@ -1,40 +1,40 @@
 // ── X Seeding Manager — Design System ──────────────────────────────────────
-// Dark mode, Claude-inspired palette
+// Light mode, seamless with Shopify admin, Claude orange accents
 
 export const C = {
-  // Backgrounds
-  bg:          '#1C1917',
-  surface:     '#252219',
-  surfaceHigh: '#2E2A23',
-  overlay:     '#1A1714',
+  // Backgrounds — matches Shopify admin palette
+  bg:          '#F6F6F7',   // Shopify page background
+  surface:     '#FFFFFF',   // cards, panels
+  surfaceHigh: '#F1F1F1',   // elevated/inner panels, greyish cards
+  overlay:     '#FAFAFA',   // inputs, subtle fills
 
   // Borders
-  border:      '#3A3630',
-  borderLight: '#2E2A24',
+  border:      '#E3E3E3',
+  borderLight: '#EBEBEB',
 
   // Accent — Claude orange
   accent:      '#D97757',
   accentHover: '#C86845',
-  accentFaint: '#3A2010',
+  accentFaint: '#FDF0EB',   // very light orange tint for selected states
 
   // Text
-  text:        '#F0EAE0',
-  textSub:     '#9A9086',
-  textMuted:   '#5C5650',
+  text:        '#1A1A1A',
+  textSub:     '#6B7280',
+  textMuted:   '#9CA3AF',
 
   // Semantic
-  successBg:   '#192B1F',
-  successText: '#5BBF7A',
-  errorBg:     '#2B1616',
-  errorText:   '#E06060',
+  successBg:   '#F0FDF4',
+  successText: '#166534',
+  errorBg:     '#FEF2F2',
+  errorText:   '#DC2626',
 
-  // Status badges
+  // Status badges — readable on light background
   status: {
-    Pending:   { background: '#2E2510', color: '#C4962A' },
-    Ordered:   { background: '#101C2E', color: '#5A9ED4' },
-    Shipped:   { background: '#102A18', color: '#5ABF7A' },
-    Delivered: { background: '#10242E', color: '#40AABB' },
-    Posted:    { background: '#1E1030', color: '#9A78D4' },
+    Pending:   { background: '#FEF9C3', color: '#854D0E' },
+    Ordered:   { background: '#DBEAFE', color: '#1E40AF' },
+    Shipped:   { background: '#DCFCE7', color: '#166534' },
+    Delivered: { background: '#CFFAFE', color: '#155E75' },
+    Posted:    { background: '#F3E8FF', color: '#6B21A8' },
   },
 };
 
@@ -87,7 +87,7 @@ export const input = {
   base: {
     padding: '9px 12px',
     border: `1px solid ${C.border}`,
-    backgroundColor: C.overlay,
+    backgroundColor: C.surface,
     color: C.text,
     fontSize: '13px',
     width: '100%',
