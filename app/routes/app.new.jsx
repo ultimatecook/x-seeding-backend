@@ -139,10 +139,12 @@ export default function NewSeeding() {
   const [expandedProductId, setExpandedProductId]   = useState(null);
   const [activeCollection, setActiveCollection]     = useState('All');
 
+  const [search, setSearch] = useState('');
+
   const allCollections = ['All', ...new Set(products.flatMap(p => p.collections))];
-  const filteredProducts = activeCollection === 'All'
-    ? products
-    : products.filter(p => p.collections.includes(activeCollection));
+  const filteredProducts = products
+    .filter(p => activeCollection === 'All' || p.collections.includes(activeCollection))
+    .filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase()));
 
   const selectVariant = (prod, variant) => {
     setSelectedProducts(prev => {
@@ -220,6 +222,15 @@ export default function NewSeeding() {
         {/* Step 2 — Products */}
         {step === 2 && (
           <div style={{ width: '100%' }}>
+            {/* Search */}
+            <input
+              type="text"
+              placeholder="Search products..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              style={{ width: '100%', padding: '9px 12px', border: '1px solid #ddd', fontSize: '13px', marginBottom: '12px', boxSizing: 'border-box' }}
+            />
+
             {/* Collection filter tabs */}
             {allCollections.length > 1 && (
               <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '16px' }}>
