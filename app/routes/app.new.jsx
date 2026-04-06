@@ -155,7 +155,7 @@ export default function NewSeeding() {
   );
 
   return (
-    <div style={{ maxWidth: '680px' }}>
+    <div style={{ maxWidth: '1100px' }}>
       <h2 style={{ marginTop: 0, marginBottom: '24px' }}>New Seeding</h2>
 
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: '36px' }}>
@@ -207,7 +207,7 @@ export default function NewSeeding() {
         {/* Step 2 — Products */}
         {step === 2 && (
           <div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '10px', marginBottom: '20px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: '10px', marginBottom: '20px' }}>
               {products.map(prod => {
                 const selected = selectedProducts.find(p => p.id === prod.id);
                 const outOfStock = prod.stock <= 0;
