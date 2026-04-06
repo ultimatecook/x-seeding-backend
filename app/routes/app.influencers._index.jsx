@@ -97,8 +97,25 @@ export default function Influencers() {
   const navigation      = useNavigation();
   const [showForm, setShowForm]     = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [tierFilter, setTierFilter] = useState('all');
   const isSubmitting = navigation.state === 'submitting';
 
+  const TIERS = [
+    { key: 'all',   label: 'All' },
+    { key: 'micro', label: '🌱 Micro',     sub: '0 – 50K' },
+    { key: 'mid',   label: '⭐ Influencer', sub: '50K – 500K' },
+    { key: 'celeb', label: '🏆 Celebrity',  sub: '500K+' },
+  ];
+
+  const tierMatch = (inf) => {
+    const f = inf.followers || 0;
+    if (tierFilter === 'micro') return f < 50000;
+    if (tierFilter === 'mid')   return f >= 50000 && f < 500000;
+    if (tierFilter === 'celeb') return f >= 500000;
+    return true;
+  };
+
+  const filtered = influencers.filter(tierMatch);
   const inputSt = { ...input.base };
 
   return (
@@ -106,7 +123,7 @@ export default function Influencers() {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '28px' }}>
         <h2 style={{ margin: 0, color: C.text }}>
-          Influencers <span style={{ fontSize: '14px', fontWeight: '400', color: C.textMuted }}>({influencers.length})</span>
+          Influencers <span style={{ fontSize: '14px', fontWeight: '400', color: C.textMuted }}>({filtered.length})</span>
         </h2>
         <div style={{ display: 'flex', gap: '8px' }}>
           <button onClick={() => { setShowImport(v => !v); setShowForm(false); }}
@@ -118,6 +135,32 @@ export default function Influencers() {
             {showForm ? 'Cancel' : '+ Add Influencer'}
           </button>
         </div>
+      </div>
+
+      {/* Tier filters */}
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
+        {TIERS.map(t => {
+          const active = tierFilter === t.key;
+          const count = t.key === 'all' ? influencers.length : influencers.filter(i => {
+            const f = i.followers || 0;
+            if (t.key === 'micro') return f < 50000;
+            if (t.key === 'mid')   return f >= 50000 && f < 500000;
+            if (t.key === 'celeb') return f >= 500000;
+          }).length;
+          return (
+            <button key={t.key} onClick={() => setTierFilter(t.key)} style={{
+              padding: '7px 14px', borderRadius: '20px', border: `1.5px solid ${active ? C.accent : C.border}`,
+              backgroundColor: active ? C.accentFaint : 'transparent',
+              color: active ? C.accent : C.textSub,
+              fontSize: '13px', fontWeight: active ? '700' : '500', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: '6px',
+            }}>
+              {t.label}
+              {t.sub && <span style={{ fontSize: '11px', color: active ? C.accent : C.textMuted, fontWeight: '400' }}>{t.sub}</span>}
+              <span style={{ fontSize: '11px', fontWeight: '700', backgroundColor: active ? C.accent : C.borderLight, color: active ? '#fff' : C.textSub, borderRadius: '10px', padding: '1px 7px' }}>{count}</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Banners */}
@@ -191,7 +234,7 @@ export default function Influencers() {
       )}
 
       {/* Table */}
-      {influencers.length === 0 ? (
+      {filtered.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '60px', color: C.textMuted, border: `2px dashed ${C.border}`, borderRadius: '8px' }}>
           <p style={{ margin: '0 0 8px', fontSize: '16px', color: C.textSub }}>No influencers yet.</p>
           <p style={{ margin: 0, fontSize: '13px' }}>Add one manually or import a CSV.</p>
@@ -207,7 +250,7 @@ export default function Influencers() {
               </tr>
             </thead>
             <tbody>
-              {influencers.map(inf => (
+              {filtered.map(inf => (
                 <tr key={inf.id} style={{ borderBottom: `1px solid ${C.borderLight}` }}>
                   <td style={{ padding: '12px 12px', fontWeight: '700' }}>
                     <Link to={`/app/influencers/${inf.id}`} style={{ color: C.accent, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '10px' }}>
