@@ -71,3 +71,22 @@ model SeedingProduct {
   price       Float
   imageUrl    String?
 }
+
+model Campaign {
+  id           Int                @id @default(autoincrement())
+  shop         String
+  title        String
+  budget       Float?
+  createdAt    DateTime           @default(now())
+  products     CampaignProduct[]
+}
+
+model CampaignProduct {
+  id          Int      @id @default(autoincrement())
+  campaignId  Int
+  campaign    Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  productId   String
+  productName String
+  imageUrl    String?
+  maxUnits    Int?
+}
