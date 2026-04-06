@@ -1,7 +1,7 @@
 import { useLoaderData, Form, useRouteError, useSearchParams } from 'react-router';
 import { boundary } from '@shopify/shopify-app-react-router/server';
 import prisma from '../db.server';
-import { C, btn, card } from '../theme';
+import { C, btn, card, fmtDate } from '../theme';
 
 const STATUSES  = ['Pending', 'Ordered', 'Shipped', 'Delivered', 'Posted'];
 const PAGE_SIZE = 30;
@@ -251,7 +251,7 @@ export default function Seedings() {
                         ) : <span style={{ color: C.textMuted }}>—</span>}
                       </td>
                       <td style={{ padding: '12px 12px', color: C.textMuted, fontSize: '12px', whiteSpace: 'nowrap' }}>
-                        {new Date(s.createdAt).toLocaleDateString('en-GB')}
+                        {fmtDate(s.createdAt)}
                       </td>
                       <td style={{ padding: '12px 12px' }}>
                         <Form method="post" onSubmit={e => { if (!confirm('Delete this seeding?')) e.preventDefault(); }}>

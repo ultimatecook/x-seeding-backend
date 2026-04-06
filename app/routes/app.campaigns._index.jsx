@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useLoaderData, useActionData, Form, useNavigation, useRouteLoaderData, useRouteError, Link } from 'react-router';
 import { boundary } from '@shopify/shopify-app-react-router/server';
 import prisma from '../db.server';
-import { C, btn, input, card, label as lbl } from '../theme';
+import { C, btn, input, card, label as lbl, fmtDate, fmtNum } from '../theme';
 
 export async function loader() {
   const campaigns = await prisma.campaign.findMany({
@@ -193,8 +193,8 @@ export default function Campaigns() {
                     {c.title} <span style={{ fontSize: '13px', fontWeight: '400', color: C.textMuted }}>→</span>
                   </div>
                   <div style={{ fontSize: '12px', color: C.textMuted, display: 'flex', gap: '12px' }}>
-                    <span>{new Date(c.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
-                    {c.budget != null && <span style={{ color: C.accent, fontWeight: '700' }}>€{c.budget.toLocaleString()}</span>}
+                    <span>{fmtDate(c.createdAt, 'medium')}</span>
+                    {c.budget != null && <span style={{ color: C.accent, fontWeight: '700' }}>€{fmtNum(c.budget)}</span>}
                     <span>{c.seedings.length} seeding{c.seedings.length !== 1 ? 's' : ''}</span>
                     <span>{c.products.length} product{c.products.length !== 1 ? 's' : ''}</span>
                   </div>

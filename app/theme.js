@@ -131,3 +131,25 @@ export const section = {
     marginBottom: '14px',
   },
 };
+
+// ── Safe formatters (identical output on Node.js server + browser) ───────────
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+/** DD/MM/YYYY  |  'short' → "6 Apr"  |  'medium' → "6 Apr 2026" */
+export function fmtDate(d, format = 'dmy') {
+  const dt  = new Date(d);
+  const day = dt.getUTCDate();
+  const mon = MONTHS[dt.getUTCMonth()];
+  const yr  = dt.getUTCFullYear();
+  const dd  = String(day).padStart(2, '0');
+  const mm  = String(dt.getUTCMonth() + 1).padStart(2, '0');
+  if (format === 'short')  return `${day} ${mon}`;
+  if (format === 'medium') return `${day} ${mon} ${yr}`;
+  return `${dd}/${mm}/${yr}`;
+}
+
+/** 45200 → "45,200" */
+export function fmtNum(n) {
+  if (n == null) return '';
+  return String(Math.round(Number(n))).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}

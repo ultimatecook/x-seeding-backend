@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useLoaderData, useRouteLoaderData, useNavigate, Form, redirect, useRouteError } from 'react-router';
 import { boundary } from '@shopify/shopify-app-react-router/server';
 import prisma from '../db.server';
-import { C, btn, input, card } from '../theme';
+import { C, btn, input, card, fmtNum } from '../theme';
 
 export async function loader() {
   const influencers = await prisma.influencer.findMany({ orderBy: { name: 'asc' } });
@@ -184,7 +184,7 @@ export default function NewSeeding() {
                       <button key={c.id} type="button" onClick={() => handleCampaignSelect(active ? null : c)}
                         style={{ padding: '7px 16px', fontSize: '13px', fontWeight: '600', border: `1px solid ${active ? C.accent : C.border}`, cursor: 'pointer', borderRadius: '20px', backgroundColor: active ? C.accentFaint : 'transparent', color: active ? C.accent : C.textSub }}>
                         {active ? '✓ ' : ''}{c.title}
-                        {c.budget != null && <span style={{ fontWeight: '400', opacity: 0.6, marginLeft: '6px', fontSize: '11px' }}>€{c.budget.toLocaleString()}</span>}
+                        {c.budget != null && <span style={{ fontWeight: '400', opacity: 0.6, marginLeft: '6px', fontSize: '11px' }}>€{fmtNum(c.budget)}</span>}
                       </button>
                     );
                   })}
@@ -207,7 +207,7 @@ export default function NewSeeding() {
               influencers.map(inf => (
                 <button type="button" key={inf.id} onClick={() => setSelectedInfluencer(inf)} style={infBtn(selectedInfluencer?.id === inf.id)}>
                   <span style={{ fontWeight: '700' }}>{inf.handle}</span>
-                  <span style={{ fontSize: '12px', opacity: 0.6, marginLeft: '8px' }}>{inf.name} · {inf.followers?.toLocaleString()} followers · {inf.country}</span>
+                  <span style={{ fontSize: '12px', opacity: 0.6, marginLeft: '8px' }}>{inf.name} · {fmtNum(inf.followers)} followers · {inf.country}</span>
                 </button>
               ))
             )}
