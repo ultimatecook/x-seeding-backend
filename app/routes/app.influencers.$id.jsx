@@ -1,4 +1,5 @@
 import { Link, useLoaderData, useRouteError } from 'react-router';
+import { useState } from 'react';
 import { boundary } from '@shopify/shopify-app-react-router/server';
 import prisma from '../db.server';
 import { C, btn, card, section, fmtNum, fmtDate } from '../theme';
@@ -33,9 +34,76 @@ function adminOrderLink(s) {
   return null;
 }
 
+function IGModal({ handle, onClose }) {
+  const username = handle.replace(/^@/, '');
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 9999,
+        backgroundColor: 'rgba(0,0,0,0.55)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          width: '420px', height: '620px', borderRadius: '16px',
+          overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.4)',
+          backgroundColor: '#fff', display: 'flex', flexDirection: 'column',
+          position: 'relative',
+        }}
+      >
+        {/* Header */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '12px 16px', borderBottom: '1px solid #efefef',
+          backgroundColor: '#fff', flexShrink: 0,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect width="24" height="24" rx="6" fill="url(#ig-grad)"/>
+              <circle cx="12" cy="12" r="4.5" stroke="white" strokeWidth="1.8"/>
+              <circle cx="17" cy="7" r="1.2" fill="white"/>
+              <defs>
+                <linearGradient id="ig-grad" x1="0" y1="24" x2="24" y2="0">
+                  <stop offset="0%" stopColor="#f09433"/>
+                  <stop offset="25%" stopColor="#e6683c"/>
+                  <stop offset="50%" stopColor="#dc2743"/>
+                  <stop offset="75%" stopColor="#cc2366"/>
+                  <stop offset="100%" stopColor="#bc1888"/>
+                </linearGradient>
+              </defs>
+            </svg>
+            <span style={{ fontSize: '14px', fontWeight: '700', color: '#000' }}>@{username}</span>
+          </div>
+          <button
+            onClick={onClose}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '20px', color: '#999', lineHeight: 1, padding: '4px' }}
+          >×</button>
+        </div>
+        {/* iframe */}
+        <iframe
+          src={`https://www.instagram.com/direct/t/${username}`}
+          style={{ flex: 1, width: '100%', border: 'none' }}
+          title={`Instagram DM with ${username}`}
+        />
+        {/* Footer hint */}
+        <div style={{
+          padding: '8px 16px', fontSize: '11px', color: '#aaa',
+          textAlign: 'center', borderTop: '1px solid #efefef', backgroundColor: '#fafafa', flexShrink: 0,
+        }}>
+          Make sure you're logged in to Instagram in your browser
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function InfluencerDetail() {
   const { influencer } = useLoaderData();
   const seedings = influencer.seedings;
+  const [showIG, setShowIG] = useState(false);
 
   const totalCost  = seedings.reduce((s, sd) => s + sd.totalCost, 0);
   const totalUnits = seedings.reduce((s, sd) => s + sd.products.length, 0);
@@ -70,6 +138,9 @@ export default function InfluencerDetail() {
         ← All Influencers
       </Link>
 
+      {/* Instagram modal */}
+      {showIG && <IGModal handle={influencer.handle} onClose={() => setShowIG(false)} />}
+
       {/* Profile header */}
       <div style={{ ...card.base, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -92,6 +163,24 @@ export default function InfluencerDetail() {
             </div>
           </div>
         </div>
+        {/* Message on Instagram button */}
+        <button
+          onClick={() => setShowIG(true)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: '7px',
+            padding: '9px 16px', borderRadius: '8px', border: 'none',
+            cursor: 'pointer', fontSize: '13px', fontWeight: '700',
+            background: 'linear-gradient(135deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)',
+            color: '#fff', flexShrink: 0,
+          }}
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="4.5" stroke="white" strokeWidth="2"/>
+            <rect x="1.5" y="1.5" width="21" height="21" rx="6" stroke="white" strokeWidth="2"/>
+            <circle cx="17.5" cy="6.5" r="1.2" fill="white"/>
+          </svg>
+          Message on Instagram
+        </button>
       </div>
 
       {/* Stat tiles */}
