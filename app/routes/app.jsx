@@ -14,6 +14,7 @@ export async function loader({ request }) {
             node {
               id
               title
+              totalInventory
               featuredImage {
                 url
               }
@@ -38,6 +39,7 @@ export async function loader({ request }) {
       image: edge.node.featuredImage?.url ?? null,
       price: parseFloat(edge.node.variants.edges[0]?.node?.price || 0),
       variantId: edge.node.variants.edges[0]?.node?.id ?? null,
+      stock: edge.node.totalInventory ?? 0,
     }));
 
     return { products, shop: session.shop };
