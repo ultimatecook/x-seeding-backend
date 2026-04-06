@@ -1,13 +1,11 @@
 import { Link, useLoaderData, useRouteError } from 'react-router';
 import { boundary } from '@shopify/shopify-app-react-router/server';
-import { authenticate } from '../shopify.server';
 import prisma from '../db.server';
 import { C, btn, card, section } from '../theme';
 
 const STATUSES = ['Pending', 'Ordered', 'Shipped', 'Delivered', 'Posted'];
 
-export async function loader({ request, params }) {
-  await authenticate.admin(request);
+export async function loader({ params }) {
   const id = parseInt(params.id);
 
   const influencer = await prisma.influencer.findUnique({
