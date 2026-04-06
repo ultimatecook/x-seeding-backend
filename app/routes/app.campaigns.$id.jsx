@@ -4,6 +4,19 @@ import { boundary } from '@shopify/shopify-app-react-router/server';
 import prisma from '../db.server';
 import { C, btn, input, card, section } from '../theme';
 
+function adminOrderLink(s) {
+  if (!s.shop) return null;
+  if (s.shopifyOrderName && s.status !== 'Pending') {
+    const orderId = s.shopifyOrderName.replace('#', '');
+    return `https://${s.shop}/admin/orders/${orderId}`;
+  }
+  if (s.shopifyDraftOrderId) {
+    const draftId = s.shopifyDraftOrderId.split('/').pop();
+    return `https://${s.shop}/admin/draft_orders/${draftId}`;
+  }
+  return null;
+}
+
 export async function loader({ params }) {
   const id = parseInt(params.id);
   const campaign = await prisma.campaign.findUnique({
@@ -291,14 +304,15 @@ export default function CampaignDetail() {
         </div>
       ) : (
         <div style={{ ...card.flat, overflow: 'hidden' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 2fr 90px 120px 130px', borderBottom: `1px solid ${C.border}`, padding: '10px 16px', fontSize: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.7px', color: C.textSub }}>
-            <span>Influencer</span><span>Cost</span><span>Products</span><span>Status</span><span>Checkout</span><span>Date</span>
+          <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 2fr 90px 100px 90px 110px', borderBottom: `1px solid ${C.border}`, padding: '10px 16px', fontSize: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.7px', color: C.textSub }}>
+            <span>Influencer</span><span>Cost</span><span>Products</span><span>Status</span><span>Checkout</span><span>Order</span><span>Date</span>
           </div>
 
           {seedings.map(s => {
-            const sc = C.status[s.status] ?? { background: C.surfaceHigh, color: C.textSub };
+            const sc   = C.status[s.status] ?? { background: C.surfaceHigh, color: C.textSub };
+            const link = adminOrderLink(s);
             return (
-              <div key={s.id} style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 2fr 90px 120px 130px', padding: '12px 16px', alignItems: 'center', fontSize: '13px', borderBottom: `1px solid ${C.borderLight}` }}>
+              <div key={s.id} style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 2fr 90px 100px 90px 110px', padding: '12px 16px', alignItems: 'center', fontSize: '13px', borderBottom: `1px solid ${C.borderLight}` }}>
                 <div>
                   <div style={{ fontWeight: '700', color: C.accent }}>{s.influencer.handle}</div>
                   <div style={{ fontSize: '11px', color: C.textMuted }}>{s.influencer.name} · {s.influencer.country}</div>
@@ -321,6 +335,14 @@ export default function CampaignDetail() {
                       style={{ ...btn.ghost, fontSize: '11px', padding: '4px 10px', backgroundColor: copiedId === s.id ? C.accentFaint : 'transparent', color: copiedId === s.id ? C.accent : C.textSub, borderColor: copiedId === s.id ? C.accent : C.border }}>
                       {copiedId === s.id ? 'Copied ✓' : 'Copy Link'}
                     </button>
+                  ) : <span style={{ color: C.textMuted }}>—</span>}
+                </div>
+                <div>
+                  {link ? (
+                    <a href={link} target="_top" rel="noopener noreferrer"
+                      style={{ fontSize: '11px', fontWeight: '700', padding: '4px 10px', border: `1px solid ${C.border}`, borderRadius: '5px', color: C.textSub, textDecoration: 'none', display: 'inline-block', backgroundColor: C.surfaceHigh }}>
+                      {s.status === 'Pending' ? 'Draft ↗' : 'Order ↗'}
+                    </a>
                   ) : <span style={{ color: C.textMuted }}>—</span>}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>

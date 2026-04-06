@@ -3,21 +3,18 @@ import prisma from '../db.server';
 
 export async function action({ request }) {
   const { topic, payload } = await authenticate.webhook(request);
+  const data = typeof payload === 'string' ? JSON.parse(payload) : payload;
 
   switch (topic) {
-    // Influencer completed checkout → draft order becomes a real order
-    case 'DRAFT_ORDERS_UPDATE': {
-      const data = typeof payload === 'string' ? JSON.parse(payload) : payload;
 
-      // Only act when the draft order has been completed (linked to a real order)
+    // ── Influencer completes checkout → draft becomes a real order ──────────
+    case 'DRAFT_ORDERS_UPDATE': {
       if (data.status === 'completed' && data.id) {
         const draftGid = `gid://shopify/DraftOrder/${data.id}`;
-
         await prisma.seeding.updateMany({
           where: { shopifyDraftOrderId: draftGid, status: 'Pending' },
           data: {
             status: 'Ordered',
-            // Store the real Shopify order name if available
             shopifyOrderName: data.order_id ? `#${data.order_id}` : undefined,
           },
         });
@@ -25,18 +22,23 @@ export async function action({ request }) {
       break;
     }
 
-    // Fulfillment center shipped the order
+    // ── Fulfillment center creates a shipment → Shipped ──────────────────────
     case 'FULFILLMENTS_CREATE': {
-      const data = typeof payload === 'string' ? JSON.parse(payload) : payload;
-
       if (data.order_id) {
-        // Match by shopifyOrderName since we store it as "#<order_id>"
         await prisma.seeding.updateMany({
-          where: {
-            shopifyOrderName: `#${data.order_id}`,
-            status: 'Ordered',
-          },
+          where: { shopifyOrderName: `#${data.order_id}`, status: 'Ordered' },
           data: { status: 'Shipped' },
+        });
+      }
+      break;
+    }
+
+    // ── Carrier confirms delivery → Delivered ────────────────────────────────
+    case 'FULFILLMENTS_UPDATE': {
+      if (data.order_id && data.shipment_status === 'delivered') {
+        await prisma.seeding.updateMany({
+          where: { shopifyOrderName: `#${data.order_id}`, status: 'Shipped' },
+          data: { status: 'Delivered' },
         });
       }
       break;

@@ -4,6 +4,21 @@ import { boundary } from '@shopify/shopify-app-react-router/server';
 import prisma from '../db.server';
 import { C, btn, card, section } from '../theme';
 
+function adminOrderLink(s) {
+  if (!s.shop) return null;
+  if (s.shopifyOrderName && s.status !== 'Pending') {
+    // shopifyOrderName is stored as "#<numeric_order_id>"
+    const orderId = s.shopifyOrderName.replace('#', '');
+    return `https://${s.shop}/admin/orders/${orderId}`;
+  }
+  if (s.shopifyDraftOrderId) {
+    // gid://shopify/DraftOrder/12345 → 12345
+    const draftId = s.shopifyDraftOrderId.split('/').pop();
+    return `https://${s.shop}/admin/draft_orders/${draftId}`;
+  }
+  return null;
+}
+
 const STATUSES = ['Pending', 'Ordered', 'Shipped', 'Delivered', 'Posted'];
 
 export async function loader({ request }) {
@@ -169,7 +184,7 @@ export default function Dashboard() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
             <thead>
               <tr style={{ borderBottom: `1px solid ${C.border}` }}>
-                {['Influencer', 'Country', 'Products', 'Cost', 'Status', 'Tracking', 'Checkout Link', 'Date', ''].map(h => (
+                {['Influencer', 'Country', 'Products', 'Cost', 'Status', 'Tracking', 'Checkout Link', 'Order', 'Date', ''].map(h => (
                   <th key={h} style={{ padding: '12px 12px', textAlign: 'left', fontWeight: '700', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.7px', color: C.textSub }}>{h}</th>
                 ))}
               </tr>
@@ -217,6 +232,17 @@ export default function Dashboard() {
                     ) : (
                       <span style={{ color: C.textMuted }}>—</span>
                     )}
+                  </td>
+                  <td style={{ padding: '12px 12px' }}>
+                    {(() => {
+                      const link = adminOrderLink(s);
+                      return link ? (
+                        <a href={link} target="_top" rel="noopener noreferrer"
+                          style={{ fontSize: '11px', fontWeight: '700', padding: '4px 10px', border: `1px solid ${C.border}`, borderRadius: '5px', color: C.textSub, textDecoration: 'none', display: 'inline-block', backgroundColor: C.surfaceHigh }}>
+                          {s.status === 'Pending' ? 'Draft ↗' : 'Order ↗'}
+                        </a>
+                      ) : <span style={{ color: C.textMuted }}>—</span>;
+                    })()}
                   </td>
                   <td style={{ padding: '12px 12px', color: C.textMuted, fontSize: '12px' }}>
                     {new Date(s.createdAt).toLocaleDateString('en-GB')}
