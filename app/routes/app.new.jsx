@@ -166,7 +166,8 @@ export default function NewSeeding() {
   );
 
   return (
-    <div style={{ maxWidth: '1100px' }}>
+    <div>
+      <div style={{ maxWidth: '680px' }}>
       <h2 style={{ marginTop: 0, marginBottom: '24px' }}>New Seeding</h2>
 
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: '36px' }}>
@@ -174,6 +175,8 @@ export default function NewSeeding() {
         <StepDot n={2} label="Products" />
         <StepDot n={3} label="Details" />
       </div>
+
+      </div>{/* end narrow wrapper */}
 
       <Form method="post">
         {/* Hidden fields */}
@@ -191,7 +194,7 @@ export default function NewSeeding() {
 
         {/* Step 1 — Influencer */}
         {step === 1 && (
-          <div>
+          <div style={{ maxWidth: '680px' }}>
             {influencers.length === 0 ? (
               <div style={{ padding: '40px', textAlign: 'center', border: '2px dashed #ddd', color: '#999' }}>
                 <p style={{ margin: '0 0 12px' }}>No influencers yet.</p>
@@ -318,7 +321,7 @@ export default function NewSeeding() {
 
         {/* Step 3 — Notes */}
         {step === 3 && (
-          <div>
+          <div style={{ maxWidth: '680px' }}>
             {/* Summary */}
             <div style={{ padding: '16px', backgroundColor: '#f5f5f5', marginBottom: '28px', borderLeft: '3px solid #000' }}>
               <div style={{ fontSize: '13px', fontWeight: '700', marginBottom: '6px' }}>{selectedInfluencer?.handle}</div>
@@ -356,7 +359,7 @@ export default function NewSeeding() {
           </div>
         )}
       </Form>
-    </div>
+    </div>{/* end outer wrapper */}
   );
 }
 
