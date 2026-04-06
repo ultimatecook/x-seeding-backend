@@ -44,27 +44,46 @@ export default function Dashboard() {
   const [period, setPeriod] = useState('30d');
 
   const selectedPeriod = PERIODS.find(p => p.label === period);
-  const topProducts    = getTopProducts(seedings, selectedPeriod.days);
-  const totalCost      = seedings.reduce((sum, s) => sum + s.totalCost, 0);
-  const totalUnits     = seedings.reduce((sum, s) => sum + s.products.length, 0);
-  const countries      = [...new Set(seedings.map(s => s.influencer.country))];
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - selectedPeriod.days);
+  const filtered = seedings.filter(s => new Date(s.createdAt) >= cutoff);
+
+  const topProducts = getTopProducts(seedings, selectedPeriod.days);
+  const totalCost   = filtered.reduce((sum, s) => sum + s.totalCost, 0);
+  const totalUnits  = filtered.reduce((sum, s) => sum + s.products.length, 0);
+  const countries   = [...new Set(filtered.map(s => s.influencer.country))];
 
   const stats = [
-    { label: 'Total Seedings', value: seedings.length },
+    { label: 'Total Seedings', value: filtered.length },
     { label: 'Total Invested', value: `€${Math.round(totalCost).toLocaleString()}` },
     { label: 'Units Sent',     value: totalUnits },
     { label: 'Countries',      value: countries.length || 0 },
   ];
 
   const statusCounts = STATUSES.reduce((acc, s) => {
-    acc[s] = seedings.filter(sd => sd.status === s).length;
+    acc[s] = filtered.filter(sd => sd.status === s).length;
     return acc;
   }, {});
 
   return (
     <div>
+      {/* Period filter — applies to everything */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <h2 style={{ margin: 0, fontSize: '15px', fontWeight: '700', color: C.text }}>
+          Past {selectedPeriod.display}
+        </h2>
+        <div style={{ display: 'flex', gap: '4px' }}>
+          {PERIODS.map(p => (
+            <button key={p.label} type="button" onClick={() => setPeriod(p.label)}
+              style={{ padding: '5px 12px', fontSize: '12px', fontWeight: '700', border: `1px solid ${period === p.label ? C.accent : C.border}`, cursor: 'pointer', borderRadius: '5px', backgroundColor: period === p.label ? C.accent : 'transparent', color: period === p.label ? '#fff' : C.textSub }}>
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Stat tiles */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '32px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '28px' }}>
         {stats.map(({ label, value }) => (
           <div key={label} style={{ ...card.base, borderLeft: `3px solid ${C.accent}` }}>
             <div style={{ fontSize: '11px', color: C.textSub, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '8px' }}>{label}</div>
@@ -84,20 +103,7 @@ export default function Dashboard() {
 
       {/* Top products */}
       <div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <h2 style={{ margin: 0, ...section.title, marginBottom: 0 }}>
-            Top products — past {selectedPeriod.display}
-          </h2>
-          <div style={{ display: 'flex', gap: '4px' }}>
-            {PERIODS.map(p => (
-              <button key={p.label} type="button" onClick={() => setPeriod(p.label)}
-                style={{ padding: '5px 12px', fontSize: '12px', fontWeight: '700', border: `1px solid ${period === p.label ? C.accent : C.border}`, cursor: 'pointer', borderRadius: '5px', backgroundColor: period === p.label ? C.accent : 'transparent', color: period === p.label ? '#fff' : C.textSub }}>
-                {p.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
+        <h2 style={{ margin: '0 0 16px', ...section.title }}>Top products</h2>
         {topProducts.length === 0 ? (
           <div style={{ padding: '32px', textAlign: 'center', border: `2px dashed ${C.border}`, color: C.textMuted, fontSize: '13px', borderRadius: '8px' }}>
             No seedings in this period yet.
@@ -108,11 +114,11 @@ export default function Dashboard() {
               <div key={prod.name} style={{ ...card.flat, overflow: 'hidden' }}>
                 <div style={{ position: 'relative' }}>
                   {prod.image ? (
-                    <div style={{ width: '100%', aspectRatio: '4/3', backgroundColor: C.surfaceHigh, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ width: '100%', aspectRatio: '4/3', backgroundColor: '#FFFFFF', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <img src={prod.image} alt={prod.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                     </div>
                   ) : (
-                    <div style={{ width: '100%', aspectRatio: '4/3', backgroundColor: C.surfaceHigh, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '36px' }}>📦</div>
+                    <div style={{ width: '100%', aspectRatio: '4/3', backgroundColor: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '36px' }}>📦</div>
                   )}
                   <div style={{ position: 'absolute', top: '8px', left: '8px', backgroundColor: C.accent, color: '#fff', fontSize: '10px', fontWeight: '800', padding: '3px 8px', borderRadius: '4px' }}>#{i + 1}</div>
                 </div>
