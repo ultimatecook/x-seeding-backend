@@ -267,8 +267,8 @@ export default function NewSeeding() {
                         <div style={{ fontWeight: '600', fontSize: '11px', marginBottom: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{prod.name}</div>
                         <div style={{ fontSize: '11px', opacity: 0.6 }}>
                           €{prod.price.toFixed(2)}
-                          {selected && prod.selectedVariant?.title !== 'Default Title' && (
-                            <span style={{ marginLeft: '4px', fontWeight: '700', opacity: 1 }}>· {prod.selectedVariant.title}</span>
+                          {selected && selected.selectedVariant && selected.selectedVariant.title !== 'Default Title' && (
+                            <span style={{ marginLeft: '4px', fontWeight: '700', opacity: 1 }}>· {selected.selectedVariant.title}</span>
                           )}
                         </div>
                       </div>
@@ -298,7 +298,7 @@ export default function NewSeeding() {
                 <div style={{ marginTop: '6px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                   {selectedProducts.map(p => (
                     <span key={p.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '2px 8px', backgroundColor: '#000', color: '#fff', borderRadius: '3px', fontSize: '11px', fontWeight: '600' }}>
-                      {p.name}{p.selectedVariant?.title !== 'Default Title' ? ` – ${p.selectedVariant?.title}` : ''}
+                      {p.name}{p.selectedVariant && p.selectedVariant.title !== 'Default Title' ? ` – ${p.selectedVariant.title}` : ''}
                       <button type="button" onClick={() => removeProduct(p.id)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: '0', fontSize: '13px', lineHeight: 1 }}>×</button>
                     </span>
                   ))}
@@ -322,7 +322,7 @@ export default function NewSeeding() {
             {/* Summary */}
             <div style={{ padding: '16px', backgroundColor: '#f5f5f5', marginBottom: '28px', borderLeft: '3px solid #000' }}>
               <div style={{ fontSize: '13px', fontWeight: '700', marginBottom: '6px' }}>{selectedInfluencer?.handle}</div>
-              <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>{selectedProducts.map(p => `${p.name}${p.selectedVariant?.title !== 'Default Title' ? ` (${p.selectedVariant?.title})` : ''}`).join(', ')}</div>
+              <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>{selectedProducts.map(p => `${p.name}${p.selectedVariant && p.selectedVariant.title !== 'Default Title' ? ` (${p.selectedVariant.title})` : ''}`).join(', ')}</div>
               <div style={{ fontSize: '13px', fontWeight: '700' }}>€{totalCost.toFixed(2)}</div>
             </div>
 
