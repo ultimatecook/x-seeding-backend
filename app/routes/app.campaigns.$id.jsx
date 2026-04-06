@@ -109,10 +109,15 @@ export default function CampaignDetail() {
     );
   }
 
-  const seedings   = campaign.seedings;
-  const totalCost  = seedings.reduce((sum, s) => sum + s.totalCost, 0);
-  const budgetPct  = campaign.budget ? Math.min(100, (totalCost / campaign.budget) * 100) : null;
-  const statusCounts = STATUSES.reduce((acc, s) => { acc[s] = seedings.filter(sd => sd.status === s).length; return acc; }, {});
+  const seedings      = campaign.seedings;
+  const totalRetail   = seedings.reduce((sum, s) => sum + s.totalCost, 0);
+  const totalCostSpend = seedings.reduce((sum, s) =>
+    sum + s.products.reduce((ps, p) => ps + (p.cost ?? 0), 0), 0);
+  const hasCostData   = seedings.some(s => s.products.some(p => p.cost != null));
+  // Budget tracks cost spend; fall back to retail if no cost data
+  const budgetBase    = hasCostData ? totalCostSpend : totalRetail;
+  const budgetPct     = campaign.budget ? Math.min(100, (budgetBase / campaign.budget) * 100) : null;
+  const statusCounts  = STATUSES.reduce((acc, s) => { acc[s] = seedings.filter(sd => sd.status === s).length; return acc; }, {});
 
   const unitsByProduct = {};
   for (const cp of campaign.products) unitsByProduct[cp.productId] = { ...cp, count: 0 };
@@ -152,12 +157,14 @@ export default function CampaignDetail() {
       {/* Analytics */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '24px' }}>
         {[
-          { label: 'Total Seedings',  value: seedings.length },
-          { label: 'Total Cost',      value: `€${totalCost.toFixed(2)}` },
+          { label: 'Seedings',      value: seedings.length },
+          { label: 'Retail Value',  value: `€${totalRetail.toFixed(2)}` },
+          hasCostData
+            ? { label: 'Cost Spend', value: `€${totalCostSpend.toFixed(2)}` }
+            : { label: 'Products',   value: campaign.products.length },
           campaign.budget != null
-            ? { label: 'Budget Remaining', value: `€${Math.max(0, campaign.budget - totalCost).toFixed(2)}` }
-            : { label: 'Products',         value: campaign.products.length },
-          { label: 'Posted', value: statusCounts['Posted'] },
+            ? { label: 'Budget Left', value: `€${Math.max(0, campaign.budget - budgetBase).toFixed(2)}` }
+            : { label: 'Posted',      value: statusCounts['Posted'] },
         ].map(stat => (
           <div key={stat.label} style={{ ...card.base, borderLeft: `3px solid ${C.accent}` }}>
             <div style={{ fontSize: '22px', fontWeight: '900', color: C.text, marginBottom: '4px' }}>{stat.value}</div>
@@ -170,8 +177,8 @@ export default function CampaignDetail() {
       {budgetPct !== null && (
         <div style={{ marginBottom: '24px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: C.textSub, marginBottom: '6px' }}>
-            <span>Budget used</span>
-            <span style={{ fontWeight: '700', color: C.text }}>€{totalCost.toFixed(2)} / €{fmtNum(campaign.budget)} ({budgetPct.toFixed(0)}%)</span>
+            <span>Budget used {hasCostData ? '(cost)' : '(retail — set product costs in Shopify for accurate tracking)'}</span>
+            <span style={{ fontWeight: '700', color: C.text }}>€{budgetBase.toFixed(2)} / €{fmtNum(campaign.budget)} ({budgetPct.toFixed(0)}%)</span>
           </div>
           <div style={{ height: '6px', backgroundColor: C.surfaceHigh, borderRadius: '3px', overflow: 'hidden' }}>
             <div style={{ height: '100%', width: `${budgetPct}%`, backgroundColor: budgetPct >= 90 ? C.errorText : budgetPct >= 70 ? '#DD8833' : C.accent, borderRadius: '3px', transition: 'width 0.3s' }} />
