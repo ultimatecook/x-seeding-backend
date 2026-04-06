@@ -45,6 +45,28 @@ export async function action({ request, params }) {
     return redirect('/app/campaigns');
   }
 
+  if (intent === 'editProducts') {
+    const productIds   = formData.getAll('productId');
+    const productNames = formData.getAll('productName');
+    const imageUrls    = formData.getAll('imageUrl');
+    const maxUnits     = formData.getAll('maxUnits');
+
+    // Replace all campaign products
+    await prisma.campaignProduct.deleteMany({ where: { campaignId } });
+    if (productIds.length > 0) {
+      await prisma.campaignProduct.createMany({
+        data: productIds.map((pid, i) => ({
+          campaignId,
+          productId:   pid,
+          productName: productNames[i] || '',
+          imageUrl:    imageUrls[i] || null,
+          maxUnits:    maxUnits[i] ? parseInt(maxUnits[i]) : null,
+        })),
+      });
+    }
+    return { edited: true };
+  }
+
   return null;
 }
 
@@ -64,12 +86,45 @@ function copyLink(url) {
 
 export default function CampaignDetail() {
   const { campaign }     = useLoaderData();
+  const actionData       = useActionData();
   const navigation       = useNavigation();
   const layoutData       = useRouteLoaderData('routes/app');
   const products         = layoutData?.products ?? [];
+  const isSubmitting     = navigation.state === 'submitting';
 
-  const [expandedSeeding, setExpandedSeeding] = useState(null);
-  const [copiedId, setCopiedId]               = useState(null);
+  const [expandedSeeding, setExpandedSeeding]   = useState(null);
+  const [copiedId, setCopiedId]                 = useState(null);
+  const [editingProducts, setEditingProducts]   = useState(false);
+  const [editSearch, setEditSearch]             = useState('');
+  const [editSelected, setEditSelected]         = useState([]);
+  const [editMaxUnits, setEditMaxUnits]         = useState({});
+
+  // Close the edit panel after a successful save
+  if (actionData?.edited && editingProducts) {
+    setEditingProducts(false);
+  }
+
+  function openEditProducts() {
+    // Pre-populate with current campaign products
+    const current = campaign.products.map(cp => {
+      const full = products.find(p => p.id === cp.productId);
+      return full ?? { id: cp.productId, name: cp.productName, image: cp.imageUrl, stock: 1, collections: [], variants: [], price: 0, variantId: null };
+    });
+    const units = {};
+    campaign.products.forEach(cp => { if (cp.maxUnits) units[cp.productId] = String(cp.maxUnits); });
+    setEditSelected(current);
+    setEditMaxUnits(units);
+    setEditSearch('');
+    setEditingProducts(true);
+  }
+
+  function toggleEditProduct(p) {
+    setEditSelected(prev =>
+      prev.find(sp => sp.id === p.id)
+        ? prev.filter(sp => sp.id !== p.id)
+        : [...prev, p]
+    );
+  }
 
   const seedings = campaign.seedings;
 
@@ -174,32 +229,132 @@ export default function CampaignDetail() {
 
       {/* ── Products section ── */}
       <div style={{ marginBottom: '36px' }}>
-        <div style={{ fontSize: '13px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '14px' }}>
-          Campaign Products
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+          <div style={{ fontSize: '13px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            Campaign Products ({campaign.products.length})
+          </div>
+          {!editingProducts && (
+            <button type="button" onClick={openEditProducts}
+              style={{ padding: '6px 14px', fontSize: '12px', fontWeight: '700', border: '1px solid #000', background: '#fff', cursor: 'pointer' }}>
+              Edit Products
+            </button>
+          )}
         </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
-          {campaign.products.map(cp => {
-            const pct = cp.maxUnits ? Math.min(100, (cp.count / cp.maxUnits) * 100) : null;
-            return (
-              <div key={cp.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', border: '1px solid #e5e5e5', backgroundColor: '#fff', minWidth: '200px' }}>
-                {cp.imageUrl && (
-                  <img src={cp.imageUrl} alt={cp.productName} style={{ width: '40px', height: '40px', objectFit: 'cover', flexShrink: 0 }} />
-                )}
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: '13px', fontWeight: '600', marginBottom: '2px' }}>{cp.productName}</div>
-                  <div style={{ fontSize: '11px', color: '#888' }}>
-                    {cp.count} seeded{cp.maxUnits ? ` / ${cp.maxUnits} max` : ''}
-                  </div>
-                  {pct !== null && (
-                    <div style={{ height: '4px', backgroundColor: '#f0f0f0', borderRadius: '2px', marginTop: '6px', overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${pct}%`, backgroundColor: pct >= 100 ? '#e53e3e' : '#000', borderRadius: '2px' }} />
-                    </div>
+
+        {/* Current products chips */}
+        {!editingProducts && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
+            {campaign.products.length === 0 && (
+              <div style={{ fontSize: '13px', color: '#bbb' }}>No products. Click "Edit Products" to add some.</div>
+            )}
+            {campaign.products.map(cp => {
+              const entry = unitsByProduct[cp.productId];
+              const count = entry?.count ?? 0;
+              const pct = cp.maxUnits ? Math.min(100, (count / cp.maxUnits) * 100) : null;
+              return (
+                <div key={cp.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', border: '1px solid #e5e5e5', backgroundColor: '#fff', minWidth: '200px' }}>
+                  {cp.imageUrl && (
+                    <img src={cp.imageUrl} alt={cp.productName} style={{ width: '40px', height: '40px', objectFit: 'cover', flexShrink: 0 }} />
                   )}
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: '13px', fontWeight: '600', marginBottom: '2px' }}>{cp.productName}</div>
+                    <div style={{ fontSize: '11px', color: '#888' }}>
+                      {count} seeded{cp.maxUnits ? ` / ${cp.maxUnits} max` : ''}
+                    </div>
+                    {pct !== null && (
+                      <div style={{ height: '4px', backgroundColor: '#f0f0f0', borderRadius: '2px', marginTop: '6px', overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${pct}%`, backgroundColor: pct >= 100 ? '#e53e3e' : '#000', borderRadius: '2px' }} />
+                      </div>
+                    )}
+                  </div>
                 </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* ── Edit products panel ── */}
+        {editingProducts && (
+          <Form method="post">
+            <input type="hidden" name="intent" value="editProducts" />
+            {/* Hidden fields for selected products */}
+            {editSelected.map(p => (
+              <span key={p.id}>
+                <input type="hidden" name="productId"   value={p.id} />
+                <input type="hidden" name="productName" value={p.name} />
+                <input type="hidden" name="imageUrl"    value={p.image ?? ''} />
+                <input type="hidden" name="maxUnits"    value={editMaxUnits[p.id] ?? ''} />
+              </span>
+            ))}
+
+            <div style={{ padding: '20px', backgroundColor: '#f9f9f9', border: '1px solid #e5e5e5', marginBottom: '16px' }}>
+              {/* Search */}
+              <input
+                type="text"
+                placeholder="Search products…"
+                value={editSearch}
+                onChange={e => setEditSearch(e.target.value)}
+                style={{ width: '320px', padding: '8px 10px', border: '1px solid #ddd', fontSize: '13px', marginBottom: '14px', boxSizing: 'border-box' }}
+              />
+
+              {/* 6-col product grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: '8px', marginBottom: '20px' }}>
+                {products
+                  .filter(p => !editSearch || p.name.toLowerCase().includes(editSearch.toLowerCase()))
+                  .map(p => {
+                    const selected = !!editSelected.find(sp => sp.id === p.id);
+                    return (
+                      <div key={p.id}
+                        onClick={() => toggleEditProduct(p)}
+                        style={{ border: selected ? '2px solid #000' : '1px solid #ddd', backgroundColor: selected ? '#000' : '#fff', cursor: 'pointer', overflow: 'hidden', position: 'relative' }}>
+                        {p.image ? (
+                          <img src={p.image} alt={p.name} style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block', filter: selected ? 'brightness(0.45)' : 'none' }} />
+                        ) : (
+                          <div style={{ width: '100%', aspectRatio: '1', backgroundColor: selected ? '#333' : '#f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px' }}>📦</div>
+                        )}
+                        {selected && (
+                          <div style={{ position: 'absolute', top: '6px', right: '6px', width: '18px', height: '18px', backgroundColor: '#fff', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '900', color: '#000' }}>✓</div>
+                        )}
+                        <div style={{ padding: '6px 8px', backgroundColor: selected ? '#000' : '#fff' }}>
+                          <div style={{ fontSize: '11px', fontWeight: '600', color: selected ? '#fff' : '#000', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
               </div>
-            );
-          })}
-        </div>
+
+              {/* Max units per selected product */}
+              {editSelected.length > 0 && (
+                <div style={{ marginBottom: '16px' }}>
+                  <div style={{ fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>Max Units per Product — optional</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {editSelected.map(p => (
+                      <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        {p.image && <img src={p.image} alt={p.name} style={{ width: '32px', height: '32px', objectFit: 'cover', border: '1px solid #eee' }} />}
+                        <span style={{ fontSize: '13px', flex: 1, fontWeight: '500' }}>{p.name}</span>
+                        <input type="number" min="1" placeholder="No limit"
+                          value={editMaxUnits[p.id] ?? ''}
+                          onChange={e => setEditMaxUnits(prev => ({ ...prev, [p.id]: e.target.value }))}
+                          style={{ width: '110px', padding: '6px 10px', border: '1px solid #ddd', fontSize: '13px' }} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button type="submit" disabled={isSubmitting}
+                  style={{ padding: '9px 22px', backgroundColor: '#000', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: '700', fontSize: '13px' }}>
+                  {isSubmitting ? 'Saving…' : 'Save Products'}
+                </button>
+                <button type="button" onClick={() => setEditingProducts(false)}
+                  style={{ padding: '9px 18px', border: '1px solid #ccc', background: '#fff', cursor: 'pointer', fontSize: '13px' }}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </Form>
+        )}
       </div>
 
       {/* ── Seedings table ── */}
