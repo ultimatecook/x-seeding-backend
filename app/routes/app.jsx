@@ -85,6 +85,7 @@ export default function AppLayout() {
         <nav style={{ display: 'flex', gap: '6px' }}>
           <NavLink to="/app" end style={navLinkStyle}>Dashboard</NavLink>
           <NavLink to="/app/influencers" style={navLinkStyle}>Influencers</NavLink>
+          <NavLink to="/app/campaigns" style={navLinkStyle}>Campaigns</NavLink>
           <NavLink to="/app/new" style={navLinkStyle}>+ New Seeding</NavLink>
         </nav>
       </div>
