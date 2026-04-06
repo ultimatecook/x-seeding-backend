@@ -103,6 +103,29 @@ export default function NewSeeding() {
   const [expandedProductId, setExpandedProductId]   = useState(null);
   const [activeCollection, setActiveCollection]     = useState('All');
   const [search, setSearch]                         = useState('');
+  const [infSearch, setInfSearch]                   = useState('');
+  const [infTier, setInfTier]                       = useState('all');
+  const [infCountry, setInfCountry]                 = useState('');
+
+  const INF_TIERS = [
+    { key: 'all',   label: 'All' },
+    { key: 'micro', label: '🌱 Micro' },
+    { key: 'mid',   label: '⭐ Influencer' },
+    { key: 'celeb', label: '🏆 Celebrity' },
+  ];
+
+  const allCountries = [...new Set(influencers.map(i => i.country).filter(Boolean))].sort();
+
+  const filteredInfluencers = influencers.filter(inf => {
+    const q = infSearch.toLowerCase();
+    if (q && !inf.handle.toLowerCase().includes(q) && !inf.name.toLowerCase().includes(q)) return false;
+    if (infCountry && inf.country !== infCountry) return false;
+    const f = inf.followers || 0;
+    if (infTier === 'micro' && f >= 50000) return false;
+    if (infTier === 'mid'   && (f < 50000 || f >= 500000)) return false;
+    if (infTier === 'celeb' && f < 500000) return false;
+    return true;
+  });
 
   const campaignProductIds = selectedCampaign ? new Set(selectedCampaign.products.map(cp => cp.productId)) : null;
   const visibleProducts    = campaignProductIds ? products.filter(p => campaignProductIds.has(p.id)) : products;
@@ -208,12 +231,49 @@ export default function NewSeeding() {
                 <a href="/app/influencers" style={{ color: C.accent, fontWeight: '700', textDecoration: 'none' }}>Add influencers first →</a>
               </div>
             ) : (
-              influencers.map(inf => (
-                <button type="button" key={inf.id} onClick={() => setSelectedInfluencer(inf)} style={infBtn(selectedInfluencer?.id === inf.id)}>
-                  <span style={{ fontWeight: '700' }}>{inf.handle}</span>
-                  <span style={{ fontSize: '12px', opacity: 0.6, marginLeft: '8px' }}>{inf.name} · {fmtNum(inf.followers)} followers · {inf.country}</span>
-                </button>
-              ))
+              <>
+                {/* Search + filters */}
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', flexWrap: 'wrap' }}>
+                  <input
+                    type="text"
+                    placeholder="Search by name or handle…"
+                    value={infSearch}
+                    onChange={e => setInfSearch(e.target.value)}
+                    style={{ ...input.base, flex: '1', minWidth: '180px', fontSize: '13px', padding: '8px 12px' }}
+                  />
+                  <select
+                    value={infCountry}
+                    onChange={e => setInfCountry(e.target.value)}
+                    style={{ ...input.base, fontSize: '13px', padding: '8px 12px', minWidth: '140px' }}
+                  >
+                    <option value="">All countries</option>
+                    {allCountries.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', flexWrap: 'wrap' }}>
+                  {INF_TIERS.map(t => (
+                    <button key={t.key} type="button" onClick={() => setInfTier(t.key)} style={{
+                      padding: '5px 12px', borderRadius: '16px', border: `1.5px solid ${infTier === t.key ? C.accent : C.border}`,
+                      backgroundColor: infTier === t.key ? C.accentFaint : 'transparent',
+                      color: infTier === t.key ? C.accent : C.textSub,
+                      fontSize: '12px', fontWeight: infTier === t.key ? '700' : '500', cursor: 'pointer',
+                    }}>{t.label}</button>
+                  ))}
+                </div>
+                {/* List */}
+                <div style={{ maxHeight: '320px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {filteredInfluencers.length === 0 ? (
+                    <div style={{ padding: '24px', textAlign: 'center', color: C.textMuted, fontSize: '13px' }}>No influencers match your search.</div>
+                  ) : (
+                    filteredInfluencers.map(inf => (
+                      <button type="button" key={inf.id} onClick={() => setSelectedInfluencer(inf)} style={infBtn(selectedInfluencer?.id === inf.id)}>
+                        <span style={{ fontWeight: '700' }}>{inf.handle}</span>
+                        <span style={{ fontSize: '12px', opacity: 0.6, marginLeft: '8px' }}>{inf.name} · {fmtNum(inf.followers)} followers · {inf.country}</span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </>
             )}
             <div style={{ display: 'flex', gap: '8px', marginTop: '24px' }}>
               <button type="button" onClick={() => navigate('/app')} style={{ ...btn.secondary }}>Cancel</button>
