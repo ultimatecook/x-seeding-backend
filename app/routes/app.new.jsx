@@ -5,25 +5,30 @@ import prisma from '../db.server';
 
 export async function loader() {
   const influencers = await prisma.influencer.findMany({ orderBy: { name: 'asc' } });
-  return { influencers };
+  const campaigns   = await prisma.campaign.findMany({
+    orderBy: { createdAt: 'desc' },
+    include: { products: true },
+  });
+  return { influencers, campaigns };
 }
 
 export async function action({ request }) {
   const formData = await request.formData();
 
-  const influencerId = parseInt(formData.get('influencerId'));
-  const shop         = formData.get('shop') || '';
-  const productIds   = formData.getAll('productIds');
-  const variantIds   = formData.getAll('variantIds');
-  const productNames = formData.getAll('productNames');
+  const influencerId  = parseInt(formData.get('influencerId'));
+  const shop          = formData.get('shop') || '';
+  const campaignIdRaw = formData.get('campaignId');
+  const campaignId    = campaignIdRaw ? parseInt(campaignIdRaw) : null;
+  const productIds    = formData.getAll('productIds');
+  const variantIds    = formData.getAll('variantIds');
+  const productNames  = formData.getAll('productNames');
   const productPrices = formData.getAll('productPrices').map(Number);
   const productImages = formData.getAll('productImages');
-  const totalCost    = productPrices.reduce((sum, p) => sum + p, 0);
-  const notes        = formData.get('notes') || '';
+  const totalCost     = productPrices.reduce((sum, p) => sum + p, 0);
+  const notes         = formData.get('notes') || '';
 
   const influencer = await prisma.influencer.findUnique({ where: { id: influencerId } });
 
-  // --- Create Shopify draft order and get invoice link ---
   let shopifyDraftOrderId = null;
   let shopifyOrderName    = null;
   let invoiceUrl          = null;
@@ -93,6 +98,7 @@ export async function action({ request }) {
     data: {
       shop,
       influencerId,
+      campaignId,
       totalCost,
       notes,
       status: 'Pending',
@@ -111,7 +117,7 @@ export async function action({ request }) {
     },
   });
 
-  return redirect('/app');
+  return redirect(campaignId ? `/app/campaigns/${campaignId}` : '/app');
 }
 
 const inputStyle = {
@@ -130,19 +136,30 @@ const btn = (active) => ({
 });
 
 export default function NewSeeding() {
-  const { influencers } = useLoaderData();
+  const { influencers, campaigns } = useLoaderData();
   const { products = [], shop = '' } = useRouteLoaderData('routes/app') ?? {};
   const navigate = useNavigate();
-  const [step, setStep] = useState(1);
-  const [selectedInfluencer, setSelectedInfluencer] = useState(null);
-  const [selectedProducts, setSelectedProducts]     = useState([]);
-  const [expandedProductId, setExpandedProductId]   = useState(null);
-  const [activeCollection, setActiveCollection]     = useState('All');
 
-  const [search, setSearch] = useState('');
+  const [step, setStep]                               = useState(1);
+  const [selectedInfluencer, setSelectedInfluencer]   = useState(null);
+  const [selectedCampaign, setSelectedCampaign]       = useState(null);
+  const [selectedProducts, setSelectedProducts]       = useState([]);
+  const [expandedProductId, setExpandedProductId]     = useState(null);
+  const [activeCollection, setActiveCollection]       = useState('All');
+  const [search, setSearch]                           = useState('');
 
-  const allCollections = ['All', ...new Set(products.flatMap(p => p.collections))];
-  const filteredProducts = products
+  // If a campaign is chosen, only show that campaign's products; otherwise show all
+  const campaignProductIds = selectedCampaign
+    ? new Set(selectedCampaign.products.map(cp => cp.productId))
+    : null;
+
+  const visibleProducts = campaignProductIds
+    ? products.filter(p => campaignProductIds.has(p.id))
+    : products;
+
+  const allCollections = ['All', ...new Set(visibleProducts.flatMap(p => p.collections))];
+
+  const filteredProducts = visibleProducts
     .filter(p => activeCollection === 'All' || p.collections.includes(activeCollection))
     .filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase()));
 
@@ -156,6 +173,14 @@ export default function NewSeeding() {
 
   const removeProduct = (prodId) =>
     setSelectedProducts(prev => prev.filter(p => p.id !== prodId));
+
+  // When campaign changes, clear product selection
+  const handleCampaignSelect = (c) => {
+    setSelectedCampaign(c);
+    setSelectedProducts([]);
+    setActiveCollection('All');
+    setSearch('');
+  };
 
   const totalCost = selectedProducts.reduce((sum, p) => sum + (p.selectedVariant?.price ?? p.price), 0);
 
@@ -183,6 +208,7 @@ export default function NewSeeding() {
         {/* Hidden fields */}
         <input type="hidden" name="shop" value={shop} />
         {selectedInfluencer && <input type="hidden" name="influencerId" value={selectedInfluencer.id} />}
+        {selectedCampaign   && <input type="hidden" name="campaignId"   value={selectedCampaign.id} />}
         {selectedProducts.map(p => (
           <span key={p.id}>
             <input type="hidden" name="productIds"    value={p.id} />
@@ -193,9 +219,43 @@ export default function NewSeeding() {
           </span>
         ))}
 
-        {/* Step 1 — Influencer */}
+        {/* ── Step 1 — Influencer + optional Campaign ── */}
         {step === 1 && (
           <div style={{ maxWidth: '680px' }}>
+
+            {/* Campaign picker */}
+            {campaigns.length > 0 && (
+              <div style={{ marginBottom: '28px' }}>
+                <div style={{ fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>
+                  Add to Campaign <span style={{ fontWeight: '400', textTransform: 'none', color: '#999' }}>— optional</span>
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                  {campaigns.map(c => {
+                    const active = selectedCampaign?.id === c.id;
+                    return (
+                      <button key={c.id} type="button"
+                        onClick={() => handleCampaignSelect(active ? null : c)}
+                        style={{ padding: '7px 14px', fontSize: '13px', fontWeight: '600', border: '1px solid #000', cursor: 'pointer', borderRadius: '20px', backgroundColor: active ? '#000' : '#fff', color: active ? '#fff' : '#000' }}>
+                        {active ? '✓ ' : ''}{c.title}
+                        {c.budget != null && (
+                          <span style={{ fontWeight: '400', opacity: 0.7, marginLeft: '6px', fontSize: '11px' }}>€{c.budget.toLocaleString()}</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+                {selectedCampaign && (
+                  <div style={{ marginTop: '8px', fontSize: '12px', color: '#666' }}>
+                    Products will be pre-filtered to the {selectedCampaign.products.length} product{selectedCampaign.products.length !== 1 ? 's' : ''} in this campaign.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Influencer list */}
+            <div style={{ fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>
+              Select Influencer
+            </div>
             {influencers.length === 0 ? (
               <div style={{ padding: '40px', textAlign: 'center', border: '2px dashed #ddd', color: '#999' }}>
                 <p style={{ margin: '0 0 12px' }}>No influencers yet.</p>
@@ -219,9 +279,17 @@ export default function NewSeeding() {
           </div>
         )}
 
-        {/* Step 2 — Products */}
+        {/* ── Step 2 — Products ── */}
         {step === 2 && (
           <div style={{ width: '100%' }}>
+            {/* Campaign badge */}
+            {selectedCampaign && (
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '6px 12px', backgroundColor: '#000', color: '#fff', fontSize: '12px', fontWeight: '700', marginBottom: '16px' }}>
+                📁 {selectedCampaign.title}
+                <span style={{ fontWeight: '400', opacity: 0.7 }}>· showing {selectedCampaign.products.length} campaign products</span>
+              </div>
+            )}
+
             {/* Search */}
             <input
               type="text"
@@ -290,7 +358,7 @@ export default function NewSeeding() {
                       </div>
                     </button>
 
-                    {/* Variant picker — shown when expanded */}
+                    {/* Variant picker */}
                     {isExpanded && !isSingleVariant && (
                       <div style={{ border: '2px solid #000', borderTop: 'none', borderRadius: '0 0 6px 6px', padding: '8px', backgroundColor: '#fff', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                         {prod.variants.map(v => (
@@ -332,12 +400,17 @@ export default function NewSeeding() {
           </div>
         )}
 
-        {/* Step 3 — Notes */}
+        {/* ── Step 3 — Notes ── */}
         {step === 3 && (
           <div style={{ maxWidth: '680px' }}>
             {/* Summary */}
             <div style={{ padding: '16px', backgroundColor: '#f5f5f5', marginBottom: '28px', borderLeft: '3px solid #000' }}>
-              <div style={{ fontSize: '13px', fontWeight: '700', marginBottom: '6px' }}>{selectedInfluencer?.handle}</div>
+              <div style={{ fontSize: '13px', fontWeight: '700', marginBottom: '4px' }}>{selectedInfluencer?.handle}</div>
+              {selectedCampaign && (
+                <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>
+                  📁 {selectedCampaign.title}
+                </div>
+              )}
               <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>{selectedProducts.map(p => `${p.name}${p.selectedVariant && p.selectedVariant.title !== 'Default Title' ? ` (${p.selectedVariant.title})` : ''}`).join(', ')}</div>
               <div style={{ fontSize: '13px', fontWeight: '700' }}>€{totalCost.toFixed(2)}</div>
             </div>

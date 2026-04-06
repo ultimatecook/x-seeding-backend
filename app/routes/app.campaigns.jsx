@@ -1,12 +1,15 @@
 import { useState } from 'react';
-import { useLoaderData, useActionData, Form, useNavigation, useRouteLoaderData, useRouteError } from 'react-router';
+import { useLoaderData, useActionData, Form, useNavigation, useRouteLoaderData, useRouteError, Link } from 'react-router';
 import { boundary } from '@shopify/shopify-app-react-router/server';
 import prisma from '../db.server';
 
 export async function loader({ request }) {
   const campaigns = await prisma.campaign.findMany({
     orderBy: { createdAt: 'desc' },
-    include: { products: true },
+    include: {
+      products: true,
+      seedings: true,
+    },
   });
   return { campaigns };
 }
@@ -267,8 +270,8 @@ export default function Campaigns() {
           {campaigns.map(c => (
             <div key={c.id} style={{ border: '1px solid #e5e5e5', backgroundColor: '#fff', padding: '20px 24px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px' }}>
-                <div>
-                  <div style={{ fontSize: '16px', fontWeight: '800', marginBottom: '4px' }}>{c.title}</div>
+                <Link to={`/app/campaigns/${c.id}`} style={{ textDecoration: 'none', color: 'inherit', flex: 1 }}>
+                  <div style={{ fontSize: '16px', fontWeight: '800', marginBottom: '4px' }}>{c.title} <span style={{ fontSize: '13px', fontWeight: '400', color: '#bbb' }}>→</span></div>
                   <div style={{ fontSize: '12px', color: '#999' }}>
                     {new Date(c.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                     {c.budget != null && (
@@ -276,8 +279,9 @@ export default function Campaigns() {
                         Budget: €{c.budget.toLocaleString()}
                       </span>
                     )}
+                    <span style={{ marginLeft: '12px' }}>{c.seedings.length} seeding{c.seedings.length !== 1 ? 's' : ''}</span>
                   </div>
-                </div>
+                </Link>
                 <Form method="post"
                   onSubmit={e => { if (!confirm(`Delete "${c.title}"?`)) e.preventDefault(); }}>
                   <input type="hidden" name="intent" value="delete" />
