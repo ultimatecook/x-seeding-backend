@@ -246,8 +246,11 @@ export default function NewSeeding() {
                     <button type="button"
                       onClick={() => {
                         if (outOfStock) return;
-                        if (isSingleVariant) {
-                          selected ? removeProduct(prod.id) : selectVariant(prod, prod.variants[0]);
+                        if (selected) {
+                          removeProduct(prod.id);
+                          setExpandedProductId(null);
+                        } else if (isSingleVariant) {
+                          selectVariant(prod, prod.variants[0]);
                         } else {
                           setExpandedProductId(isExpanded ? null : prod.id);
                         }
