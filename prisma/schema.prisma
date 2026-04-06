@@ -49,6 +49,8 @@ model Seeding {
   shop                String
   influencerId        Int
   influencer          Influencer       @relation(fields: [influencerId], references: [id])
+  campaignId          Int?
+  campaign            Campaign?        @relation(fields: [campaignId], references: [id])
   status              String           @default("Pending")
   trackingNumber      String?
   notes               String?
@@ -79,6 +81,7 @@ model Campaign {
   budget       Float?
   createdAt    DateTime           @default(now())
   products     CampaignProduct[]
+  seedings     Seeding[]
 }
 
 model CampaignProduct {
