@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useLoaderData, useActionData, Form, useNavigation, useRouteError } from 'react-router';
 import { boundary } from '@shopify/shopify-app-react-router/server';
 import prisma from '../db.server';
@@ -64,12 +64,120 @@ function downloadTemplate() {
   URL.revokeObjectURL(url);
 }
 
+function InstagramHandleInput({ inputStyle, onSelect }) {
+  const [value, setValue]         = useState('');
+  const [results, setResults]     = useState([]);
+  const [loading, setLoading]     = useState(false);
+  const [open, setOpen]           = useState(false);
+  const [activeIdx, setActiveIdx] = useState(-1);
+  const timerRef  = useRef(null);
+  const wrapRef   = useRef(null);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handler(e) { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const search = useCallback((q) => {
+    clearTimeout(timerRef.current);
+    if (!q || q.replace('@', '').length < 2) { setResults([]); setOpen(false); return; }
+    timerRef.current = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(`/api/instagram-search?q=${encodeURIComponent(q.replace('@', ''))}`);
+        const data = await res.json();
+        setResults(data.users || []);
+        setOpen((data.users || []).length > 0);
+      } catch { setResults([]); }
+      finally { setLoading(false); }
+    }, 420);
+  }, []);
+
+  function handleChange(e) {
+    const v = e.target.value;
+    setValue(v);
+    setActiveIdx(-1);
+    search(v);
+  }
+
+  function pick(user) {
+    const handle = `@${user.username}`;
+    setValue(handle);
+    setOpen(false);
+    setResults([]);
+    onSelect(user);
+  }
+
+  function handleKey(e) {
+    if (!open) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); setActiveIdx(i => Math.min(i + 1, results.length - 1)); }
+    if (e.key === 'ArrowUp')   { e.preventDefault(); setActiveIdx(i => Math.max(i - 1, 0)); }
+    if (e.key === 'Enter' && activeIdx >= 0) { e.preventDefault(); pick(results[activeIdx]); }
+    if (e.key === 'Escape') setOpen(false);
+  }
+
+  return (
+    <div ref={wrapRef} style={{ position: 'relative' }}>
+      <div style={{ position: 'relative' }}>
+        <input
+          name="handle"
+          required
+          placeholder="@username"
+          value={value}
+          onChange={handleChange}
+          onKeyDown={handleKey}
+          autoComplete="off"
+          style={{ ...inputStyle, display: 'block', marginTop: '6px', paddingRight: '32px' }}
+        />
+        {loading && (
+          <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: C.textMuted }}>…</span>
+        )}
+      </div>
+      {open && results.length > 0 && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 100,
+          backgroundColor: C.surface, border: `1px solid ${C.border}`, borderRadius: '8px',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.10)', overflow: 'hidden',
+        }}>
+          {results.map((u, i) => (
+            <div
+              key={u.username}
+              onMouseDown={() => pick(u)}
+              onMouseEnter={() => setActiveIdx(i)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '10px',
+                padding: '10px 14px', cursor: 'pointer',
+                backgroundColor: i === activeIdx ? C.accentFaint : 'transparent',
+                borderBottom: i < results.length - 1 ? `1px solid ${C.borderLight}` : 'none',
+                transition: 'background 0.1s',
+              }}
+            >
+              {u.profilePic ? (
+                <img src={u.profilePic} alt="" style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+              ) : (
+                <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: C.surfaceHigh, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', color: C.textMuted }}>@</div>
+              )}
+              <div>
+                <div style={{ fontWeight: '700', fontSize: '13px', color: C.text }}>@{u.username}</div>
+                {u.fullName && <div style={{ fontSize: '11px', color: C.textSub, marginTop: '1px' }}>{u.fullName}{u.followers ? ` · ${(u.followers / 1000).toFixed(0)}K` : ''}</div>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Influencers() {
   const { influencers } = useLoaderData();
   const actionData      = useActionData();
   const navigation      = useNavigation();
   const [showForm, setShowForm]     = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [autoName, setAutoName]     = useState('');
   const isSubmitting = navigation.state === 'submitting';
 
   const inputSt = { ...input.base };
@@ -130,21 +238,37 @@ export default function Influencers() {
 
       {/* Manual add form */}
       {showForm && (
-        <Form method="post" onSubmit={() => { if (!isSubmitting) setShowForm(false); }}
+        <Form method="post" onSubmit={() => { if (!isSubmitting) { setShowForm(false); setAutoName(''); } }}
           style={{ padding: '24px', backgroundColor: C.surface, border: `1px solid ${C.border}`, borderLeft: `3px solid ${C.accent}`, borderRadius: '8px', marginBottom: '32px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
           <input type="hidden" name="intent" value="create" />
-          {[
-            { name: 'name',      label: 'Full Name *',  placeholder: 'Sofia García',       required: true,  type: 'text' },
-            { name: 'handle',    label: 'Handle *',     placeholder: '@sofía_gs',          required: true,  type: 'text' },
-            { name: 'followers', label: 'Followers',    placeholder: '45200',              required: false, type: 'number' },
-            { name: 'country',   label: 'Country *',    placeholder: 'Spain',              required: true,  type: 'text' },
-          ].map(f => (
-            <label key={f.name} style={{ ...lbl.base }}>
-              {f.label}
-              <input name={f.name} required={f.required} placeholder={f.placeholder} type={f.type}
-                style={{ ...inputSt, display: 'block', marginTop: '6px' }} />
-            </label>
-          ))}
+
+          {/* Handle with Instagram autocomplete */}
+          <label style={{ ...lbl.base }}>
+            Instagram Handle *
+            <InstagramHandleInput
+              inputStyle={inputSt}
+              onSelect={(user) => setAutoName(user.fullName || '')}
+            />
+          </label>
+
+          {/* Name — pre-filled from Instagram selection */}
+          <label style={{ ...lbl.base }}>
+            Full Name *
+            <input name="name" required placeholder="Sofia García" type="text"
+              value={autoName} onChange={e => setAutoName(e.target.value)}
+              style={{ ...inputSt, display: 'block', marginTop: '6px' }} />
+          </label>
+
+          <label style={{ ...lbl.base }}>
+            Followers
+            <input name="followers" placeholder="45200" type="number"
+              style={{ ...inputSt, display: 'block', marginTop: '6px' }} />
+          </label>
+          <label style={{ ...lbl.base }}>
+            Country *
+            <input name="country" required placeholder="Spain" type="text"
+              style={{ ...inputSt, display: 'block', marginTop: '6px' }} />
+          </label>
           <label style={{ ...lbl.base, gridColumn: '1 / -1' }}>
             Email
             <input name="email" type="email" placeholder="sofia@example.com"
