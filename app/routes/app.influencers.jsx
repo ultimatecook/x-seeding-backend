@@ -1,8 +1,34 @@
 import { useState } from 'react';
-import { useLoaderData, useActionData, Form, useNavigation, useRouteError } from 'react-router';
+import { useLoaderData, useActionData, Form, useNavigation, useRouteError, Link } from 'react-router';
 import { boundary } from '@shopify/shopify-app-react-router/server';
 import prisma from '../db.server';
 import { C, btn, input, card, label as lbl, section } from '../theme';
+
+const COUNTRIES = [
+  'Afghanistan','Albania','Algeria','Andorra','Angola','Argentina','Armenia','Australia','Austria','Azerbaijan',
+  'Bahrain','Bangladesh','Belarus','Belgium','Bolivia','Bosnia and Herzegovina','Brazil','Bulgaria',
+  'Cambodia','Cameroon','Canada','Chile','China','Colombia','Costa Rica','Croatia','Cuba','Cyprus','Czech Republic',
+  'Denmark','Dominican Republic',
+  'Ecuador','Egypt','El Salvador','Estonia','Ethiopia',
+  'Finland','France',
+  'Georgia','Germany','Ghana','Greece','Guatemala',
+  'Honduras','Hungary',
+  'Iceland','India','Indonesia','Iran','Iraq','Ireland','Israel','Italy',
+  'Jamaica','Japan','Jordan',
+  'Kazakhstan','Kenya','Kuwait',
+  'Latvia','Lebanon','Lithuania','Luxembourg',
+  'Malaysia','Mexico','Moldova','Morocco','Myanmar',
+  'Nepal','Netherlands','New Zealand','Nigeria','North Macedonia','Norway',
+  'Pakistan','Panama','Paraguay','Peru','Philippines','Poland','Portugal',
+  'Qatar',
+  'Romania','Russia',
+  'Saudi Arabia','Serbia','Singapore','Slovakia','Slovenia','South Africa','South Korea','Spain','Sri Lanka','Sweden','Switzerland',
+  'Taiwan','Thailand','Tunisia','Turkey',
+  'Ukraine','United Arab Emirates','United Kingdom','United States','Uruguay','Uzbekistan',
+  'Venezuela','Vietnam',
+  'Yemen',
+  'Zimbabwe',
+];
 
 export async function loader() {
   const influencers = await prisma.influencer.findMany({ orderBy: { name: 'asc' } });
@@ -138,7 +164,6 @@ export default function Influencers() {
             { name: 'name',      label: 'Full Name *',        placeholder: 'Sofia García', required: true,  type: 'text'   },
             { name: 'handle',    label: 'Instagram Handle *', placeholder: '@sofía_gs',    required: true,  type: 'text'   },
             { name: 'followers', label: 'Followers',          placeholder: '45200',        required: false, type: 'number' },
-            { name: 'country',   label: 'Country *',          placeholder: 'Spain',        required: true,  type: 'text'   },
           ].map(f => (
             <label key={f.name} style={{ ...lbl.base }}>
               {f.label}
@@ -146,6 +171,13 @@ export default function Influencers() {
                 style={{ ...inputSt, display: 'block', marginTop: '6px' }} />
             </label>
           ))}
+          <label style={{ ...lbl.base }}>
+            Country *
+            <select name="country" required style={{ ...inputSt, display: 'block', marginTop: '6px' }}>
+              <option value="">Select country…</option>
+              {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </label>
           <label style={{ ...lbl.base, gridColumn: '1 / -1' }}>
             Email
             <input name="email" type="email" placeholder="sofia@example.com"
@@ -177,7 +209,11 @@ export default function Influencers() {
             <tbody>
               {influencers.map(inf => (
                 <tr key={inf.id} style={{ borderBottom: `1px solid ${C.borderLight}` }}>
-                  <td style={{ padding: '12px 12px', fontWeight: '700', color: C.accent }}>{inf.handle}</td>
+                  <td style={{ padding: '12px 12px', fontWeight: '700' }}>
+                    <Link to={`/app/influencers/${inf.id}`} style={{ color: C.accent, textDecoration: 'none' }}>
+                      {inf.handle}
+                    </Link>
+                  </td>
                   <td style={{ padding: '12px 12px', color: C.text }}>{inf.name}</td>
                   <td style={{ padding: '12px 12px', color: C.textSub }}>{inf.followers?.toLocaleString()}</td>
                   <td style={{ padding: '12px 12px', color: C.textSub }}>{inf.country}</td>

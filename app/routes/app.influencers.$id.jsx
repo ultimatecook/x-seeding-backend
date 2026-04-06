@@ -1,0 +1,210 @@
+import { Link, useLoaderData, useRouteError } from 'react-router';
+import { boundary } from '@shopify/shopify-app-react-router/server';
+import { authenticate } from '../shopify.server';
+import prisma from '../db.server';
+import { C, btn, card, section } from '../theme';
+
+const STATUSES = ['Pending', 'Ordered', 'Shipped', 'Delivered', 'Posted'];
+
+export async function loader({ request, params }) {
+  await authenticate.admin(request);
+  const id = parseInt(params.id);
+
+  const influencer = await prisma.influencer.findUnique({
+    where: { id },
+    include: {
+      seedings: {
+        include: { products: true, campaign: { select: { id: true, title: true } } },
+        orderBy: { createdAt: 'desc' },
+      },
+    },
+  });
+
+  if (!influencer) throw new Response('Influencer not found', { status: 404 });
+  return { influencer };
+}
+
+function adminOrderLink(s) {
+  if (!s.shop) return null;
+  if (s.shopifyOrderName && s.status !== 'Pending') {
+    return `https://${s.shop}/admin/orders/${s.shopifyOrderName.replace('#', '')}`;
+  }
+  if (s.shopifyDraftOrderId) {
+    return `https://${s.shop}/admin/draft_orders/${s.shopifyDraftOrderId.split('/').pop()}`;
+  }
+  return null;
+}
+
+export default function InfluencerDetail() {
+  const { influencer } = useLoaderData();
+  const seedings = influencer.seedings;
+
+  const totalCost  = seedings.reduce((s, sd) => s + sd.totalCost, 0);
+  const totalUnits = seedings.reduce((s, sd) => s + sd.products.length, 0);
+  const avgCost    = seedings.length > 0 ? totalCost / seedings.length : 0;
+
+  const statusCounts = STATUSES.reduce((acc, s) => {
+    acc[s] = seedings.filter(sd => sd.status === s).length;
+    return acc;
+  }, {});
+
+  // Most seeded products
+  const productMap = {};
+  for (const sd of seedings) {
+    for (const p of sd.products) {
+      if (!productMap[p.productName]) productMap[p.productName] = 0;
+      productMap[p.productName]++;
+    }
+  }
+  const topProducts = Object.entries(productMap).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+  const stats = [
+    { label: 'Total Seedings', value: seedings.length },
+    { label: 'Total Value',    value: `€${Math.round(totalCost).toLocaleString()}` },
+    { label: 'Units Received', value: totalUnits },
+    { label: 'Avg per Seeding', value: `€${Math.round(avgCost)}` },
+  ];
+
+  return (
+    <div>
+      {/* Back */}
+      <Link to="/app/influencers" style={{ fontSize: '13px', color: C.textSub, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px', marginBottom: '20px' }}>
+        ← All Influencers
+      </Link>
+
+      {/* Profile header */}
+      <div style={{ ...card.base, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div style={{ width: '52px', height: '52px', borderRadius: '50%', backgroundColor: C.accentFaint, border: `2px solid ${C.accent}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', fontWeight: '800', color: C.accent, flexShrink: 0 }}>
+            {(influencer.handle || '@').slice(1, 2).toUpperCase()}
+          </div>
+          <div>
+            <div style={{ fontSize: '20px', fontWeight: '800', color: C.text, marginBottom: '2px' }}>{influencer.handle}</div>
+            <div style={{ fontSize: '14px', color: C.textSub }}>{influencer.name}</div>
+            <div style={{ display: 'flex', gap: '12px', marginTop: '6px', flexWrap: 'wrap' }}>
+              {influencer.country && (
+                <span style={{ fontSize: '12px', color: C.textMuted }}>📍 {influencer.country}</span>
+              )}
+              {influencer.followers > 0 && (
+                <span style={{ fontSize: '12px', color: C.textMuted }}>👥 {influencer.followers.toLocaleString()} followers</span>
+              )}
+              {influencer.email && (
+                <a href={`mailto:${influencer.email}`} style={{ fontSize: '12px', color: C.accent, textDecoration: 'none' }}>✉ {influencer.email}</a>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Stat tiles */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '24px' }}>
+        {stats.map(({ label, value }) => (
+          <div key={label} style={{ ...card.base, borderLeft: `3px solid ${C.accent}` }}>
+            <div style={{ fontSize: '11px', color: C.textSub, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '8px' }}>{label}</div>
+            <div style={{ fontSize: '26px', fontWeight: '900', color: C.text }}>{value}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '32px' }}>
+        {/* Status breakdown */}
+        <div style={{ ...card.base }}>
+          <div style={{ ...section.title, marginBottom: '14px' }}>Status Breakdown</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {STATUSES.filter(s => statusCounts[s] > 0).map(s => (
+              <div key={s} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ padding: '3px 10px', ...C.status[s], borderRadius: '12px', fontSize: '12px', fontWeight: '700' }}>{s}</span>
+                <span style={{ fontSize: '13px', fontWeight: '700', color: C.text }}>{statusCounts[s]}</span>
+              </div>
+            ))}
+            {Object.values(statusCounts).every(v => v === 0) && (
+              <span style={{ fontSize: '13px', color: C.textMuted }}>No seedings yet</span>
+            )}
+          </div>
+        </div>
+
+        {/* Top products */}
+        <div style={{ ...card.base }}>
+          <div style={{ ...section.title, marginBottom: '14px' }}>Most Seeded Products</div>
+          {topProducts.length === 0 ? (
+            <span style={{ fontSize: '13px', color: C.textMuted }}>No products yet</span>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {topProducts.map(([name, count]) => (
+                <div key={name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
+                  <span style={{ fontSize: '13px', color: C.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
+                  <span style={{ fontSize: '12px', fontWeight: '700', color: C.accent, flexShrink: 0 }}>{count}×</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Seedings history */}
+      <div>
+        <div style={{ ...section.title, marginBottom: '16px' }}>Seeding History</div>
+        {seedings.length === 0 ? (
+          <div style={{ padding: '40px', textAlign: 'center', border: `2px dashed ${C.border}`, borderRadius: '8px', color: C.textMuted, fontSize: '13px' }}>
+            No seedings for this influencer yet.
+          </div>
+        ) : (
+          <div style={{ ...card.flat, overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+              <thead>
+                <tr style={{ borderBottom: `1px solid ${C.border}` }}>
+                  {['Date', 'Campaign', 'Products', 'Cost', 'Status', 'Order'].map(h => (
+                    <th key={h} style={{ padding: '12px', textAlign: 'left', fontWeight: '700', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.7px', color: C.textSub }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {seedings.map(s => {
+                  const link = adminOrderLink(s);
+                  return (
+                    <tr key={s.id} style={{ borderBottom: `1px solid ${C.borderLight}` }}>
+                      <td style={{ padding: '12px', color: C.textMuted, whiteSpace: 'nowrap' }}>
+                        {new Date(s.createdAt).toLocaleDateString('en-GB')}
+                      </td>
+                      <td style={{ padding: '12px' }}>
+                        {s.campaign
+                          ? <Link to={`/app/campaigns/${s.campaign.id}`} style={{ color: C.accent, fontWeight: '600', textDecoration: 'none', fontSize: '12px' }}>{s.campaign.title}</Link>
+                          : <span style={{ color: C.textMuted }}>—</span>
+                        }
+                      </td>
+                      <td style={{ padding: '12px', color: C.textSub, maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {s.products.map(p => p.productName).join(', ')}
+                      </td>
+                      <td style={{ padding: '12px', fontWeight: '700', color: C.text, whiteSpace: 'nowrap' }}>
+                        €{s.totalCost.toFixed(2)}
+                      </td>
+                      <td style={{ padding: '12px' }}>
+                        <span style={{ padding: '3px 10px', ...C.status[s.status], borderRadius: '12px', fontSize: '11px', fontWeight: '700' }}>
+                          {s.status}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px' }}>
+                        {link
+                          ? <a href={link} target="_top" rel="noopener noreferrer" style={{ fontSize: '11px', fontWeight: '700', padding: '4px 10px', border: `1px solid ${C.border}`, borderRadius: '5px', color: C.textSub, textDecoration: 'none', backgroundColor: C.surfaceHigh, whiteSpace: 'nowrap' }}>
+                              {s.status === 'Pending' ? 'Draft ↗' : 'Order ↗'}
+                            </a>
+                          : <span style={{ color: C.textMuted }}>—</span>
+                        }
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function ErrorBoundary() {
+  return boundary.error(useRouteError());
+}
+
+export const headers = (headersArgs) => boundary.headers(headersArgs);
