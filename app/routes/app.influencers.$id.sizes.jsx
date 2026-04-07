@@ -73,25 +73,29 @@ export async function action({ request, params }) {
   }
 
   if (request.method === 'DELETE') {
-    const formData = await request.formData();
-    const category = formData.get('category');
+    try {
+      const formData = await request.formData();
+      const category = formData.get('category');
 
-    if (!category) {
-      return new Response(JSON.stringify({ error: 'Category required' }), {
-        status: 400,
+      if (!category) {
+        return new Response(JSON.stringify({ error: 'Category required' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Try to delete - will silently succeed if not found
+      await prisma.influencerSavedSize.deleteMany({
+        where: { influencerId, category },
+      });
+
+      return new Response(JSON.stringify({ success: true }), {
+        status: 200,
         headers: { 'Content-Type': 'application/json' },
       });
-    }
-
-    try {
-      await prisma.influencerSavedSize.delete({
-        where: { influencerId_category: { influencerId, category } },
-      });
-
-      return redirect(`/app/influencers/${influencerId}/sizes`);
     } catch (err) {
       console.error('Error deleting size:', err);
-      return new Response(JSON.stringify({ error: 'Not found or server error' }), {
+      return new Response(JSON.stringify({ error: 'Server error' }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' },
       });
@@ -189,32 +193,29 @@ export default function InfluencerSizes() {
                       {savedSize ? 'Change' : 'Set Size'}
                     </button>
                     {savedSize && (
-                      <form method="post" style={{ flex: 1 }}>
-                        <input type="hidden" name="category" value={key} />
-                        <button
-                          type="submit"
-                          formMethod="delete"
-                          onClick={e => {
-                            const data = new FormData();
-                            data.append('category', key);
-                            fetch(`/app/influencers/${influencer.id}/sizes`, {
-                              method: 'DELETE',
-                              body: new URLSearchParams(data),
-                            }).then(() => navigate(0));
-                          }}
-                          style={{
-                            ...btn.secondary,
-                            flex: 1,
-                            fontSize: '12px',
-                            padding: '7px 12px',
-                            color: '#DC2626',
-                            borderColor: '#FCA5A5',
-                            backgroundColor: '#FEF2F2',
-                          }}
-                        >
-                          Clear
-                        </button>
-                      </form>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const formData = new FormData();
+                          formData.append('category', key);
+                          const res = await fetch(`/app/influencers/${influencer.id}/sizes`, {
+                            method: 'DELETE',
+                            body: formData,
+                          });
+                          if (res.ok) navigate(0);
+                        }}
+                        style={{
+                          ...btn.secondary,
+                          flex: 1,
+                          fontSize: '12px',
+                          padding: '7px 12px',
+                          color: '#DC2626',
+                          borderColor: '#FCA5A5',
+                          backgroundColor: '#FEF2F2',
+                        }}
+                      >
+                        Clear
+                      </button>
                     )}
                   </div>
                 </div>
