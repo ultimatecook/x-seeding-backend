@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { useLoaderData, useNavigate } from 'react-router';
+import { useLoaderData, useNavigate, useRouteError } from 'react-router';
 import { boundary } from '@shopify/shopify-app-react-router/server';
 import prisma from '../db.server';
-import { C, btn, card, section } from '../theme';
+import { C, btn, card } from '../theme';
 
 const SIZE_OPTIONS = {
   tops: ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'One Size'],
