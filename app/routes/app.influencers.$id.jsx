@@ -114,7 +114,7 @@ export default function InfluencerDetail() {
         <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
           {/* Saved Sizes button */}
           <button
-            onClick={() => navigate(`/app/influencers/${influencer.id}/sizes`)}
+            onClick={() => navigate(`/app/influencer-sizes/${influencer.id}`)}
             style={{
               display: 'flex', alignItems: 'center', gap: '6px',
               padding: '9px 16px', borderRadius: '8px', border: `1.5px solid ${C.accent}`,
