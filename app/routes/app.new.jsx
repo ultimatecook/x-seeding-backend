@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useLoaderData, useRouteLoaderData, useNavigate, Form, redirect, useRouteError } from 'react-router';
 import { boundary } from '@shopify/shopify-app-react-router/server';
 import prisma from '../db.server';
 import { C, btn, input, fmtNum } from '../theme';
+import { guessProductCategory, extractSizeFromVariant, getProductsWithoutSize } from '../utils/size-helpers';
 
 // ── Loader ───────────────────────────────────────────────────────────────────
 export async function loader() {
@@ -27,8 +28,19 @@ export async function action({ request }) {
   const productPrices = formData.getAll('productPrices').map(Number);
   const productCosts  = formData.getAll('productCosts').map(v => v ? Number(v) : null);
   const productImages = formData.getAll('productImages');
+  const productSizes  = formData.getAll('productSizes');
+  const productCategories = formData.getAll('productCategories');
   const totalCost     = productPrices.reduce((sum, p) => sum + p, 0);
   const notes         = formData.get('notes') || '';
+
+  // Validate all products have sizes
+  const productsWithoutSize = productSizes.filter(s => !s || s.trim() === '');
+  if (productsWithoutSize.length > 0) {
+    return new Response(JSON.stringify({ error: 'All products must have a size selected' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
 
   const influencer = await prisma.influencer.findUnique({ where: { id: influencerId } });
 
@@ -85,6 +97,8 @@ export async function action({ request }) {
           price:       productPrices[i],
           cost:        productCosts[i] ?? null,
           imageUrl:    productImages[i] || null,
+          size:        productSizes[i] || null,
+          category:    productCategories[i] || null,
         })),
       },
     },
@@ -205,6 +219,33 @@ export default function NewSeeding() {
 
   const allCountries = [...new Set(influencers.map(i => i.country).filter(Boolean))].sort();
 
+  // Load influencer saved sizes when influencer is selected
+  const [influencerSizeMap, setInfluencerSizeMap] = useState({});
+
+  useEffect(() => {
+    if (!selectedInfluencer?.id) {
+      setInfluencerSizeMap({});
+      return;
+    }
+
+    fetch(`/api/influencer-sizes?influencerId=${selectedInfluencer.id}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.sizeMap) {
+          setInfluencerSizeMap(data.sizeMap);
+          // Auto-apply sizes to existing products
+          setSelectedProducts(prev =>
+            prev.map(p => {
+              if (p.size) return p; // Don't override if already set
+              const savedSize = data.sizeMap[p.category];
+              return savedSize ? { ...p, size: savedSize } : p;
+            })
+          );
+        }
+      })
+      .catch(err => console.error('Failed to load influencer sizes:', err));
+  }, [selectedInfluencer?.id]);
+
   const filteredInfluencers = influencers.filter(inf => {
     const q = infSearch.toLowerCase();
     if (q && !inf.handle.toLowerCase().includes(q) && !inf.name.toLowerCase().includes(q)) return false;
@@ -228,11 +269,19 @@ export default function NewSeeding() {
     .filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase()));
 
   const selectVariant = (prod, variant) => {
+    const category = guessProductCategory(prod.name, variant?.title);
+    const extractedSize = extractSizeFromVariant(variant?.title);
     setSelectedProducts(prev => [
       ...prev.filter(p => p.id !== prod.id),
-      { ...prod, selectedVariant: variant },
+      { ...prod, selectedVariant: variant, category, size: extractedSize },
     ]);
     setExpandedProductId(null);
+  };
+
+  const updateProductSize = (prodId, newSize) => {
+    setSelectedProducts(prev =>
+      prev.map(p => (p.id === prodId ? { ...p, size: newSize } : p))
+    );
   };
 
   const removeProduct = (prodId) =>
@@ -276,8 +325,12 @@ export default function NewSeeding() {
       setTimeout(() => setShakeId(null), 500);
       return;
     }
-    const variant = prod.variants.find(v => v.available) || prod.variants[0];
-    selectVariant(prod, variant);
+    // Add product WITHOUT auto-assigning a size
+    const category = guessProductCategory(prod.name);
+    setSelectedProducts(prev => [
+      ...prev,
+      { ...prod, selectedVariant: null, category, size: null },
+    ]);
   };
 
   const totalRetail = selectedProducts.reduce((s, p) => s + (p.selectedVariant?.price ?? p.price), 0);
@@ -338,6 +391,8 @@ export default function NewSeeding() {
             <input type="hidden" name="productPrices" value={p.selectedVariant?.price ?? p.price} />
             <input type="hidden" name="productCosts"  value={p.selectedVariant?.cost ?? p.cost ?? ''} />
             <input type="hidden" name="productImages" value={p.image ?? ''} />
+            <input type="hidden" name="productSizes"  value={p.size ?? ''} />
+            <input type="hidden" name="productCategories" value={p.category ?? ''} />
           </span>
         ))}
 
@@ -637,28 +692,70 @@ export default function NewSeeding() {
                       </div>
                     </div>
                   ) : (
-                    selectedProducts.map(p => (
-                      <div key={p.id} className="bag-item" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 8px', backgroundColor: '#FFFFFF', border: '1px solid #F3F4F6', borderRadius: '8px' }}>
-                        {p.image ? (
-                          <img src={p.image} alt={p.name} style={{ width: '34px', height: '34px', objectFit: 'contain', borderRadius: '5px', backgroundColor: '#F9FAFB', flexShrink: 0 }} />
-                        ) : (
-                          <div style={{ width: '34px', height: '34px', backgroundColor: '#E5E7EB', borderRadius: '5px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', flexShrink: 0 }}>📦</div>
-                        )}
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: '11px', fontWeight: '700', color: '#1A1A1A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
-                          <div style={{ fontSize: '10px', color: '#9CA3AF' }}>
-                            €{(p.selectedVariant?.price ?? p.price).toFixed(2)}
-                            {p.selectedVariant && p.selectedVariant.title !== 'Default Title' && (
-                              <span style={{ color: C.accent, fontWeight: '600', marginLeft: '3px' }}>· {p.selectedVariant.title}</span>
+                    selectedProducts.map(p => {
+                      const hasSize = !!p.size;
+                      const sizeWarning = !hasSize;
+                      return (
+                        <div key={p.id} className="bag-item" style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '8px', backgroundColor: sizeWarning ? '#FEF3F2' : '#FFFFFF', border: `1px solid ${sizeWarning ? '#FCA5A5' : '#F3F4F6'}`, borderRadius: '8px' }}>
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                            {p.image ? (
+                              <img src={p.image} alt={p.name} style={{ width: '34px', height: '34px', objectFit: 'contain', borderRadius: '5px', backgroundColor: '#F9FAFB', flexShrink: 0 }} />
+                            ) : (
+                              <div style={{ width: '34px', height: '34px', backgroundColor: '#E5E7EB', borderRadius: '5px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', flexShrink: 0 }}>📦</div>
                             )}
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: '11px', fontWeight: '700', color: '#1A1A1A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
+                              <div style={{ fontSize: '10px', color: '#9CA3AF' }}>
+                                €{(p.selectedVariant?.price ?? p.price).toFixed(2)}
+                                {p.selectedVariant && p.selectedVariant.title !== 'Default Title' && (
+                                  <span style={{ color: C.accent, fontWeight: '600', marginLeft: '3px' }}>· {p.selectedVariant.title}</span>
+                                )}
+                              </div>
+                            </div>
+                            <button type="button" className="remove-btn" onClick={() => removeProduct(p.id)}
+                              style={{ background: 'none', border: 'none', color: '#D1D5DB', cursor: 'pointer', fontSize: '18px', lineHeight: 1, padding: '2px', flexShrink: 0, transition: 'color 0.15s' }}>
+                              ×
+                            </button>
                           </div>
+                          {/* Size selector - only show if variants exist */}
+                          {p.variants && p.variants.length > 1 && (
+                            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', paddingTop: '2px' }}>
+                              {p.variants.map(v => {
+                                const vSize = extractSizeFromVariant(v.title);
+                                const isSelected = p.size === vSize;
+                                if (!vSize) return null;
+                                return (
+                                  <button
+                                    key={v.id}
+                                    type="button"
+                                    onClick={() => updateProductSize(p.id, vSize)}
+                                    style={{
+                                      padding: '3px 7px',
+                                      fontSize: '9px',
+                                      fontWeight: isSelected ? '700' : '600',
+                                      border: `1.5px solid ${isSelected ? C.accent : '#E3E3E3'}`,
+                                      backgroundColor: isSelected ? C.accentFaint : '#FFFFFF',
+                                      color: isSelected ? C.accent : '#6B7280',
+                                      borderRadius: '4px',
+                                      cursor: v.available ? 'pointer' : 'not-allowed',
+                                      opacity: v.available ? 1 : 0.5,
+                                      transition: 'all 0.15s ease',
+                                    }}
+                                  >
+                                    {vSize}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                          {sizeWarning && (
+                            <div style={{ fontSize: '9px', color: '#DC2626', fontWeight: '600', marginTop: '2px' }}>
+                              ⚠️ Size required
+                            </div>
+                          )}
                         </div>
-                        <button type="button" className="remove-btn" onClick={() => removeProduct(p.id)}
-                          style={{ background: 'none', border: 'none', color: '#D1D5DB', cursor: 'pointer', fontSize: '18px', lineHeight: 1, padding: '2px', flexShrink: 0, transition: 'color 0.15s' }}>
-                          ×
-                        </button>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
 
@@ -681,12 +778,19 @@ export default function NewSeeding() {
             </div>
 
             {/* Step 2 footer nav */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px', paddingTop: '20px', borderTop: '1px solid #E3E3E3' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px', paddingTop: '20px', borderTop: '1px solid #E3E3E3', flexWrap: 'wrap', gap: '12px' }}>
               <button type="button" onClick={() => setStep(1)} style={{ ...btn.secondary }}>← Back</button>
-              <button type="button" onClick={() => setStep(3)} disabled={selectedProducts.length === 0}
-                style={{ ...btn.primary, opacity: selectedProducts.length > 0 ? 1 : 0.35, cursor: selectedProducts.length > 0 ? 'pointer' : 'not-allowed', fontSize: '14px', padding: '10px 24px' }}>
-                Next: Review →
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                {getProductsWithoutSize(selectedProducts).length > 0 && (
+                  <div style={{ fontSize: '12px', color: '#DC2626', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    ⚠️ {getProductsWithoutSize(selectedProducts).length} item{getProductsWithoutSize(selectedProducts).length !== 1 ? 's' : ''} need{getProductsWithoutSize(selectedProducts).length === 1 ? 's' : ''} sizes
+                  </div>
+                )}
+                <button type="button" onClick={() => setStep(3)} disabled={selectedProducts.length === 0 || getProductsWithoutSize(selectedProducts).length > 0}
+                  style={{ ...btn.primary, opacity: selectedProducts.length > 0 && getProductsWithoutSize(selectedProducts).length === 0 ? 1 : 0.35, cursor: selectedProducts.length > 0 && getProductsWithoutSize(selectedProducts).length === 0 ? 'pointer' : 'not-allowed', fontSize: '14px', padding: '10px 24px' }}>
+                  Next: Review →
+                </button>
+              </div>
             </div>
           </>
         )}
@@ -724,6 +828,11 @@ export default function NewSeeding() {
                     <span style={{ fontSize: '12px', fontWeight: '600', color: '#1A1A1A' }}>{p.name}</span>
                     {p.selectedVariant && p.selectedVariant.title !== 'Default Title' && (
                       <span style={{ fontSize: '11px', color: C.accent, fontWeight: '700' }}>{p.selectedVariant.title}</span>
+                    )}
+                    {p.size && (
+                      <span style={{ fontSize: '10px', fontWeight: '600', backgroundColor: '#EDE9FE', color: '#7C3AED', padding: '1px 6px', borderRadius: '4px' }}>
+                        {p.size}
+                      </span>
                     )}
                   </div>
                 ))}
