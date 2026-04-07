@@ -221,9 +221,7 @@ export default function InfluencerSizes() {
                 </div>
               ) : (
                 // Edit mode
-                <Form method="post">
-                  <input type="hidden" name="category" value={key} />
-
+                <div>
                   <div style={{ marginBottom: '12px' }}>
                     <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: C.textSub, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
                       Pick a size
@@ -232,9 +230,20 @@ export default function InfluencerSizes() {
                       {availableSizes.map(size => (
                         <button
                           key={size}
-                          type="submit"
-                          name="size"
-                          value={size}
+                          type="button"
+                          onClick={async () => {
+                            const formData = new FormData();
+                            formData.append('category', key);
+                            formData.append('size', size);
+                            const res = await fetch(`/app/influencers/${influencer.id}/sizes`, {
+                              method: 'POST',
+                              body: formData,
+                            });
+                            if (res.ok) {
+                              setEditCategory(null);
+                              window.location.reload();
+                            }
+                          }}
                           style={{
                             padding: '8px 6px',
                             fontSize: '12px',
@@ -267,7 +276,7 @@ export default function InfluencerSizes() {
                       Cancel
                     </button>
                   </div>
-                </Form>
+                </div>
               )}
             </div>
           );
