@@ -3,59 +3,69 @@
  */
 
 /**
- * Guess product category from product name and variant titles
- * Returns: "tops", "bottoms", "shoes", "dresses", or null if unknown
+ * Guess product category from product name and variant titles.
+ * Returns: "tops", "bottoms", or "footwear"
+ *
+ * Logic covers the broadest range of fashion brands:
+ *  - footwear: anything you put on your feet
+ *  - bottoms:  anything worn on the lower body (incl. dresses/skirts — they
+ *              share the same size chart as bottoms at most brands)
+ *  - tops:     everything else (default fallback)
  */
 export function guessProductCategory(productName, variantTitle = '') {
   const text = `${productName} ${variantTitle}`.toLowerCase();
 
-  // Shoes
+  // ── Footwear ────────────────────────────────────────────────────────────────
   if (
     text.includes('shoe') ||
     text.includes('boot') ||
     text.includes('sneaker') ||
     text.includes('loafer') ||
     text.includes('sandal') ||
-    text.includes('heels') ||
-    text.includes('flats')
+    text.includes('heel') ||
+    text.includes('flat') ||
+    text.includes('mule') ||
+    text.includes('clog') ||
+    text.includes('slipper') ||
+    text.includes('pump') ||
+    text.includes('stiletto') ||
+    text.includes('wedge') ||
+    text.includes('espadrille') ||
+    text.includes('trainer') ||
+    text.includes('footwear')
   ) {
-    return 'shoes';
+    return 'footwear';
   }
 
-  // Dresses
-  if (text.includes('dress') || text.includes('gown')) {
-    return 'dresses';
-  }
-
-  // Bottoms
+  // ── Bottoms (incl. dresses / skirts — same size charts at most brands) ──────
   if (
     text.includes('pant') ||
-    text.includes('jeans') ||
-    text.includes('shorts') ||
+    text.includes('jean') ||
+    text.includes('denim') ||
+    text.includes('short') ||
     text.includes('skirt') ||
-    text.includes('trousers') ||
-    text.includes('legging')
+    text.includes('trouser') ||
+    text.includes('legging') ||
+    text.includes('jogger') ||
+    text.includes('sweatpant') ||
+    text.includes('trackpant') ||
+    text.includes('capri') ||
+    text.includes('culotte') ||
+    text.includes('bermuda') ||
+    text.includes('dress') ||
+    text.includes('gown') ||
+    text.includes('jumpsuit') ||
+    text.includes('romper') ||
+    text.includes('playsuit') ||
+    text.includes('overall') ||
+    text.includes('dungaree')
   ) {
     return 'bottoms';
   }
 
-  // Tops
-  if (
-    text.includes('shirt') ||
-    text.includes('top') ||
-    text.includes('blouse') ||
-    text.includes('sweater') ||
-    text.includes('hoodie') ||
-    text.includes('t-shirt') ||
-    text.includes('tee') ||
-    text.includes('jacket') ||
-    text.includes('cardigan') ||
-    text.includes('vest')
-  ) {
-    return 'tops';
-  }
-
-  // Default to tops (most common)
+  // ── Tops (default) ──────────────────────────────────────────────────────────
+  // shirt, tee, top, blouse, sweater, hoodie, jacket, coat, cardigan,
+  // vest, bodysuit, crop, corset, bra, tank, polo, sweatshirt, etc.
   return 'tops';
 }
 
@@ -66,12 +76,23 @@ export function guessProductCategory(productName, variantTitle = '') {
 export function extractSizeFromVariant(variantTitle) {
   if (!variantTitle || variantTitle === 'Default Title') return null;
 
-  const sizePatterns = ['XXL', 'XL', 'XS', 'S', 'M', 'L', 'One Size', '3XL', '2XL'];
-  const titleUpper = variantTitle.toUpperCase();
+  const title = variantTitle.trim();
+  const titleUpper = title.toUpperCase();
 
+  // Shoe sizes — check first (numeric, e.g. "EU 38", "US 8.5", "8", "8.5")
+  const shoeMatch = title.match(/\b(\d{1,2}(?:\.\d)?)\b/);
+  if (shoeMatch) {
+    const num = parseFloat(shoeMatch[1]);
+    if (num >= 4 && num <= 14) return shoeMatch[1];
+  }
+
+  // Apparel sizes — order matters (longer patterns first to avoid 'XL' matching inside 'XXL')
+  const sizePatterns = ['XXXL', 'XXL', 'XL', 'XXS', 'XS', 'One Size', 'OS', 'S', 'M', 'L'];
   for (const pattern of sizePatterns) {
-    if (titleUpper.includes(pattern)) {
-      return pattern;
+    // Match as whole word to avoid false positives
+    const re = new RegExp(`(^|[^A-Z])${pattern}([^A-Z]|$)`);
+    if (re.test(titleUpper)) {
+      return pattern === 'OS' ? 'One Size' : pattern;
     }
   }
 

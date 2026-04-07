@@ -1,21 +1,19 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useLoaderData, useNavigate, useRouteError, Form, useNavigation } from 'react-router';
 import { boundary } from '@shopify/shopify-app-react-router/server';
 import prisma from '../db.server';
 import { C, btn, card } from '../theme';
 
 const SIZE_OPTIONS = {
-  tops:    ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'One Size'],
-  bottoms: ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', 'One Size'],
-  shoes:   ['5', '5.5', '6', '6.5', '7', '7.5', '8', '8.5', '9', '9.5', '10', '10.5', '11', '11.5', '12', 'One Size'],
-  dresses: ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'One Size'],
+  tops:     ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', 'One Size'],
+  bottoms:  ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', 'One Size'],
+  footwear: ['5', '5.5', '6', '6.5', '7', '7.5', '8', '8.5', '9', '9.5', '10', '10.5', '11', '11.5', '12', 'One Size'],
 };
 
 const CATEGORIES = [
-  { key: 'tops',    label: '👕 Tops' },
-  { key: 'bottoms', label: '👖 Bottoms' },
-  { key: 'shoes',   label: '👞 Shoes' },
-  { key: 'dresses', label: '👗 Dresses' },
+  { key: 'tops',     label: '👕 Tops' },
+  { key: 'bottoms',  label: '👖 Bottoms' },
+  { key: 'footwear', label: '👟 Footwear' },
 ];
 
 // ── Loader ────────────────────────────────────────────────────────────────────
@@ -67,6 +65,14 @@ export default function InfluencerSizes() {
 
   const [editCategory, setEditCategory] = useState(null);
 
+  // Close the size picker automatically after the form submission completes
+  useEffect(() => {
+    if (navigation.state === 'idle' && editCategory !== null) {
+      setEditCategory(null);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navigation.state]);
+
   return (
     <div>
       <button
@@ -84,7 +90,7 @@ export default function InfluencerSizes() {
         Default sizes auto-apply when creating new seedings.
       </p>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '16px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
         {CATEGORIES.map(({ key, label }) => {
           const savedSize = sizeMap[key];
           const isEditing = editCategory === key;
@@ -111,13 +117,12 @@ export default function InfluencerSizes() {
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '12px' }}>
                     {sizes.map(size => (
                       <Form key={size} method="post">
-                        <input type="hidden" name="intent"    value="save" />
-                        <input type="hidden" name="category"  value={key} />
-                        <input type="hidden" name="size"      value={size} />
+                        <input type="hidden" name="intent"   value="save" />
+                        <input type="hidden" name="category" value={key} />
+                        <input type="hidden" name="size"     value={size} />
                         <button
                           type="submit"
                           disabled={isSubmitting}
-                          onClick={() => setEditCategory(null)}
                           style={{
                             padding: '6px 10px',
                             fontSize: '12px',
