@@ -1,4 +1,4 @@
-import { Link, useLoaderData, useRouteError } from 'react-router';
+import { Link, useLoaderData, useRouteError, useNavigate } from 'react-router';
 import { boundary } from '@shopify/shopify-app-react-router/server';
 import prisma from '../db.server';
 import { C, btn, card, section, fmtNum, fmtDate } from '../theme';
@@ -44,6 +44,7 @@ function openIGPopup(handle) {
 
 export default function InfluencerDetail() {
   const { influencer } = useLoaderData();
+  const navigate = useNavigate();
   const seedings = influencer.seedings;
 
   const totalCost  = seedings.reduce((s, sd) => s + sd.totalCost, 0);
@@ -110,24 +111,39 @@ export default function InfluencerDetail() {
             </div>
           </div>
         </div>
-        {/* Message on Instagram button */}
-        <button
-          onClick={() => openIGPopup(influencer.handle)}
-          style={{
-            display: 'flex', alignItems: 'center', gap: '7px',
-            padding: '9px 16px', borderRadius: '8px', border: 'none',
-            cursor: 'pointer', fontSize: '13px', fontWeight: '700',
-            background: 'linear-gradient(135deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)',
-            color: '#fff', flexShrink: 0,
-          }}
-        >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-            <circle cx="12" cy="12" r="4.5" stroke="white" strokeWidth="2"/>
-            <rect x="1.5" y="1.5" width="21" height="21" rx="6" stroke="white" strokeWidth="2"/>
-            <circle cx="17.5" cy="6.5" r="1.2" fill="white"/>
-          </svg>
-          Message on Instagram
-        </button>
+        <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+          {/* Saved Sizes button */}
+          <button
+            onClick={() => navigate(`/app/influencers/${influencer.id}/sizes`)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '6px',
+              padding: '9px 16px', borderRadius: '8px', border: `1.5px solid ${C.accent}`,
+              cursor: 'pointer', fontSize: '13px', fontWeight: '700',
+              backgroundColor: C.accentFaint, color: C.accent,
+              transition: 'all 0.15s ease',
+            }}
+          >
+            📏 Saved Sizes
+          </button>
+          {/* Message on Instagram button */}
+          <button
+            onClick={() => openIGPopup(influencer.handle)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '7px',
+              padding: '9px 16px', borderRadius: '8px', border: 'none',
+              cursor: 'pointer', fontSize: '13px', fontWeight: '700',
+              background: 'linear-gradient(135deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)',
+              color: '#fff',
+            }}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="4.5" stroke="white" strokeWidth="2"/>
+              <rect x="1.5" y="1.5" width="21" height="21" rx="6" stroke="white" strokeWidth="2"/>
+              <circle cx="17.5" cy="6.5" r="1.2" fill="white"/>
+            </svg>
+            Message on Instagram
+          </button>
+        </div>
       </div>
 
       {/* Stat tiles */}

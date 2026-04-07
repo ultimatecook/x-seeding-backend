@@ -34,14 +34,27 @@ model Session {
 }
 
 model Influencer {
-  id         Int       @id @default(autoincrement())
-  name       String
-  handle     String
-  followers  Int       @default(0)
-  country    String
-  email      String?
-  createdAt  DateTime  @default(now())
-  seedings   Seeding[]
+  id          Int                  @id @default(autoincrement())
+  name        String
+  handle      String
+  followers   Int                  @default(0)
+  country     String
+  email       String?
+  createdAt   DateTime             @default(now())
+  seedings    Seeding[]
+  savedSizes  InfluencerSavedSize[]
+}
+
+model InfluencerSavedSize {
+  id            Int        @id @default(autoincrement())
+  influencerId  Int
+  influencer    Influencer @relation(fields: [influencerId], references: [id], onDelete: Cascade)
+  category      String     // e.g., "tops", "bottoms", "shoes", "dresses"
+  size          String     // e.g., "XS", "S", "M", "L", "XL"
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@unique([influencerId, category])
 }
 
 model Seeding {
@@ -73,6 +86,8 @@ model SeedingProduct {
   price       Float           // retail price
   cost        Float?          // cost per unit (Shopify inventoryItem.unitCost)
   imageUrl    String?
+  size        String?         // selected size (e.g., "S", "M", "L") - null if not yet selected
+  category    String?         // product category for size lookup (e.g., "tops", "bottoms")
 }
 
 model Campaign {
