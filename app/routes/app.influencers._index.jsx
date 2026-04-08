@@ -75,7 +75,12 @@ export async function action({ request }) {
   }
 
   if (intent === 'delete') {
-    await prisma.influencer.delete({ where: { id: parseInt(formData.get('id')) } });
+    const id = parseInt(formData.get('id'));
+    const seedingCount = await prisma.seeding.count({ where: { influencerId: id } });
+    if (seedingCount > 0) {
+      return { error: `Can't delete — this influencer has ${seedingCount} seeding${seedingCount !== 1 ? 's' : ''}. Archive them instead.` };
+    }
+    await prisma.influencer.delete({ where: { id } });
     return null;
   }
 
