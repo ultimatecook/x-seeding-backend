@@ -14,7 +14,8 @@ export async function loader() {
     },
     orderBy: { createdAt: 'desc' },
   });
-  return { seedings };
+  // Pass server timestamp so client hydration uses the same value (avoids React #418)
+  return { seedings, now: Date.now() };
 }
 
 const PERIODS = [
@@ -111,8 +112,8 @@ function DonutChart({ data, total }) {
   );
 }
 
-function getTopProducts(seedings, days) {
-  const cutoff = new Date();
+function getTopProducts(seedings, days, now) {
+  const cutoff = new Date(now);
   cutoff.setDate(cutoff.getDate() - days);
   const map = {};
   for (const s of seedings) {
@@ -140,15 +141,15 @@ function getCountryData(seedings) {
 }
 
 export default function Dashboard() {
-  const { seedings } = useLoaderData();
+  const { seedings, now } = useLoaderData();
   const [period, setPeriod] = useState('30d');
 
   const selectedPeriod = PERIODS.find(p => p.label === period);
-  const cutoff = new Date();
+  const cutoff = new Date(now);
   cutoff.setDate(cutoff.getDate() - selectedPeriod.days);
   const filtered = seedings.filter(s => new Date(s.createdAt) >= cutoff);
 
-  const topProducts = getTopProducts(seedings, selectedPeriod.days);
+  const topProducts = getTopProducts(seedings, selectedPeriod.days, now);
   const totalCost   = filtered.reduce((sum, s) => sum + s.totalCost, 0);
   const totalUnits  = filtered.reduce((sum, s) => sum + s.products.length, 0);
   const countryData = getCountryData(filtered);
