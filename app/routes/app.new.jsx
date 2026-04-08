@@ -280,7 +280,7 @@ export default function NewSeeding() {
 
   const updateProductSize = (prodId, newSize) => {
     setSelectedProducts(prev =>
-      prev.map(p => (p.id === prodId ? { ...p, size: newSize } : p))
+      prev.map(p => (p.id === prodId ? { ...p, size: newSize, sizeUnavailable: false } : p))
     );
   };
 
@@ -325,11 +325,42 @@ export default function NewSeeding() {
       setTimeout(() => setShakeId(null), 500);
       return;
     }
-    // Add product WITHOUT auto-assigning a size
-    const category = guessProductCategory(prod.name);
+
+    const category   = guessProductCategory(prod.name);
+    const savedSize  = influencerSizeMap[category];
+
+    // Try to find a variant that matches the influencer's saved size
+    let matchedVariant    = null;
+    let sizeUnavailable   = false;
+
+    if (savedSize && prod.variants && prod.variants.length > 1) {
+      // Find variant whose title contains the saved size
+      const match = prod.variants.find(v => {
+        const extracted = extractSizeFromVariant(v.title);
+        return extracted === savedSize;
+      });
+      if (match) {
+        if (match.available !== false) {
+          matchedVariant = match;
+        } else {
+          // Size exists but out of stock
+          sizeUnavailable = true;
+        }
+      } else {
+        // Saved size doesn't exist in this product's variants
+        sizeUnavailable = true;
+      }
+    }
+
     setSelectedProducts(prev => [
       ...prev,
-      { ...prod, selectedVariant: null, category, size: null },
+      {
+        ...prod,
+        selectedVariant: matchedVariant,
+        category,
+        size:            matchedVariant ? extractSizeFromVariant(matchedVariant.title) : null,
+        sizeUnavailable,
+      },
     ]);
   };
 
@@ -693,10 +724,12 @@ export default function NewSeeding() {
                     </div>
                   ) : (
                     selectedProducts.map(p => {
-                      const hasSize = !!p.size;
+                      const hasSize    = !!p.size;
                       const sizeWarning = !hasSize;
+                      const cardBg    = sizeWarning ? '#FEF3F2' : '#FFFFFF';
+                      const cardBorder = sizeWarning ? '#FCA5A5' : '#F3F4F6';
                       return (
-                        <div key={p.id} className="bag-item" style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '8px', backgroundColor: sizeWarning ? '#FEF3F2' : '#FFFFFF', border: `1px solid ${sizeWarning ? '#FCA5A5' : '#F3F4F6'}`, borderRadius: '8px' }}>
+                        <div key={p.id} className="bag-item" style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '8px', backgroundColor: cardBg, border: `1px solid ${cardBorder}`, borderRadius: '8px' }}>
                           <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
                             {p.image ? (
                               <img src={p.image} alt={p.name} style={{ width: '34px', height: '34px', objectFit: 'contain', borderRadius: '5px', backgroundColor: '#F9FAFB', flexShrink: 0 }} />
@@ -748,7 +781,12 @@ export default function NewSeeding() {
                               })}
                             </div>
                           )}
-                          {sizeWarning && (
+                          {p.sizeUnavailable && (
+                            <div style={{ fontSize: '9px', color: '#DC2626', fontWeight: '600', marginTop: '2px' }}>
+                              ⚠️ Influencer's size not in stock — pick manually
+                            </div>
+                          )}
+                          {!p.sizeUnavailable && sizeWarning && (
                             <div style={{ fontSize: '9px', color: '#DC2626', fontWeight: '600', marginTop: '2px' }}>
                               ⚠️ Size required
                             </div>
