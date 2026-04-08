@@ -1,5 +1,6 @@
 import { useLoaderData, Form, useRouteError, useSearchParams, Link } from 'react-router';
 import { boundary } from '@shopify/shopify-app-react-router/server';
+import { authenticate } from '../shopify.server';
 import prisma from '../db.server';
 import { C, btn, card, fmtDate } from '../theme';
 
@@ -77,7 +78,28 @@ export async function action({ request }) {
     });
   }
   if (intent === 'delete') {
-    await prisma.seeding.delete({ where: { id: parseInt(formData.get('id')) } });
+    const id = parseInt(formData.get('id'));
+
+    // If still Pending, also delete the Shopify draft order
+    const seeding = await prisma.seeding.findUnique({ where: { id } });
+    if (seeding?.status === 'Pending' && seeding?.shopifyDraftOrderId) {
+      try {
+        const { admin } = await authenticate.admin(request);
+        await admin.graphql(`
+          #graphql
+          mutation DeleteDraftOrder($id: ID!) {
+            draftOrderDelete(input: { id: $id }) {
+              deletedId
+            }
+          }
+        `, { variables: { id: seeding.shopifyDraftOrderId } });
+      } catch (e) {
+        // Log but don't block deletion — draft may already be gone
+        console.error('Failed to delete Shopify draft order:', e.message);
+      }
+    }
+
+    await prisma.seeding.delete({ where: { id } });
   }
   return null;
 }
