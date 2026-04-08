@@ -11,11 +11,29 @@ export async function action({ request }) {
     case 'DRAFT_ORDERS_UPDATE': {
       if (data.status === 'completed' && data.id) {
         const draftGid = `gid://shopify/DraftOrder/${data.id}`;
+
+        // Build a clean address string from the shipping_address payload field
+        let shippingAddress = null;
+        const sa = data.shipping_address;
+        if (sa) {
+          const parts = [
+            sa.name       || [sa.first_name, sa.last_name].filter(Boolean).join(' '),
+            sa.address1,
+            sa.address2,
+            sa.city,
+            sa.province,
+            sa.zip,
+            sa.country,
+          ].filter(Boolean);
+          if (parts.length > 0) shippingAddress = parts.join(', ');
+        }
+
         await prisma.seeding.updateMany({
           where: { shopifyDraftOrderId: draftGid, status: 'Pending' },
           data: {
-            status: 'Ordered',
+            status:           'Ordered',
             shopifyOrderName: data.order_id ? `#${data.order_id}` : undefined,
+            ...(shippingAddress ? { shippingAddress } : {}),
           },
         });
       }

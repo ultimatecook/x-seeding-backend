@@ -190,7 +190,7 @@ export default function Seedings() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
               <thead>
                 <tr style={{ borderBottom: `1px solid ${C.border}` }}>
-                  {['Influencer', 'Country', 'Products', 'Cost', 'Status', 'Tracking', 'Checkout Link', 'Order', 'Date', ''].map(h => (
+                  {['Influencer', 'Country', 'Ship To', 'Products', 'Cost', 'Status', 'Tracking', 'Checkout Link', 'Order', 'Date', ''].map(h => (
                     <th key={h} style={{ padding: '12px 12px', textAlign: 'left', fontWeight: '700', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.7px', color: C.textSub, whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
@@ -205,6 +205,15 @@ export default function Seedings() {
                         <div style={{ fontSize: '11px', fontWeight: '400', color: C.textMuted }}>{s.influencer.name}</div>
                       </td>
                       <td style={{ padding: '12px 12px', color: C.textSub }}>{s.influencer.country}</td>
+                      <td style={{ padding: '12px 12px', maxWidth: '160px', color: C.textSub }}>
+                        {s.shippingAddress ? (
+                          <span style={{ fontSize: '11px', lineHeight: '1.4', display: 'block' }}>{s.shippingAddress}</span>
+                        ) : (
+                          <span style={{ fontSize: '11px', color: C.textMuted, fontStyle: 'italic' }}>
+                            {s.status === 'Pending' ? 'Awaiting checkout' : '—'}
+                          </span>
+                        )}
+                      </td>
                       <td style={{ padding: '12px 12px', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: C.textSub }}>
                         {s.products.map(p => p.productName).join(', ')}
                       </td>
