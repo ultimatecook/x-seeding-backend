@@ -1,0 +1,2 @@
+ALTER TABLE "Influencer" ADD COLUMN "notes" TEXT;
+ALTER TABLE "Influencer" ADD COLUMN "archived" BOOLEAN NOT NULL DEFAULT false;

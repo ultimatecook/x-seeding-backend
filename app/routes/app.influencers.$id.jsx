@@ -1,9 +1,26 @@
-import { Link, useLoaderData, useRouteError, useNavigate } from 'react-router';
+import { useState } from 'react';
+import { Link, useLoaderData, useRouteError, useNavigate, Form, useNavigation } from 'react-router';
 import { boundary } from '@shopify/shopify-app-react-router/server';
 import prisma from '../db.server';
-import { C, btn, card, section, fmtNum, fmtDate } from '../theme';
+import { C, btn, card, input, section, fmtNum, fmtDate } from '../theme';
 
 const STATUSES = ['Pending', 'Ordered', 'Shipped', 'Delivered', 'Posted'];
+
+export async function action({ request, params }) {
+  const id       = parseInt(params.id);
+  const formData = await request.formData();
+  const intent   = formData.get('intent');
+  if (intent === 'updateNotes') {
+    await prisma.influencer.update({ where: { id }, data: { notes: formData.get('notes') || null } });
+  }
+  if (intent === 'archive') {
+    await prisma.influencer.update({ where: { id }, data: { archived: true } });
+  }
+  if (intent === 'unarchive') {
+    await prisma.influencer.update({ where: { id }, data: { archived: false } });
+  }
+  return null;
+}
 
 export async function loader({ params }) {
   const id = parseInt(params.id);
@@ -44,8 +61,12 @@ function openIGPopup(handle) {
 
 export default function InfluencerDetail() {
   const { influencer } = useLoaderData();
-  const navigate = useNavigate();
-  const seedings = influencer.seedings;
+  const navigate    = useNavigate();
+  const navigation  = useNavigation();
+  const isSubmitting = navigation.state === 'submitting';
+  const seedings    = influencer.seedings;
+
+  const [editNotes, setEditNotes] = useState(false);
 
   const totalCost  = seedings.reduce((s, sd) => s + sd.totalCost, 0);
   const totalUnits = seedings.reduce((s, sd) => s + sd.products.length, 0);
@@ -188,6 +209,58 @@ export default function InfluencerDetail() {
               ))}
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Notes + Archive */}
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '16px', marginBottom: '24px' }}>
+        {/* Notes card */}
+        <div style={{ ...card.base }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+            <div style={{ ...section.title }}>📝 Notes</div>
+            {!editNotes && (
+              <button type="button" onClick={() => setEditNotes(true)}
+                style={{ ...btn.ghost, fontSize: '11px', padding: '3px 10px' }}>
+                {influencer.notes ? 'Edit' : '+ Add'}
+              </button>
+            )}
+          </div>
+          {editNotes ? (
+            <Form method="post" onSubmit={() => setEditNotes(false)}>
+              <input type="hidden" name="intent" value="updateNotes" />
+              <textarea name="notes" defaultValue={influencer.notes || ''} rows={4}
+                placeholder="e.g. prefers DM, waiting on address, loves unboxing content…"
+                onKeyDown={e => { if (e.key === 'Escape') setEditNotes(false); }}
+                style={{ ...input.base, width: '100%', resize: 'vertical', fontSize: '13px', boxSizing: 'border-box', display: 'block', marginBottom: '8px' }}
+              />
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <button type="submit" disabled={isSubmitting} style={{ ...btn.primary, fontSize: '12px', padding: '6px 14px' }}>Save</button>
+                <button type="button" onClick={() => setEditNotes(false)} style={{ ...btn.ghost, fontSize: '12px', padding: '6px 10px' }}>Cancel</button>
+              </div>
+            </Form>
+          ) : (
+            <p style={{ margin: 0, fontSize: '13px', color: influencer.notes ? C.text : C.textMuted, fontStyle: influencer.notes ? 'normal' : 'italic', lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>
+              {influencer.notes || 'No notes yet. Click + Add to write something.'}
+            </p>
+          )}
+        </div>
+
+        {/* Archive card */}
+        <div style={{ ...card.base }}>
+          <div style={{ ...section.title, marginBottom: '10px' }}>⚙️ Status</div>
+          <p style={{ fontSize: '13px', color: C.textSub, margin: '0 0 14px', lineHeight: '1.5' }}>
+            {influencer.archived
+              ? 'This influencer is archived and hidden from the active list.'
+              : 'Archive to hide from active lists without deleting.'}
+          </p>
+          <Form method="post">
+            <input type="hidden" name="intent" value={influencer.archived ? 'unarchive' : 'archive'} />
+            <button type="submit" disabled={isSubmitting}
+              style={{ ...btn.secondary, fontSize: '12px', padding: '7px 14px', width: '100%',
+                ...(influencer.archived ? {} : { color: '#92400E', borderColor: '#FCD34D', backgroundColor: '#FFFBEB' }) }}>
+              {influencer.archived ? '↩ Unarchive' : '📦 Archive influencer'}
+            </button>
+          </Form>
         </div>
       </div>
 

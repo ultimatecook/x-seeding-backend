@@ -40,6 +40,8 @@ model Influencer {
   followers   Int                  @default(0)
   country     String
   email       String?
+  notes       String?
+  archived    Boolean              @default(false)
   createdAt   DateTime             @default(now())
   seedings    Seeding[]
   savedSizes  InfluencerSavedSize[]

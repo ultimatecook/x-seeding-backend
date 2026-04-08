@@ -60,16 +60,45 @@ function parseCSV(text) {
 export async function action({ request }) {
   const formData = await request.formData();
   const intent = formData.get('intent');
+
   if (intent === 'create') {
     await prisma.influencer.create({
       data: { name: formData.get('name'), handle: formData.get('handle'), followers: parseInt(formData.get('followers') || '0'), country: formData.get('country'), email: formData.get('email') || null },
     });
     return null;
   }
+
   if (intent === 'delete') {
     await prisma.influencer.delete({ where: { id: parseInt(formData.get('id')) } });
     return null;
   }
+
+  if (intent === 'updateNotes') {
+    await prisma.influencer.update({
+      where: { id: parseInt(formData.get('id')) },
+      data:  { notes: formData.get('notes') || null },
+    });
+    return null;
+  }
+
+  if (intent === 'bulkArchive') {
+    const ids = formData.getAll('ids').map(Number);
+    await prisma.influencer.updateMany({ where: { id: { in: ids } }, data: { archived: true } });
+    return { bulkDone: ids.length };
+  }
+
+  if (intent === 'bulkUnarchive') {
+    const ids = formData.getAll('ids').map(Number);
+    await prisma.influencer.updateMany({ where: { id: { in: ids } }, data: { archived: false } });
+    return { bulkDone: ids.length };
+  }
+
+  if (intent === 'bulkDelete') {
+    const ids = formData.getAll('ids').map(Number);
+    await prisma.influencer.deleteMany({ where: { id: { in: ids } } });
+    return { bulkDone: ids.length };
+  }
+
   if (intent === 'importCSV') {
     const file = formData.get('csvFile');
     if (!file || typeof file === 'string') return { error: 'No file uploaded.' };
@@ -79,6 +108,7 @@ export async function action({ request }) {
     await prisma.influencer.createMany({ data: rows, skipDuplicates: true });
     return { imported: rows.length };
   }
+
   return null;
 }
 
@@ -90,21 +120,27 @@ function downloadTemplate() {
   URL.revokeObjectURL(url);
 }
 
-
 export default function Influencers() {
   const { influencers } = useLoaderData();
   const actionData      = useActionData();
   const navigation      = useNavigation();
-  const [showForm, setShowForm]     = useState(false);
-  const [showImport, setShowImport] = useState(false);
-  const [tierFilter, setTierFilter] = useState('all');
-  const isSubmitting = navigation.state === 'submitting';
+  const isSubmitting    = navigation.state === 'submitting';
+
+  const [showForm, setShowForm]       = useState(false);
+  const [showImport, setShowImport]   = useState(false);
+  const [tierFilter, setTierFilter]   = useState('all');
+  const [viewFilter, setViewFilter]   = useState('active'); // 'active' | 'archived'
+  const [selected, setSelected]       = useState(new Set());
+  const [editNotesId, setEditNotesId] = useState(null);
+  const [notesDraft, setNotesDraft]   = useState('');
+
+  const inputSt = { ...input.base };
 
   const TIERS = [
     { key: 'all',   label: 'All' },
-    { key: 'micro', label: '🌱 Micro',     sub: '0 – 50K' },
-    { key: 'mid',   label: '⭐ Influencer', sub: '50K – 500K' },
-    { key: 'celeb', label: '🏆 Celebrity',  sub: '500K+' },
+    { key: 'micro', label: '🌱 Micro',      sub: '0 – 50K' },
+    { key: 'mid',   label: '⭐ Influencer',  sub: '50K – 500K' },
+    { key: 'celeb', label: '🏆 Celebrity',   sub: '500K+' },
   ];
 
   const tierMatch = (inf) => {
@@ -115,13 +151,25 @@ export default function Influencers() {
     return true;
   };
 
-  const filtered = influencers.filter(tierMatch);
-  const inputSt = { ...input.base };
+  const activeCount   = influencers.filter(i => !i.archived).length;
+  const archivedCount = influencers.filter(i =>  i.archived).length;
+
+  const filtered = influencers.filter(inf =>
+    (viewFilter === 'archived' ? inf.archived : !inf.archived) && tierMatch(inf)
+  );
+
+  const allSelected    = filtered.length > 0 && filtered.every(i => selected.has(i.id));
+  const someSelected   = filtered.some(i => selected.has(i.id));
+  const selectedInView = filtered.filter(i => selected.has(i.id)).map(i => i.id);
+
+  const toggleOne  = (id) => setSelected(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
+  const toggleAll  = () => setSelected(allSelected ? new Set() : new Set(filtered.map(i => i.id)));
+  const clearSel   = () => setSelected(new Set());
 
   return (
     <div>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '28px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h2 style={{ margin: 0, color: C.text }}>
           Influencers <span style={{ fontSize: '14px', fontWeight: '400', color: C.textMuted }}>({filtered.length})</span>
         </h2>
@@ -137,27 +185,48 @@ export default function Influencers() {
         </div>
       </div>
 
+      {/* Active / Archived tabs */}
+      <div style={{ display: 'flex', gap: '4px', marginBottom: '16px', borderBottom: `1px solid ${C.border}`, paddingBottom: '0' }}>
+        {[
+          { key: 'active',   label: 'Active',   count: activeCount },
+          { key: 'archived', label: 'Archived', count: archivedCount },
+        ].map(tab => (
+          <button key={tab.key} type="button" onClick={() => { setViewFilter(tab.key); clearSel(); }}
+            style={{
+              padding: '8px 16px', fontSize: '13px', fontWeight: '600', border: 'none', cursor: 'pointer',
+              backgroundColor: 'transparent', color: viewFilter === tab.key ? C.accent : C.textSub,
+              borderBottom: `2px solid ${viewFilter === tab.key ? C.accent : 'transparent'}`,
+              marginBottom: '-1px', transition: 'all 0.15s',
+            }}>
+            {tab.label}
+            <span style={{ marginLeft: '6px', fontSize: '11px', fontWeight: '700', backgroundColor: viewFilter === tab.key ? C.accent : C.borderLight, color: viewFilter === tab.key ? '#fff' : C.textSub, borderRadius: '10px', padding: '1px 7px' }}>{tab.count}</span>
+          </button>
+        ))}
+      </div>
+
       {/* Tier filters */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
         {TIERS.map(t => {
-          const active = tierFilter === t.key;
-          const count = t.key === 'all' ? influencers.length : influencers.filter(i => {
+          const base  = influencers.filter(i => viewFilter === 'archived' ? i.archived : !i.archived);
+          const count = t.key === 'all' ? base.length : base.filter(i => {
             const f = i.followers || 0;
             if (t.key === 'micro') return f < 50000;
             if (t.key === 'mid')   return f >= 50000 && f < 500000;
             if (t.key === 'celeb') return f >= 500000;
+            return false;
           }).length;
+          const active = tierFilter === t.key;
           return (
-            <button key={t.key} onClick={() => setTierFilter(t.key)} style={{
-              padding: '7px 14px', borderRadius: '20px', border: `1.5px solid ${active ? C.accent : C.border}`,
+            <button key={t.key} type="button" onClick={() => setTierFilter(t.key)} style={{
+              padding: '6px 14px', borderRadius: '20px', border: `1.5px solid ${active ? C.accent : C.border}`,
               backgroundColor: active ? C.accentFaint : 'transparent',
               color: active ? C.accent : C.textSub,
-              fontSize: '13px', fontWeight: active ? '700' : '500', cursor: 'pointer',
+              fontSize: '12px', fontWeight: active ? '700' : '500', cursor: 'pointer',
               display: 'flex', alignItems: 'center', gap: '6px',
             }}>
               {t.label}
-              {t.sub && <span style={{ fontSize: '11px', color: active ? C.accent : C.textMuted, fontWeight: '400' }}>{t.sub}</span>}
-              <span style={{ fontSize: '11px', fontWeight: '700', backgroundColor: active ? C.accent : C.borderLight, color: active ? '#fff' : C.textSub, borderRadius: '10px', padding: '1px 7px' }}>{count}</span>
+              {t.sub && <span style={{ fontSize: '10px', color: active ? C.accent : C.textMuted }}>{t.sub}</span>}
+              <span style={{ fontSize: '10px', fontWeight: '700', backgroundColor: active ? C.accent : C.borderLight, color: active ? '#fff' : C.textSub, borderRadius: '10px', padding: '1px 6px' }}>{count}</span>
             </button>
           );
         })}
@@ -165,19 +234,24 @@ export default function Influencers() {
 
       {/* Banners */}
       {actionData?.imported && (
-        <div style={{ padding: '12px 16px', backgroundColor: C.successBg, color: C.successText, borderRadius: '6px', marginBottom: '20px', fontWeight: '600', fontSize: '13px' }}>
+        <div style={{ padding: '12px 16px', backgroundColor: C.successBg, color: C.successText, borderRadius: '6px', marginBottom: '16px', fontWeight: '600', fontSize: '13px' }}>
           ✓ Successfully imported {actionData.imported} influencer{actionData.imported !== 1 ? 's' : ''}.
         </div>
       )}
+      {actionData?.bulkDone && (
+        <div style={{ padding: '12px 16px', backgroundColor: C.successBg, color: C.successText, borderRadius: '6px', marginBottom: '16px', fontWeight: '600', fontSize: '13px' }}>
+          ✓ Updated {actionData.bulkDone} influencer{actionData.bulkDone !== 1 ? 's' : ''}.
+        </div>
+      )}
       {actionData?.error && (
-        <div style={{ padding: '12px 16px', backgroundColor: C.errorBg, color: C.errorText, borderRadius: '6px', marginBottom: '20px', fontWeight: '600', fontSize: '13px' }}>
+        <div style={{ padding: '12px 16px', backgroundColor: C.errorBg, color: C.errorText, borderRadius: '6px', marginBottom: '16px', fontWeight: '600', fontSize: '13px' }}>
           ✗ {actionData.error}
         </div>
       )}
 
       {/* CSV Import panel */}
       {showImport && (
-        <div style={{ padding: '24px', backgroundColor: C.surface, border: `1px solid ${C.border}`, borderLeft: `3px solid ${C.accent}`, borderRadius: '8px', marginBottom: '32px' }}>
+        <div style={{ padding: '24px', backgroundColor: C.surface, border: `1px solid ${C.border}`, borderLeft: `3px solid ${C.accent}`, borderRadius: '8px', marginBottom: '24px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
             <div>
               <div style={{ fontWeight: '800', fontSize: '14px', marginBottom: '4px', color: C.text }}>Import from CSV</div>
@@ -201,7 +275,7 @@ export default function Influencers() {
       {/* Manual add form */}
       {showForm && (
         <Form method="post" onSubmit={() => { if (!isSubmitting) setShowForm(false); }}
-          style={{ padding: '24px', backgroundColor: C.surface, border: `1px solid ${C.border}`, borderLeft: `3px solid ${C.accent}`, borderRadius: '8px', marginBottom: '32px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+          style={{ padding: '24px', backgroundColor: C.surface, border: `1px solid ${C.border}`, borderLeft: `3px solid ${C.accent}`, borderRadius: '8px', marginBottom: '24px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
           <input type="hidden" name="intent" value="create" />
           {[
             { name: 'name',      label: 'Full Name *',        placeholder: 'Sofia García', required: true,  type: 'text'   },
@@ -233,25 +307,75 @@ export default function Influencers() {
         </Form>
       )}
 
+      {/* Bulk action bar */}
+      {someSelected && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', backgroundColor: C.accentFaint, border: `1px solid ${C.accent}`, borderRadius: '8px', marginBottom: '12px', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '13px', fontWeight: '700', color: C.accent }}>
+            {selectedInView.length} selected
+          </span>
+          <div style={{ flex: 1 }} />
+          {viewFilter === 'active' ? (
+            <Form method="post" style={{ display: 'inline' }} onSubmit={clearSel}>
+              <input type="hidden" name="intent" value="bulkArchive" />
+              {selectedInView.map(id => <input key={id} type="hidden" name="ids" value={id} />)}
+              <button type="submit" disabled={isSubmitting} style={{ ...btn.secondary, fontSize: '12px', padding: '6px 14px' }}>
+                Archive selected
+              </button>
+            </Form>
+          ) : (
+            <Form method="post" style={{ display: 'inline' }} onSubmit={clearSel}>
+              <input type="hidden" name="intent" value="bulkUnarchive" />
+              {selectedInView.map(id => <input key={id} type="hidden" name="ids" value={id} />)}
+              <button type="submit" disabled={isSubmitting} style={{ ...btn.secondary, fontSize: '12px', padding: '6px 14px' }}>
+                Unarchive selected
+              </button>
+            </Form>
+          )}
+          <Form method="post" style={{ display: 'inline' }}
+            onSubmit={e => { if (!confirm(`Delete ${selectedInView.length} influencer${selectedInView.length !== 1 ? 's' : ''}? This cannot be undone.`)) e.preventDefault(); else clearSel(); }}>
+            <input type="hidden" name="intent" value="bulkDelete" />
+            {selectedInView.map(id => <input key={id} type="hidden" name="ids" value={id} />)}
+            <button type="submit" disabled={isSubmitting} style={{ ...btn.secondary, fontSize: '12px', padding: '6px 14px', color: '#DC2626', borderColor: '#FCA5A5', backgroundColor: '#FEF2F2' }}>
+              Delete selected
+            </button>
+          </Form>
+          <button type="button" onClick={clearSel} style={{ ...btn.ghost, fontSize: '12px', padding: '6px 10px' }}>
+            Clear
+          </button>
+        </div>
+      )}
+
       {/* Table */}
       {filtered.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '60px', color: C.textMuted, border: `2px dashed ${C.border}`, borderRadius: '8px' }}>
-          <p style={{ margin: '0 0 8px', fontSize: '16px', color: C.textSub }}>No influencers yet.</p>
-          <p style={{ margin: 0, fontSize: '13px' }}>Add one manually or import a CSV.</p>
+          <p style={{ margin: '0 0 8px', fontSize: '16px', color: C.textSub }}>
+            {viewFilter === 'archived' ? 'No archived influencers.' : 'No influencers yet.'}
+          </p>
+          <p style={{ margin: 0, fontSize: '13px' }}>
+            {viewFilter === 'archived' ? 'Archive influencers from the Active tab.' : 'Add one manually or import a CSV.'}
+          </p>
         </div>
       ) : (
         <div style={{ ...card.flat, overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
             <thead>
               <tr style={{ borderBottom: `1px solid ${C.border}` }}>
-                {['Handle', 'Name', 'Followers', 'Country', 'Email', ''].map(h => (
+                <th style={{ padding: '12px 12px', width: '36px' }}>
+                  <input type="checkbox" checked={allSelected} onChange={toggleAll}
+                    style={{ cursor: 'pointer', width: '15px', height: '15px' }} />
+                </th>
+                {['Handle', 'Name', 'Followers', 'Country', 'Email', 'Notes', ''].map(h => (
                   <th key={h} style={{ padding: '12px 12px', textAlign: 'left', fontWeight: '700', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.7px', color: C.textSub }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {filtered.map(inf => (
-                <tr key={inf.id} style={{ borderBottom: `1px solid ${C.borderLight}` }}>
+                <tr key={inf.id} style={{ borderBottom: `1px solid ${C.borderLight}`, opacity: inf.archived ? 0.65 : 1 }}>
+                  <td style={{ padding: '12px 12px' }}>
+                    <input type="checkbox" checked={selected.has(inf.id)} onChange={() => toggleOne(inf.id)}
+                      style={{ cursor: 'pointer', width: '15px', height: '15px' }} />
+                  </td>
                   <td style={{ padding: '12px 12px', fontWeight: '700' }}>
                     <Link to={`/app/influencers/${inf.id}`} style={{ color: C.accent, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '10px' }}>
                       <div style={{ width: '32px', height: '32px', borderRadius: '50%', overflow: 'hidden', flexShrink: 0, backgroundColor: C.accentFaint, border: `1.5px solid ${C.accent}`, position: 'relative' }}>
@@ -272,6 +396,41 @@ export default function Influencers() {
                   <td style={{ padding: '12px 12px', color: C.textSub }}>{fmtNum(inf.followers)}</td>
                   <td style={{ padding: '12px 12px', color: C.textSub }}>{inf.country}</td>
                   <td style={{ padding: '12px 12px', color: C.textMuted }}>{inf.email || '—'}</td>
+
+                  {/* Notes cell — click to edit inline */}
+                  <td style={{ padding: '8px 12px', maxWidth: '220px' }}>
+                    {editNotesId === inf.id ? (
+                      <Form method="post" onSubmit={() => setEditNotesId(null)}>
+                        <input type="hidden" name="intent" value="updateNotes" />
+                        <input type="hidden" name="id" value={inf.id} />
+                        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                          <input
+                            autoFocus
+                            name="notes"
+                            defaultValue={notesDraft}
+                            placeholder="Add a note…"
+                            onKeyDown={e => { if (e.key === 'Escape') setEditNotesId(null); }}
+                            style={{ ...input.base, fontSize: '12px', padding: '4px 8px', flex: 1, minWidth: 0 }}
+                          />
+                          <button type="submit" disabled={isSubmitting} style={{ ...btn.primary, fontSize: '11px', padding: '4px 10px', whiteSpace: 'nowrap' }}>Save</button>
+                          <button type="button" onClick={() => setEditNotesId(null)} style={{ ...btn.ghost, fontSize: '11px', padding: '4px 8px' }}>✕</button>
+                        </div>
+                      </Form>
+                    ) : (
+                      <button type="button"
+                        onClick={() => { setEditNotesId(inf.id); setNotesDraft(inf.notes || ''); }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: '2px 4px', borderRadius: '4px', width: '100%' }}>
+                        {inf.notes ? (
+                          <span style={{ fontSize: '12px', color: C.textSub, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {inf.notes}
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: '12px', color: C.textMuted, fontStyle: 'italic' }}>+ add note</span>
+                        )}
+                      </button>
+                    )}
+                  </td>
+
                   <td style={{ padding: '12px 12px' }}>
                     <Form method="post" onSubmit={e => { if (!confirm(`Delete ${inf.handle}?`)) e.preventDefault(); }}>
                       <input type="hidden" name="intent" value="delete" />
