@@ -63,14 +63,12 @@ export async function action({ request }) {
 
   if (intent === 'create') {
     const handle = formData.get('handle') || '';
-    const name   = formData.get('name')?.trim() || handle.replace(/^@/, '');
     await prisma.influencer.create({
       data: {
         handle,
-        name,
+        name:      handle.replace(/^@/, ''), // placeholder — overwritten by Shopify checkout
         followers: parseInt(formData.get('followers') || '0'),
         country:   formData.get('country') || '',
-        email:     formData.get('email') || null,
       },
     });
     return null;
@@ -325,40 +323,31 @@ export default function Influencers() {
         <Form method="post" onSubmit={() => { if (!isSubmitting) { setShowForm(false); setIgHandle(''); setIgLookup(null); } }}
           style={{ padding: '24px', backgroundColor: C.surface, border: `1px solid ${C.border}`, borderLeft: `3px solid ${C.accent}`, borderRadius: '8px', marginBottom: '24px' }}>
           <input type="hidden" name="intent" value="create" />
-          {/* Hidden — auto-filled from Instagram lookup when available */}
-          <input type="hidden" name="name"      value={igLookup?.fullName  || igHandle.replace(/^@/, '')} />
+          {/* followers auto-filled from IG lookup when available */}
           <input type="hidden" name="followers" value={igLookup?.followers || 0} />
 
-          {/* Instagram handle — the only required field */}
-          <label style={{ ...lbl.base, display: 'block', marginBottom: '16px' }}>
-            Instagram Handle *
-            <div style={{ position: 'relative', marginTop: '6px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <input
-                name="handle" required placeholder="@sofia_gs" value={igHandle}
-                onChange={e => setIgHandle(e.target.value)}
-                style={{ ...inputSt, flex: 1 }}
-              />
-              {igLoading && <span style={{ fontSize: '13px', color: C.textMuted, flexShrink: 0 }}>⏳</span>}
-              {igLookup && !igLoading && <span style={{ fontSize: '13px', color: '#16A34A', flexShrink: 0, fontWeight: '700' }}>✓</span>}
-            </div>
-          </label>
-
-          {/* Profile preview — shown when Instagram lookup succeeds */}
-          {igLookup && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', backgroundColor: C.accentFaint, border: `1px solid ${C.accent}`, borderRadius: '8px', marginBottom: '16px' }}>
-              {igLookup.profilePic && (
-                <img src={igLookup.profilePic} alt="" style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
-              )}
-              <div>
-                <div style={{ fontSize: '13px', fontWeight: '700', color: C.text }}>@{igLookup.username}</div>
-                {igLookup.fullName && <div style={{ fontSize: '12px', color: C.textSub }}>{igLookup.fullName}</div>}
-                {igLookup.followers && <div style={{ fontSize: '11px', color: C.textMuted }}>{igLookup.followers.toLocaleString()} followers</div>}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px', alignItems: 'end' }}>
+            {/* Handle */}
+            <label style={{ ...lbl.base }}>
+              Instagram Handle *
+              <div style={{ position: 'relative', marginTop: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <input
+                  name="handle" required placeholder="@sofia_gs" value={igHandle}
+                  onChange={e => setIgHandle(e.target.value)}
+                  style={{ ...inputSt, flex: 1 }}
+                />
+                {igLoading && <span style={{ fontSize: '12px', color: C.textMuted }}>⏳</span>}
+                {igLookup && !igLoading && <span style={{ fontSize: '12px', color: '#16A34A', fontWeight: '700' }}>✓</span>}
               </div>
-            </div>
-          )}
+              {/* Show follower count from IG inline */}
+              {igLookup?.followers && (
+                <div style={{ fontSize: '11px', color: C.textMuted, marginTop: '4px' }}>
+                  {igLookup.followers.toLocaleString()} followers
+                </div>
+              )}
+            </label>
 
-          {/* Optional fields */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+            {/* Country */}
             <label style={{ ...lbl.base }}>
               Country
               <select name="country" style={{ ...inputSt, display: 'block', marginTop: '6px' }}>
@@ -366,16 +355,17 @@ export default function Influencers() {
                 {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </label>
-            <label style={{ ...lbl.base }}>
-              Email
-              <input name="email" type="email" placeholder="sofia@example.com"
-                style={{ ...inputSt, display: 'block', marginTop: '6px' }} />
-            </label>
+
+            {/* Submit */}
             <button type="submit" disabled={isSubmitting || !igHandle.trim()}
-              style={{ ...btn.primary, gridColumn: '1 / -1', padding: '12px', fontSize: '14px', opacity: igHandle.trim() ? 1 : 0.4 }}>
-              {isSubmitting ? 'Saving...' : 'Add Influencer'}
+              style={{ ...btn.primary, padding: '10px 20px', fontSize: '14px', opacity: igHandle.trim() ? 1 : 0.4 }}>
+              {isSubmitting ? 'Saving...' : 'Add'}
             </button>
           </div>
+
+          <p style={{ margin: '12px 0 0', fontSize: '11px', color: C.textMuted }}>
+            Name and email are fetched automatically when the influencer completes their first checkout.
+          </p>
         </Form>
       )}
 

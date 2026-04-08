@@ -17,7 +17,7 @@ export async function action({ request }) {
         const sa = data.shipping_address;
         if (sa) {
           const parts = [
-            sa.name       || [sa.first_name, sa.last_name].filter(Boolean).join(' '),
+            sa.name || [sa.first_name, sa.last_name].filter(Boolean).join(' '),
             sa.address1,
             sa.address2,
             sa.city,
@@ -28,14 +28,45 @@ export async function action({ request }) {
           if (parts.length > 0) shippingAddress = parts.join(', ');
         }
 
-        await prisma.seeding.updateMany({
+        // Extract customer name and email from the draft order payload
+        const customerName  = data.customer
+          ? [data.customer.first_name, data.customer.last_name].filter(Boolean).join(' ')
+          : (sa ? (sa.name || [sa.first_name, sa.last_name].filter(Boolean).join(' ')) : null);
+        const customerEmail = data.customer?.email || data.email || null;
+
+        // Update the seeding record
+        const updatedSeedings = await prisma.seeding.findMany({
           where: { shopifyDraftOrderId: draftGid, status: 'Pending' },
-          data: {
-            status:           'Ordered',
-            shopifyOrderName: data.order_id ? `#${data.order_id}` : undefined,
-            ...(shippingAddress ? { shippingAddress } : {}),
-          },
+          select: { id: true, influencerId: true },
         });
+
+        if (updatedSeedings.length > 0) {
+          await prisma.seeding.updateMany({
+            where: { shopifyDraftOrderId: draftGid, status: 'Pending' },
+            data: {
+              status:           'Ordered',
+              shopifyOrderName: data.order_id ? `#${data.order_id}` : undefined,
+              ...(shippingAddress ? { shippingAddress } : {}),
+            },
+          });
+
+          // Backfill influencer name + email from checkout (only if not already set)
+          const influencerId = updatedSeedings[0].influencerId;
+          const influencer   = await prisma.influencer.findUnique({ where: { id: influencerId } });
+          if (influencer) {
+            const updates = {};
+            // Only overwrite name if it's still the placeholder (same as handle)
+            if (customerName && influencer.name === influencer.handle.replace(/^@/, '')) {
+              updates.name = customerName;
+            }
+            if (customerEmail && !influencer.email) {
+              updates.email = customerEmail;
+            }
+            if (Object.keys(updates).length > 0) {
+              await prisma.influencer.update({ where: { id: influencerId }, data: updates });
+            }
+          }
+        }
       }
       break;
     }
