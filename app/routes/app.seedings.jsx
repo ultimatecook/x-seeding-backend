@@ -1,4 +1,4 @@
-import { useLoaderData, Form, useRouteError, useSearchParams } from 'react-router';
+import { useLoaderData, Form, useRouteError, useSearchParams, Link } from 'react-router';
 import { boundary } from '@shopify/shopify-app-react-router/server';
 import prisma from '../db.server';
 import { C, btn, card, fmtDate } from '../theme';
@@ -120,7 +120,7 @@ export default function Seedings() {
           >
             ↓ Export CSV
           </a>
-          <a href="/app/new" style={{ ...btn.primary, textDecoration: 'none', display: 'inline-block' }}>+ New Seeding</a>
+          <Link to="/app/new" style={{ ...btn.primary, textDecoration: 'none', display: 'inline-block' }}>+ New Seeding</Link>
         </div>
       </div>
 
@@ -180,7 +180,7 @@ export default function Seedings() {
           ) : (
             <>
               <p style={{ margin: '0 0 12px', fontSize: '16px', color: C.textSub }}>No seedings yet.</p>
-              <a href="/app/new" style={{ color: C.accent, fontWeight: '700', textDecoration: 'none' }}>Create your first one →</a>
+              <Link to="/app/new" style={{ color: C.accent, fontWeight: '700', textDecoration: 'none' }}>Create your first one →</Link>
             </>
           )}
         </div>
