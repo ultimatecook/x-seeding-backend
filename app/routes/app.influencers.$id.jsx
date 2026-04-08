@@ -13,6 +13,18 @@ export async function action({ request, params }) {
   if (intent === 'updateNotes') {
     await prisma.influencer.update({ where: { id }, data: { notes: formData.get('notes') || null } });
   }
+  if (intent === 'updateProfile') {
+    await prisma.influencer.update({
+      where: { id },
+      data: {
+        handle:    formData.get('handle') || undefined,
+        name:      formData.get('name')   || undefined,
+        followers: parseInt(formData.get('followers') || '0'),
+        country:   formData.get('country') || undefined,
+        email:     formData.get('email') || null,
+      },
+    });
+  }
   if (intent === 'archive') {
     await prisma.influencer.update({ where: { id }, data: { archived: true } });
   }
@@ -66,7 +78,8 @@ export default function InfluencerDetail() {
   const isSubmitting = navigation.state === 'submitting';
   const seedings    = influencer.seedings;
 
-  const [editNotes, setEditNotes] = useState(false);
+  const [editNotes,   setEditNotes]   = useState(false);
+  const [editProfile, setEditProfile] = useState(false);
 
   const totalCost  = seedings.reduce((s, sd) => s + sd.totalCost, 0);
   const totalUnits = seedings.reduce((s, sd) => s + sd.products.length, 0);
@@ -133,6 +146,21 @@ export default function InfluencerDetail() {
           </div>
         </div>
         <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+          {/* Edit profile button */}
+          <button
+            type="button"
+            onClick={() => setEditProfile(v => !v)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '6px',
+              padding: '9px 16px', borderRadius: '8px',
+              border: `1.5px solid ${editProfile ? C.accent : C.border}`,
+              cursor: 'pointer', fontSize: '13px', fontWeight: '700',
+              backgroundColor: editProfile ? C.accentFaint : 'transparent',
+              color: editProfile ? C.accent : C.textSub,
+            }}
+          >
+            ✏️ Edit
+          </button>
           {/* Saved Sizes button */}
           <button
             onClick={() => navigate(`/app/influencer-sizes/${influencer.id}`)}
@@ -166,6 +194,36 @@ export default function InfluencerDetail() {
           </button>
         </div>
       </div>
+
+      {/* Edit profile panel */}
+      {editProfile && (
+        <Form method="post" onSubmit={() => setEditProfile(false)}
+          style={{ ...card.base, marginBottom: '16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+          <input type="hidden" name="intent" value="updateProfile" />
+          <div style={{ gridColumn: '1 / -1', fontSize: '13px', fontWeight: '700', color: C.text, marginBottom: '4px' }}>Edit Profile</div>
+          {[
+            { name: 'handle',    label: 'Instagram Handle', defaultValue: influencer.handle,              type: 'text'   },
+            { name: 'name',      label: 'Full Name',        defaultValue: influencer.name,                type: 'text'   },
+            { name: 'followers', label: 'Followers',        defaultValue: influencer.followers || '',     type: 'number' },
+            { name: 'country',   label: 'Country',          defaultValue: influencer.country,             type: 'text'   },
+            { name: 'email',     label: 'Email',            defaultValue: influencer.email || '',         type: 'email'  },
+          ].map(f => (
+            <label key={f.name} style={{ fontSize: '12px', fontWeight: '600', color: C.textSub, display: 'flex', flexDirection: 'column', gap: '5px' }}>
+              {f.label}
+              <input name={f.name} type={f.type} defaultValue={f.defaultValue}
+                style={{ ...input.base, fontSize: '13px' }} />
+            </label>
+          ))}
+          <div style={{ gridColumn: '1 / -1', display: 'flex', gap: '8px' }}>
+            <button type="submit" disabled={isSubmitting} style={{ ...btn.primary, fontSize: '13px', padding: '8px 20px' }}>
+              {isSubmitting ? 'Saving…' : 'Save changes'}
+            </button>
+            <button type="button" onClick={() => setEditProfile(false)} style={{ ...btn.ghost, fontSize: '13px', padding: '8px 14px' }}>
+              Cancel
+            </button>
+          </div>
+        </Form>
+      )}
 
       {/* Stat tiles */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '24px' }}>

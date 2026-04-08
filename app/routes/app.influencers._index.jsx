@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLoaderData, useActionData, Form, useNavigation, useRouteError, Link } from 'react-router';
 import { boundary } from '@shopify/shopify-app-react-router/server';
 import prisma from '../db.server';
@@ -133,6 +133,42 @@ export default function Influencers() {
   const [selected, setSelected]       = useState(new Set());
   const [editNotesId, setEditNotesId] = useState(null);
   const [notesDraft, setNotesDraft]   = useState('');
+
+  // Instagram auto-fill state
+  const [igHandle,    setIgHandle]    = useState('');
+  const [igLookup,    setIgLookup]    = useState(null);   // { username, fullName, followers, profilePic }
+  const [igLoading,   setIgLoading]   = useState(false);
+  const [igError,     setIgError]     = useState(null);
+  const debounceRef = useRef(null);
+
+  // Debounced lookup: fires 600ms after the user stops typing
+  useEffect(() => {
+    clearTimeout(debounceRef.current);
+    const handle = igHandle.replace(/^@/, '').trim();
+    if (handle.length < 2) { setIgLookup(null); setIgError(null); return; }
+    setIgLoading(true);
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const res  = await fetch(`/api/instagram-search?q=${encodeURIComponent(handle)}`);
+        const data = await res.json();
+        const match = (data.users || []).find(u => u.username.toLowerCase() === handle.toLowerCase())
+                   || data.users?.[0];
+        if (match) {
+          setIgLookup(match);
+          setIgError(null);
+        } else {
+          setIgLookup(null);
+          setIgError('No Instagram profile found');
+        }
+      } catch {
+        setIgLookup(null);
+        setIgError('Lookup failed');
+      } finally {
+        setIgLoading(false);
+      }
+    }, 600);
+    return () => clearTimeout(debounceRef.current);
+  }, [igHandle]);
 
   const inputSt = { ...input.base };
 
@@ -274,36 +310,72 @@ export default function Influencers() {
 
       {/* Manual add form */}
       {showForm && (
-        <Form method="post" onSubmit={() => { if (!isSubmitting) setShowForm(false); }}
-          style={{ padding: '24px', backgroundColor: C.surface, border: `1px solid ${C.border}`, borderLeft: `3px solid ${C.accent}`, borderRadius: '8px', marginBottom: '24px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+        <Form method="post" onSubmit={() => { if (!isSubmitting) { setShowForm(false); setIgHandle(''); setIgLookup(null); } }}
+          style={{ padding: '24px', backgroundColor: C.surface, border: `1px solid ${C.border}`, borderLeft: `3px solid ${C.accent}`, borderRadius: '8px', marginBottom: '24px' }}>
           <input type="hidden" name="intent" value="create" />
-          {[
-            { name: 'name',      label: 'Full Name *',        placeholder: 'Sofia García', required: true,  type: 'text'   },
-            { name: 'handle',    label: 'Instagram Handle *', placeholder: '@sofía_gs',    required: true,  type: 'text'   },
-            { name: 'followers', label: 'Followers',          placeholder: '45200',        required: false, type: 'number' },
-          ].map(f => (
-            <label key={f.name} style={{ ...lbl.base }}>
-              {f.label}
-              <input name={f.name} required={f.required} placeholder={f.placeholder} type={f.type}
+
+          {/* Instagram handle with auto-fill */}
+          <label style={{ ...lbl.base, display: 'block', marginBottom: '16px' }}>
+            Instagram Handle *
+            <div style={{ position: 'relative', marginTop: '6px' }}>
+              <input
+                name="handle" required placeholder="@sofia_gs" value={igHandle}
+                onChange={e => setIgHandle(e.target.value)}
+                style={{ ...inputSt, display: 'block', width: '100%', boxSizing: 'border-box', paddingRight: igLoading ? '36px' : undefined }}
+              />
+              {igLoading && (
+                <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', fontSize: '12px', color: C.textMuted }}>⏳</span>
+              )}
+            </div>
+            {igError && <div style={{ fontSize: '11px', color: '#DC2626', marginTop: '4px' }}>{igError}</div>}
+          </label>
+
+          {/* Preview card when found */}
+          {igLookup && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', backgroundColor: C.accentFaint, border: `1px solid ${C.accent}`, borderRadius: '8px', marginBottom: '16px' }}>
+              {igLookup.profilePic && (
+                <img src={igLookup.profilePic} alt="" style={{ width: '38px', height: '38px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+              )}
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '13px', fontWeight: '700', color: C.text }}>@{igLookup.username}</div>
+                {igLookup.fullName && <div style={{ fontSize: '12px', color: C.textSub }}>{igLookup.fullName}</div>}
+                {igLookup.followers && <div style={{ fontSize: '11px', color: C.textMuted }}>{(igLookup.followers).toLocaleString()} followers</div>}
+              </div>
+              <div style={{ fontSize: '11px', color: C.accent, fontWeight: '700' }}>✓ Found</div>
+            </div>
+          )}
+
+          {/* Rest of the fields — pre-filled from lookup */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+            <label style={{ ...lbl.base }}>
+              Full Name *
+              <input name="name" required placeholder="Sofia García" defaultValue={igLookup?.fullName || ''}
+                key={igLookup?.username || 'name'}
                 style={{ ...inputSt, display: 'block', marginTop: '6px' }} />
             </label>
-          ))}
-          <label style={{ ...lbl.base }}>
-            Country *
-            <select name="country" required style={{ ...inputSt, display: 'block', marginTop: '6px' }}>
-              <option value="">Select country…</option>
-              {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </label>
-          <label style={{ ...lbl.base, gridColumn: '1 / -1' }}>
-            Email
-            <input name="email" type="email" placeholder="sofia@example.com"
-              style={{ ...inputSt, display: 'block', marginTop: '6px' }} />
-          </label>
-          <button type="submit" disabled={isSubmitting}
-            style={{ ...btn.primary, gridColumn: '1 / -1', padding: '12px', fontSize: '14px' }}>
-            {isSubmitting ? 'Saving...' : 'Add Influencer'}
-          </button>
+            <label style={{ ...lbl.base }}>
+              Followers
+              <input name="followers" type="number" placeholder="45200" defaultValue={igLookup?.followers || ''}
+                key={igLookup?.username || 'followers'}
+                style={{ ...inputSt, display: 'block', marginTop: '6px' }} />
+            </label>
+            <label style={{ ...lbl.base }}>
+              Country *
+              <select name="country" required style={{ ...inputSt, display: 'block', marginTop: '6px' }}>
+                <option value="">Select country…</option>
+                {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </label>
+            <label style={{ ...lbl.base }}>
+              Email
+              <input name="email" type="email" placeholder="sofia@example.com"
+                style={{ ...inputSt, display: 'block', marginTop: '6px' }} />
+            </label>
+            <button type="submit" disabled={isSubmitting}
+              style={{ ...btn.primary, gridColumn: '1 / -1', padding: '12px', fontSize: '14px' }}>
+              {isSubmitting ? 'Saving...' : 'Add Influencer'}
+            </button>
+          </div>
         </Form>
       )}
 
