@@ -12,7 +12,30 @@ export async function loader() {
     orderBy: { createdAt: 'desc' },
     include: { products: true },
   });
-  return { influencers, campaigns };
+
+  // Load recent seedings (last 90 days) to power duplicate protection
+  const since = new Date();
+  since.setDate(since.getDate() - 90);
+  const recentSeedings = await prisma.seeding.findMany({
+    where:   { createdAt: { gte: since } },
+    select:  { influencerId: true, products: { select: { productId: true } }, createdAt: true },
+  });
+
+  // Build map: influencerId → Set of productIds seeded recently
+  // { [influencerId]: { [productId]: Date } }
+  const recentlySeededMap = {};
+  for (const s of recentSeedings) {
+    if (!recentlySeededMap[s.influencerId]) recentlySeededMap[s.influencerId] = {};
+    for (const p of s.products) {
+      // Keep the most recent date if seeded multiple times
+      const existing = recentlySeededMap[s.influencerId][p.productId];
+      if (!existing || new Date(s.createdAt) > new Date(existing)) {
+        recentlySeededMap[s.influencerId][p.productId] = s.createdAt;
+      }
+    }
+  }
+
+  return { influencers, campaigns, recentlySeededMap };
 }
 
 // ── Action ───────────────────────────────────────────────────────────────────
@@ -190,7 +213,7 @@ function Stepper({ step }) {
 
 // ── Main Component ────────────────────────────────────────────────────────────
 export default function NewSeeding() {
-  const { influencers, campaigns } = useLoaderData();
+  const { influencers, campaigns, recentlySeededMap } = useLoaderData();
   const { products = [], shop = '' } = useRouteLoaderData('routes/app') ?? {};
   const navigate = useNavigate();
 
@@ -218,6 +241,11 @@ export default function NewSeeding() {
   ];
 
   const allCountries = [...new Set(influencers.map(i => i.country).filter(Boolean))].sort();
+
+  // Products recently seeded to the selected influencer: { [productId]: Date }
+  const recentlySeedMapForInfluencer = selectedInfluencer
+    ? (recentlySeededMap[selectedInfluencer.id] ?? {})
+    : {};
 
   // Load influencer saved sizes when influencer is selected
   const [influencerSizeMap, setInfluencerSizeMap] = useState({});
@@ -321,6 +349,12 @@ export default function NewSeeding() {
               || products.find(p => p.id === pid);
     if (!prod || prod.stock <= 0) return;
     if (selectedProducts.find(p => p.id === prod.id)) {
+      setShakeId(prod.id);
+      setTimeout(() => setShakeId(null), 500);
+      return;
+    }
+    // Block if already seeded to this influencer recently
+    if (recentlySeedMapForInfluencer[prod.id]) {
       setShakeId(prod.id);
       setTimeout(() => setShakeId(null), 500);
       return;
@@ -602,31 +636,34 @@ export default function NewSeeding() {
                 {/* Product grid */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: '8px' }}>
                   {filteredProducts.map(prod => {
-                    const selected   = selectedProducts.find(p => p.id === prod.id);
-                    const outOfStock = prod.stock <= 0;
-                    const isExpanded = expandedProductId === prod.id;
-                    const isSingle   = prod.variants.length === 1 && prod.variants[0].title === 'Default Title';
-                    const isDragging = dragProductId === prod.id;
-                    const isShaking  = shakeId === prod.id;
+                    const selected      = selectedProducts.find(p => p.id === prod.id);
+                    const outOfStock    = prod.stock <= 0;
+                    const isExpanded    = expandedProductId === prod.id;
+                    const isSingle      = prod.variants.length === 1 && prod.variants[0].title === 'Default Title';
+                    const isDragging    = dragProductId === prod.id;
+                    const isShaking     = shakeId === prod.id;
+                    const recentDate    = recentlySeedMapForInfluencer[prod.id];
+                    const recentlySent  = !!recentDate;
 
                     return (
                       <div key={prod.id} style={{ display: 'flex', flexDirection: 'column' }}>
                         <div
-                          draggable={!outOfStock}
+                          draggable={!outOfStock && !recentlySent}
                           onDragStart={e => handleDragStart(e, prod)}
                           onDragEnd={handleDragEnd}
                           className="prod-card"
                           data-out={outOfStock ? 'true' : undefined}
                           onClick={() => {
                             if (outOfStock) return;
+                            if (recentlySent && !selected) { setShakeId(prod.id); setTimeout(() => setShakeId(null), 500); return; }
                             if (selected) { removeProduct(prod.id); setExpandedProductId(null); return; }
                             if (isSingle)  { selectVariant(prod, prod.variants[0]); return; }
                             setExpandedProductId(isExpanded ? null : prod.id);
                           }}
                           style={{
-                            backgroundColor: outOfStock ? '#F9FAFB' : selected ? C.accentFaint : isExpanded ? '#F9FAFB' : '#FFFFFF',
-                            border: `2px solid ${outOfStock ? '#E5E7EB' : selected ? C.accent : isExpanded ? C.accent : '#E3E3E3'}`,
-                            cursor: outOfStock ? 'not-allowed' : 'grab',
+                            backgroundColor: outOfStock ? '#F9FAFB' : selected ? C.accentFaint : recentlySent ? '#FFFBEB' : isExpanded ? '#F9FAFB' : '#FFFFFF',
+                            border: `2px solid ${outOfStock ? '#E5E7EB' : selected ? C.accent : recentlySent ? '#FCD34D' : isExpanded ? C.accent : '#E3E3E3'}`,
+                            cursor: outOfStock ? 'not-allowed' : recentlySent && !selected ? 'not-allowed' : 'grab',
                             borderRadius: isExpanded ? '8px 8px 0 0' : '8px',
                             overflow: 'hidden',
                             position: 'relative',
@@ -646,6 +683,11 @@ export default function NewSeeding() {
                           )}
                           {outOfStock && (
                             <div style={{ position: 'absolute', top: '5px', left: '5px', backgroundColor: '#DC2626', color: '#fff', fontSize: '9px', fontWeight: '800', padding: '2px 5px', borderRadius: '3px', textTransform: 'uppercase' }}>No stock</div>
+                          )}
+                          {recentlySent && !outOfStock && (
+                            <div style={{ position: 'absolute', top: '5px', left: '5px', backgroundColor: '#D97706', color: '#fff', fontSize: '9px', fontWeight: '800', padding: '2px 5px', borderRadius: '3px', textTransform: 'uppercase', lineHeight: '1.3' }}>
+                              Already sent
+                            </div>
                           )}
                           <div style={{ padding: '6px 8px', backgroundColor: selected ? C.accentFaint : '#FFFFFF' }}>
                             <div style={{ fontWeight: '600', fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: selected ? C.accent : '#1A1A1A' }}>{prod.name}</div>
