@@ -45,6 +45,9 @@ model Influencer {
   createdAt   DateTime             @default(now())
   seedings    Seeding[]
   savedSizes  InfluencerSavedSize[]
+
+  @@index([archived])
+  @@index([handle])
 }
 
 model InfluencerSavedSize {
@@ -76,6 +79,12 @@ model Seeding {
   invoiceUrl          String?
   createdAt           DateTime         @default(now())
   products            SeedingProduct[]
+
+  @@index([shop])
+  @@index([status])
+  @@index([influencerId])
+  @@index([createdAt])
+  @@index([shop, status])
 }
 
 model SeedingProduct {
