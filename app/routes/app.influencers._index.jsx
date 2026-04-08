@@ -328,10 +328,8 @@ export default function Influencers() {
         <Form method="post" onSubmit={() => { if (!isSubmitting) { setShowForm(false); setIgHandle(''); setIgLookup(null); } }}
           style={{ padding: '24px', backgroundColor: C.surface, border: `1px solid ${C.border}`, borderLeft: `3px solid ${C.accent}`, borderRadius: '8px', marginBottom: '24px' }}>
           <input type="hidden" name="intent" value="create" />
-          {/* followers auto-filled from IG lookup when available */}
-          <input type="hidden" name="followers" value={igLookup?.followers || 0} />
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px', alignItems: 'end' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '14px', alignItems: 'end' }}>
             {/* Handle */}
             <label style={{ ...lbl.base }}>
               Instagram Handle *
@@ -344,10 +342,23 @@ export default function Influencers() {
                 {igLoading && <span style={{ fontSize: '12px', color: C.textMuted }}>⏳</span>}
                 {igLookup && !igLoading && <span style={{ fontSize: '12px', color: '#16A34A', fontWeight: '700' }}>✓</span>}
               </div>
-              {/* Show follower count from IG inline */}
+            </label>
+
+            {/* Followers — pre-filled from IG if available, always editable */}
+            <label style={{ ...lbl.base }}>
+              Followers
+              <input
+                key={igLookup?.followers ?? 'manual'}
+                name="followers"
+                type="number"
+                min="0"
+                placeholder="e.g. 45000"
+                defaultValue={igLookup?.followers || ''}
+                style={{ ...inputSt, display: 'block', marginTop: '6px' }}
+              />
               {igLookup?.followers && (
-                <div style={{ fontSize: '11px', color: C.textMuted, marginTop: '4px' }}>
-                  {igLookup.followers.toLocaleString()} followers
+                <div style={{ fontSize: '11px', color: '#16A34A', marginTop: '3px', fontWeight: '600' }}>
+                  ✓ auto-filled from Instagram
                 </div>
               )}
             </label>
