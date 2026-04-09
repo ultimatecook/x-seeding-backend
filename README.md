@@ -1,3 +1,69 @@
+# x-seeding
+
+Aplicación Shopify embebida para gestión de seedings de productos con influencers.
+
+## Configuración oficial de Shopify
+
+- **Config local (fuente por defecto):** `shopify.app.toml`
+- **Config producción:** `shopify.app.seedingmanager.toml`
+- Para alternar de forma explícita:
+  - `npm run config:use:local`
+  - `npm run config:use:prod`
+
+## Variables de entorno
+
+Duplica `.env.example` a `.env` y completa los valores:
+
+- `SHOPIFY_API_KEY`
+- `SHOPIFY_API_SECRET`
+- `SHOPIFY_APP_URL`
+- `SCOPES`
+- `DATABASE_URL`
+
+## Desarrollo local
+
+```bash
+npm ci
+npm run setup
+npm run dev
+```
+
+## Calidad y validación
+
+```bash
+npm run lint
+npm run typecheck
+npm run test
+npm run build
+```
+
+## Ejecución en producción
+
+```bash
+npm run build
+npm run start
+```
+
+`npm run start` detecta automáticamente el entrypoint SSR generado por React Router/Vercel.
+
+## CI
+
+Existe workflow en `.github/workflows/ci.yml` que ejecuta lint, typecheck, test y build en push/PR.
+
+## Usuarios, roles y accesibilidad (v1)
+
+- Identidad: Shopify auth + provisión automática JIT al primer acceso.
+- Roles por tienda: `Owner`, `Admin`, `Editor`, `Viewer`.
+- Reglas base:
+  - `Owner/Admin`: gestionar miembros y roles.
+  - `Editor`: operaciones de negocio (crear/editar seedings, campañas, influencers).
+  - `Viewer`: solo lectura.
+- Pantalla de ajustes: `/app/settings`
+  - `My Accessibility`: alto contraste, reducir animaciones, escala tipográfica.
+  - `Members & Roles`: edición de roles para `Owner/Admin`.
+
+---
+
 # Shopify App Template - React Router
 
 This is a template for building a [Shopify app](https://shopify.dev/docs/apps/getting-started) using [React Router](https://reactrouter.com/). It was forked from the [Shopify Remix app template](https://github.com/Shopify/shopify-app-template-remix) and converted to React Router.

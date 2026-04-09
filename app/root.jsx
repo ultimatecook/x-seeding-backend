@@ -1,4 +1,4 @@
-import { Links, Meta, Outlet, Scripts, ScrollRestoration } from "react-router";
+import { Links, Meta, Outlet, Scripts, ScrollRestoration } from 'react-router';
 
 export default function App() {
   return (
@@ -15,6 +15,8 @@ export default function App() {
           html, body { margin: 0; padding: 0; background: #F6F6F7; color: #1A1A1A; font-family: system-ui, sans-serif; }
           input::placeholder, textarea::placeholder { color: #9CA3AF; }
           input:focus, textarea:focus, select:focus { outline: 2px solid #D97757; outline-offset: 1px; }
+          .high-contrast { filter: contrast(1.15); }
+          .reduced-motion *, .reduced-motion *::before, .reduced-motion *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
           ::-webkit-scrollbar { width: 6px; height: 6px; }
           ::-webkit-scrollbar-track { background: #F6F6F7; }
           ::-webkit-scrollbar-thumb { background: #D1D5DB; border-radius: 3px; }

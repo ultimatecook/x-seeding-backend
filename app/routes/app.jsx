@@ -85,6 +85,7 @@ export default function AppLayout() {
           <NavLink to="/app/seedings" style={navLinkStyle}>Seedings</NavLink>
           <NavLink to="/app/influencers" style={navLinkStyle}>Influencers</NavLink>
           <NavLink to="/app/campaigns" style={navLinkStyle}>Campaigns</NavLink>
+          <NavLink to="/app/settings" style={navLinkStyle}>Settings</NavLink>
           <NavLink to="/app/new" style={({ isActive }) => ({
             ...navLinkStyle({ isActive }),
             backgroundColor: isActive ? C.accent : C.accent,

@@ -13,6 +13,13 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum AppRole {
+  Owner
+  Admin
+  Editor
+  Viewer
+}
+
 model Session {
   id            String    @id
   shop          String
@@ -31,6 +38,49 @@ model Session {
   emailVerified Boolean?  @default(false)
   refreshToken        String?
   refreshTokenExpires DateTime?
+}
+
+model AppUser {
+  id               Int              @id @default(autoincrement())
+  shop             String
+  shopifyUserId    String?
+  email            String?
+  firstName        String?
+  lastName         String?
+  isShopifyOwner   Boolean          @default(false)
+  isShopifyStaff   Boolean          @default(false)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  memberships      AppMembership[]
+  preferences      UserPreference?
+
+  @@unique([shop, shopifyUserId])
+  @@unique([shop, email])
+  @@index([shop])
+}
+
+model AppMembership {
+  id          Int      @id @default(autoincrement())
+  shop        String
+  userId      Int
+  user        AppUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role        AppRole  @default(Viewer)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([shop, userId])
+  @@index([shop, role])
+}
+
+model UserPreference {
+  id             Int      @id @default(autoincrement())
+  userId         Int      @unique
+  user           AppUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  highContrast   Boolean  @default(false)
+  reducedMotion  Boolean  @default(false)
+  fontScale      Float    @default(1)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
 
 model Influencer {
