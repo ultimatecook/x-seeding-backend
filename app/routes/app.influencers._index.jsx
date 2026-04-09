@@ -3,6 +3,7 @@ import { useLoaderData, useActionData, Form, useNavigation, useRouteError, Link 
 import { boundary } from '@shopify/shopify-app-react-router/server';
 import prisma from '../db.server';
 import { C, btn, input, card, label as lbl, section, fmtNum } from '../theme';
+import { rateLimit, getClientIp } from '../utils/rate-limit.server';
 
 const COUNTRIES = [
   'Afghanistan','Albania','Algeria','Andorra','Angola','Argentina','Armenia','Australia','Austria','Azerbaijan',
@@ -62,6 +63,11 @@ export async function action({ request }) {
   const intent = formData.get('intent');
 
   if (intent === 'create') {
+    // 20 creates per hour per IP — prevents bulk spam
+    const ip = getClientIp(request);
+    const { allowed } = rateLimit(`influencer-create:${ip}`, 20, 60 * 60_000);
+    if (!allowed) return { error: 'Too many influencers created recently. Try again later.' };
+
     const handle  = String(formData.get('handle')  || '').slice(0, 100).trim();
     const country = String(formData.get('country') || '').slice(0, 100).trim();
     if (!handle) return { error: 'Handle is required.' };
