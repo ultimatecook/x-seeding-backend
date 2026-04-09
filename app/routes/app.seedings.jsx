@@ -1,8 +1,8 @@
 import { useLoaderData, Form, useRouteError, useSearchParams, Link } from 'react-router';
 import { boundary } from '@shopify/shopify-app-react-router/server';
+import { authenticate } from '../shopify.server';
 import prisma from '../db.server';
 import { C, btn, card, fmtDate } from '../theme';
-import { requireRole } from '../utils/authz.server';
 
 const STATUSES  = ['Pending', 'Ordered', 'Shipped', 'Delivered', 'Posted'];
 const PAGE_SIZE = 30;
@@ -20,14 +20,13 @@ function adminOrderLink(s) {
 
 // ── Loader ───────────────────────────────────────────────────────────────────
 export async function loader({ request }) {
-  const ctx = await requireRole(request, 'Viewer');
   const url      = new URL(request.url);
   const page     = Math.max(1, parseInt(url.searchParams.get('page')     || '1'));
   const status   = url.searchParams.get('status')   || 'all';
   const campaign = url.searchParams.get('campaign') || '';
   const q        = url.searchParams.get('q')        || '';
 
-  const where = { shop: ctx.shop };
+  const where = {};
   if (status   !== 'all') where.status     = status;
   if (campaign)           where.campaignId = parseInt(campaign);
   if (q) {
@@ -63,7 +62,6 @@ export async function loader({ request }) {
 
 // ── Action ───────────────────────────────────────────────────────────────────
 export async function action({ request }) {
-  const ctx = await requireRole(request, 'Editor');
   const formData = await request.formData();
   const intent   = formData.get('intent');
 
@@ -91,7 +89,7 @@ export async function action({ request }) {
     const seeding = await prisma.seeding.findUnique({ where: { id } });
     if (seeding?.status === 'Pending' && seeding?.shopifyDraftOrderId) {
       try {
-        const { admin } = ctx;
+        const { admin } = await authenticate.admin(request);
         await admin.graphql(`
           #graphql
           mutation DeleteDraftOrder($id: ID!) {

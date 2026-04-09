@@ -3,7 +3,6 @@ import { useLoaderData, useActionData, Form, useNavigation, useRouteLoaderData, 
 import { boundary } from '@shopify/shopify-app-react-router/server';
 import prisma from '../db.server';
 import { C, btn, input, card, section, fmtDate, fmtNum } from '../theme';
-import { requireRole } from '../utils/authz.server';
 
 function adminOrderLink(s) {
   if (!s.shop) return null;
@@ -18,11 +17,10 @@ function adminOrderLink(s) {
   return null;
 }
 
-export async function loader({ request, params }) {
-  const ctx = await requireRole(request, 'Viewer');
+export async function loader({ params }) {
   const id = parseInt(params.id);
-  const campaign = await prisma.campaign.findFirst({
-    where: { id, shop: ctx.shop },
+  const campaign = await prisma.campaign.findUnique({
+    where: { id },
     include: {
       products: true,
       seedings: {
@@ -36,7 +34,6 @@ export async function loader({ request, params }) {
 }
 
 export async function action({ request, params }) {
-  await requireRole(request, 'Editor');
   const campaignId = parseInt(params.id);
   const formData   = await request.formData();
   const intent     = formData.get('intent');
