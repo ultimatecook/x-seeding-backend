@@ -18,6 +18,7 @@ export async function loader() {
   return { seedings, now: Date.now() };
 }
 
+
 const PERIODS = [
   { label: '7d',  days: 7,   display: '7 days'    },
   { label: '30d', days: 30,  display: '30 days'   },
@@ -131,13 +132,14 @@ function getCountryData(seedings) {
   const map = {};
   for (const s of seedings) {
     const c = s.influencer.country || 'Unknown';
-    if (!map[c]) map[c] = { seedings: 0, units: 0 };
+    if (!map[c]) map[c] = { seedings: 0, units: 0, spend: 0 };
     map[c].seedings++;
     map[c].units += s.products.length;
+    map[c].spend  += s.totalCost;
   }
   return Object.entries(map)
     .map(([country, d]) => ({ country, ...d }))
-    .sort((a, b) => b.units - a.units);
+    .sort((a, b) => b.spend - a.spend); // sort by spend, not units
 }
 
 export default function Dashboard() {
@@ -203,6 +205,68 @@ export default function Dashboard() {
         ))}
       </div>
 
+      {/* Country breakdown — primary operational view */}
+      <div style={{ marginBottom: '36px' }}>
+        <h2 style={{ margin: '0 0 16px', ...section.title }}>Reach by country</h2>
+        {countryData.length === 0 ? (
+          <div style={{ padding: '32px', textAlign: 'center', border: `2px dashed ${C.border}`, color: C.textMuted, fontSize: '13px', borderRadius: '8px' }}>
+            No seedings in this period yet.
+          </div>
+        ) : (
+          <div style={{ ...card.base, display: 'flex', gap: '32px', alignItems: 'flex-start' }}>
+            {/* Donut chart */}
+            <div style={{ flexShrink: 0 }}>
+              <DonutChart data={countryData.slice(0, 8)} total={totalUnitsAll} />
+              <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                {countryData.slice(0, 8).map((d, i) => (
+                  <div key={d.country} style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+                    <div style={{ width: '10px', height: '10px', borderRadius: '2px', backgroundColor: CHART_COLORS[i % CHART_COLORS.length], flexShrink: 0 }} />
+                    <span style={{ fontSize: '11px', color: C.textSub }}>{getFlag(d.country)} {d.country}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ width: '1px', backgroundColor: C.borderLight, alignSelf: 'stretch' }} />
+
+            {/* Country rows — sorted by spend */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {(() => {
+                const totalSpend = countryData.reduce((s, x) => s + x.spend, 0);
+                return countryData.map((d, i) => {
+                  const pct   = totalSpend > 0 ? (d.spend / totalSpend) * 100 : 0;
+                  const color = CHART_COLORS[i % CHART_COLORS.length];
+                  return (
+                    <div key={d.country}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '18px', lineHeight: 1 }}>{getFlag(d.country)}</span>
+                          <span style={{ fontSize: '13px', fontWeight: '700', color: C.text }}>{d.country}</span>
+                          <span style={{ fontSize: '11px', color: C.textMuted }}>
+                            {d.seedings} seeding{d.seedings !== 1 ? 's' : ''} · {d.units} unit{d.units !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <span style={{ fontSize: '14px', fontWeight: '800', color }}>
+                            €{fmtNum(d.spend)}
+                          </span>
+                          <span style={{ fontSize: '11px', color: C.textMuted, width: '34px', textAlign: 'right' }}>
+                            {Math.round(pct)}%
+                          </span>
+                        </div>
+                      </div>
+                      <div style={{ height: '4px', backgroundColor: C.surfaceHigh, borderRadius: '2px', overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${pct}%`, backgroundColor: color, borderRadius: '2px', transition: 'width 0.4s ease' }} />
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Top products */}
       <div style={{ marginBottom: '36px' }}>
         <h2 style={{ margin: '0 0 16px', ...section.title }}>Top products</h2>
@@ -236,66 +300,6 @@ export default function Dashboard() {
                 </div>
               </div>
             ))}
-          </div>
-        )}
-      </div>
-
-      {/* Countries */}
-      <div>
-        <h2 style={{ margin: '0 0 16px', ...section.title }}>Reach by country</h2>
-        {countryData.length === 0 ? (
-          <div style={{ padding: '32px', textAlign: 'center', border: `2px dashed ${C.border}`, color: C.textMuted, fontSize: '13px', borderRadius: '8px' }}>
-            No seedings in this period yet.
-          </div>
-        ) : (
-          <div style={{ ...card.base, display: 'flex', gap: '32px', alignItems: 'flex-start' }}>
-            {/* Donut chart */}
-            <div style={{ flexShrink: 0 }}>
-              <DonutChart data={countryData.slice(0, 8)} total={totalUnitsAll} />
-              {/* Legend */}
-              <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                {countryData.slice(0, 8).map((d, i) => (
-                  <div key={d.country} style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
-                    <div style={{ width: '10px', height: '10px', borderRadius: '2px', backgroundColor: CHART_COLORS[i % CHART_COLORS.length], flexShrink: 0 }} />
-                    <span style={{ fontSize: '11px', color: C.textSub }}>{getFlag(d.country)} {d.country}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Divider */}
-            <div style={{ width: '1px', backgroundColor: C.borderLight, alignSelf: 'stretch' }} />
-
-            {/* Country list */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {countryData.map((d, i) => {
-                const pct = totalUnitsAll > 0 ? (d.units / totalUnitsAll) * 100 : 0;
-                return (
-                  <div key={d.country}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontSize: '18px', lineHeight: 1 }}>{getFlag(d.country)}</span>
-                        <span style={{ fontSize: '13px', fontWeight: '700', color: C.text }}>{d.country}</span>
-                        <span style={{ fontSize: '11px', color: C.textMuted }}>
-                          {d.seedings} seeding{d.seedings !== 1 ? 's' : ''}
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <span style={{ fontSize: '13px', fontWeight: '800', color: i < CHART_COLORS.length ? CHART_COLORS[i] : C.textSub }}>
-                          {d.units} unit{d.units !== 1 ? 's' : ''}
-                        </span>
-                        <span style={{ fontSize: '11px', color: C.textMuted, width: '34px', textAlign: 'right' }}>
-                          {Math.round(pct)}%
-                        </span>
-                      </div>
-                    </div>
-                    <div style={{ height: '4px', backgroundColor: C.surfaceHigh, borderRadius: '2px', overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${pct}%`, backgroundColor: i < CHART_COLORS.length ? CHART_COLORS[i] : C.textMuted, borderRadius: '2px', transition: 'width 0.4s ease' }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
           </div>
         )}
       </div>
