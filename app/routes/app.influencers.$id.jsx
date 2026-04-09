@@ -3,10 +3,12 @@ import { Link, useLoaderData, useRouteError, useNavigate, Form, useNavigation } 
 import { boundary } from '@shopify/shopify-app-react-router/server';
 import prisma from '../db.server';
 import { C, btn, card, input, section, fmtNum, fmtDate } from '../theme';
+import { requireRole } from '../utils/authz.server';
 
 const STATUSES = ['Pending', 'Ordered', 'Shipped', 'Delivered', 'Posted'];
 
 export async function action({ request, params }) {
+  await requireRole(request, 'Editor');
   const id       = parseInt(params.id);
   const formData = await request.formData();
   const intent   = formData.get('intent');
@@ -39,7 +41,8 @@ export async function action({ request, params }) {
   return null;
 }
 
-export async function loader({ params }) {
+export async function loader({ request, params }) {
+  await requireRole(request, 'Viewer');
   const id = parseInt(params.id);
 
   const influencer = await prisma.influencer.findUnique({

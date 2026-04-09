@@ -4,11 +4,14 @@ import { boundary } from '@shopify/shopify-app-react-router/server';
 import prisma from '../db.server';
 import { C, btn, input, fmtNum } from '../theme';
 import { guessProductCategory, extractSizeFromVariant, getProductsWithoutSize } from '../utils/size-helpers';
+import { requireRole } from '../utils/authz.server';
 
 // ── Loader ───────────────────────────────────────────────────────────────────
-export async function loader() {
+export async function loader({ request }) {
+  const ctx = await requireRole(request, 'Editor');
   const influencers = await prisma.influencer.findMany({ orderBy: { name: 'asc' } });
   const campaigns   = await prisma.campaign.findMany({
+    where: { shop: ctx.shop },
     orderBy: { createdAt: 'desc' },
     include: { products: true },
   });
@@ -40,9 +43,10 @@ export async function loader() {
 
 // ── Action ───────────────────────────────────────────────────────────────────
 export async function action({ request }) {
+  const ctx = await requireRole(request, 'Editor');
   const formData = await request.formData();
   const influencerId  = parseInt(formData.get('influencerId'));
-  const shop          = formData.get('shop') || '';
+  const shop          = ctx.shop;
   const campaignIdRaw = formData.get('campaignId');
   const campaignId    = campaignIdRaw ? parseInt(campaignIdRaw) : null;
   const productIds    = formData.getAll('productIds');

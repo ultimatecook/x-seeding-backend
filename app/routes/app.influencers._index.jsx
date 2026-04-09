@@ -4,6 +4,7 @@ import { boundary } from '@shopify/shopify-app-react-router/server';
 import prisma from '../db.server';
 import { C, btn, input, card, label as lbl, section, fmtNum } from '../theme';
 import { rateLimit, getClientIp } from '../utils/rate-limit.server';
+import { requireRole } from '../utils/authz.server';
 
 const COUNTRIES = [
   'Afghanistan','Albania','Algeria','Andorra','Angola','Argentina','Armenia','Australia','Austria','Azerbaijan',
@@ -31,7 +32,8 @@ const COUNTRIES = [
   'Zimbabwe',
 ];
 
-export async function loader() {
+export async function loader({ request }) {
+  await requireRole(request, 'Viewer');
   const influencers = await prisma.influencer.findMany({ orderBy: { name: 'asc' } });
   return { influencers };
 }
@@ -59,6 +61,7 @@ function parseCSV(text) {
 }
 
 export async function action({ request }) {
+  await requireRole(request, 'Editor');
   const formData = await request.formData();
   const intent = formData.get('intent');
 

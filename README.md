@@ -50,6 +50,18 @@ npm run start
 
 Existe workflow en `.github/workflows/ci.yml` que ejecuta lint, typecheck, test y build en push/PR.
 
+## Usuarios, roles y accesibilidad (v1)
+
+- Identidad: Shopify auth + provisión automática JIT al primer acceso.
+- Roles por tienda: `Owner`, `Admin`, `Editor`, `Viewer`.
+- Reglas base:
+  - `Owner/Admin`: gestionar miembros y roles.
+  - `Editor`: operaciones de negocio (crear/editar seedings, campañas, influencers).
+  - `Viewer`: solo lectura.
+- Pantalla de ajustes: `/app/settings`
+  - `My Accessibility`: alto contraste, reducir animaciones, escala tipográfica.
+  - `Members & Roles`: edición de roles para `Owner/Admin`.
+
 ---
 
 # Shopify App Template - React Router

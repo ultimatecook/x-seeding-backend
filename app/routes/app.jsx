@@ -1,11 +1,12 @@
 import { Outlet, NavLink, useRouteError } from 'react-router';
-import { authenticate } from '../shopify.server';
 import { boundary } from '@shopify/shopify-app-react-router/server';
 import { C } from '../theme';
+import { requireRole } from '../utils/authz.server';
 
 export async function loader({ request }) {
   try {
-    const { admin, session } = await authenticate.admin(request);
+    const auth = await requireRole(request, 'Viewer');
+    const { admin, session, role, user, preferences } = auth;
 
     const res = await admin.graphql(`
       #graphql
@@ -51,11 +52,24 @@ export async function loader({ request }) {
       variantId: edge.node.variants.edges[0]?.node?.id ?? null,
     }));
 
-    return { products, shop: session.shop };
+    return {
+      products,
+      shop: session.shop,
+      auth: {
+        role,
+        user: {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+        },
+      },
+      preferences,
+    };
   } catch (err) {
     if (err instanceof Response) throw err;
     console.error('Layout loader error:', err);
-    return { products: [], shop: '' };
+    return { products: [], shop: '', auth: null, preferences: null };
   }
 }
 
@@ -85,6 +99,7 @@ export default function AppLayout() {
           <NavLink to="/app/seedings" style={navLinkStyle}>Seedings</NavLink>
           <NavLink to="/app/influencers" style={navLinkStyle}>Influencers</NavLink>
           <NavLink to="/app/campaigns" style={navLinkStyle}>Campaigns</NavLink>
+          <NavLink to="/app/settings" style={navLinkStyle}>Settings</NavLink>
           <NavLink to="/app/new" style={({ isActive }) => ({
             ...navLinkStyle({ isActive }),
             backgroundColor: isActive ? C.accent : C.accent,
