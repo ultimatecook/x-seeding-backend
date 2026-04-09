@@ -10,15 +10,15 @@ export async function loader({ request }) {
   const { session } = await authenticate.admin(request);
   const shop = session.shop;
 
-  const memberships = await prisma.appMembership.findMany({
-    where:   { shop },
-    include: { user: true },
-    orderBy: [{ role: 'asc' }, { createdAt: 'asc' }],
-  });
-
-  return {
-    shop,
-    members: memberships.map(m => ({
+  // AppMembership table may not exist yet if RBAC migration hasn't run
+  let members = [];
+  try {
+    const memberships = await prisma.appMembership.findMany({
+      where:   { shop },
+      include: { user: true },
+      orderBy: [{ role: 'asc' }, { createdAt: 'asc' }],
+    });
+    members = memberships.map(m => ({
       id:             m.id,
       role:           m.role,
       userId:         m.userId,
@@ -26,8 +26,12 @@ export async function loader({ request }) {
       firstName:      m.user.firstName,
       lastName:       m.user.lastName,
       isShopifyOwner: m.user.isShopifyOwner,
-    })),
-  };
+    }));
+  } catch (e) {
+    console.warn('Settings: RBAC tables not yet migrated —', e.message);
+  }
+
+  return { shop, members };
 }
 
 export async function action({ request }) {
@@ -40,10 +44,14 @@ export async function action({ request }) {
     const membershipId = parseInt(formData.get('membershipId'));
     const role         = String(formData.get('role') || '');
     if (!membershipId || !ROLES.includes(role)) return null;
-    await prisma.appMembership.update({
-      where: { id: membershipId },
-      data:  { role },
-    });
+    try {
+      await prisma.appMembership.update({
+        where: { id: membershipId },
+        data:  { role },
+      });
+    } catch (e) {
+      console.warn('Settings action: RBAC tables not yet migrated —', e.message);
+    }
   }
 
   return null;
