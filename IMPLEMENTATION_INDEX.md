@@ -1,5 +1,23 @@
 # Implementation Index - Influencer Saved Sizes
 
+## Current Status (April 2026)
+
+Este índice fue normalizado para reflejar artefactos reales del repositorio.
+
+### Source of truth
+
+- Product docs: `README.md`
+- Shopify configs: `shopify.app.toml` (local) y `shopify.app.seedingmanager.toml` (producción)
+- Environment template: `.env.example`
+- CI pipeline: `.github/workflows/ci.yml`
+- Smoke tests: `tests/smoke/`
+
+### Notes
+
+- Referencias históricas como `README_IMPLEMENTATION.md` y `FILES_CREATED.txt` se mantienen solo para contexto.
+- Los documentos vacíos fueron rellenados con guías operativas mínimas.
+- El comando de arranque productivo usa resolución dinámica del server build (`scripts/start-server.mjs`).
+
 ## 📌 Quick Navigation
 
 This document helps you find everything related to the Influencer Saved Sizes implementation.

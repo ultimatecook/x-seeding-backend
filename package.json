@@ -5,19 +5,26 @@
     "build": "react-router build",
     "dev": "shopify app dev",
     "config:link": "shopify app config link",
+    "config:use:local": "shopify app config use shopify.app.toml",
+    "config:use:prod": "shopify app config use shopify.app.seedingmanager.toml",
     "generate": "shopify app generate",
     "deploy": "shopify app deploy",
     "config:use": "shopify app config use",
     "env": "shopify app env",
-    "start": "react-router-serve ./build/server/index.js",
+    "start": "node ./scripts/start-server.mjs",
     "docker-start": "npm run setup && npm run start",
     "setup": "prisma generate && prisma migrate deploy",
     "lint": "eslint --ignore-path .gitignore --cache --cache-location ./node_modules/.cache/eslint .",
+    "lint:ci": "eslint --ignore-path .gitignore \"app/routes/api.*.jsx\" app/utils/size-helpers.js \"tests/**/*.js\" \"scripts/**/*.mjs\"",
+    "lint:fix": "npm run lint -- --fix",
+    "format": "prettier --write .",
     "shopify": "shopify",
     "prisma": "prisma",
     "graphql-codegen": "graphql-codegen",
     "vite": "vite",
-    "typecheck": "react-router typegen && tsc --noEmit"
+    "typecheck": "react-router typegen && tsc --noEmit",
+    "typecheck:ci": "tsc --noEmit -p tsconfig.ci.json",
+    "test": "vitest run"
   },
   "type": "module",
   "engines": {
@@ -58,7 +65,8 @@
     "graphql-config": "^5.1.1",
     "prettier": "^3.6.2",
     "typescript": "^5.9.3",
-    "vite": "^6.3.6"
+    "vite": "^6.3.6",
+    "vitest": "^3.2.4"
   },
   "workspaces": [
     "extensions/*"

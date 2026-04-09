@@ -10,8 +10,12 @@ include_config_on_deploy = true
 [webhooks]
 api_version = "2026-07"
 
+  [[webhooks.subscriptions]]
+  topics = [ "draft_orders/update", "fulfillments/create", "fulfillments/update" ]
+  uri = "/webhooks"
+
 [access_scopes]
-scopes = "read_products,read_inventory"
+scopes = "read_inventory,read_products,write_draft_orders,read_draft_orders,read_fulfillments"
 
 [auth]
 redirect_urls = [ "https://localhost:3000/auth/callback" ]
