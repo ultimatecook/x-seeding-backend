@@ -24,21 +24,25 @@ export async function loader({ request }) {
   const page     = Math.max(1, parseInt(url.searchParams.get('page')     || '1'));
   const status   = url.searchParams.get('status')   || 'all';
   const campaign = url.searchParams.get('campaign') || '';
+  const country  = url.searchParams.get('country')  || '';
   const q        = url.searchParams.get('q')        || '';
 
   const where = {};
-  if (status   !== 'all') where.status     = status;
-  if (campaign)           where.campaignId = parseInt(campaign);
-  if (q) {
-    where.influencer = {
-      OR: [
-        { handle: { contains: q, mode: 'insensitive' } },
-        { name:   { contains: q, mode: 'insensitive' } },
-      ],
-    };
-  }
+  if (status  !== 'all') where.status     = status;
+  if (campaign)          where.campaignId = parseInt(campaign);
 
-  const [seedings, total, statusCounts, campaigns] = await Promise.all([
+  // Country + search both filter via influencer relation — merge them
+  const influencerWhere = {};
+  if (country) influencerWhere.country = country;
+  if (q) {
+    influencerWhere.OR = [
+      { handle: { contains: q, mode: 'insensitive' } },
+      { name:   { contains: q, mode: 'insensitive' } },
+    ];
+  }
+  if (Object.keys(influencerWhere).length > 0) where.influencer = influencerWhere;
+
+  const [seedings, total, statusCounts, campaigns, allCountries] = await Promise.all([
     prisma.seeding.findMany({
       where,
       include: { influencer: true, products: true },
@@ -47,9 +51,15 @@ export async function loader({ request }) {
       take:    PAGE_SIZE,
     }),
     prisma.seeding.count({ where }),
-    // Count per status (unfiltered — for the filter pills)
     prisma.seeding.groupBy({ by: ['status'], _count: { _all: true } }),
     prisma.campaign.findMany({ select: { id: true, title: true }, orderBy: { createdAt: 'desc' } }),
+    // Distinct countries across all seedings for the filter dropdown
+    prisma.influencer.findMany({
+      where:   { seedings: { some: {} } },
+      select:  { country: true },
+      distinct: ['country'],
+      orderBy: { country: 'asc' },
+    }),
   ]);
 
   const countsByStatus = STATUSES.reduce((acc, s) => {
@@ -57,7 +67,9 @@ export async function loader({ request }) {
     return acc;
   }, {});
 
-  return { seedings, total, page, countsByStatus, campaigns };
+  const countries = allCountries.map(i => i.country).filter(Boolean).sort();
+
+  return { seedings, total, page, countsByStatus, campaigns, countries };
 }
 
 // ── Action ───────────────────────────────────────────────────────────────────
@@ -111,14 +123,15 @@ export async function action({ request }) {
 
 // ── Component ────────────────────────────────────────────────────────────────
 export default function Seedings() {
-  const { seedings, total, page, countsByStatus, campaigns } = useLoaderData();
+  const { seedings, total, page, countsByStatus, campaigns, countries } = useLoaderData();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const currentStatus   = searchParams.get('status')   || 'all';
   const currentCampaign = searchParams.get('campaign') || '';
+  const currentCountry  = searchParams.get('country')  || '';
   const currentQ        = searchParams.get('q')        || '';
   const totalPages      = Math.ceil(total / PAGE_SIZE);
-  const hasFilters      = currentStatus !== 'all' || currentCampaign || currentQ;
+  const hasFilters      = currentStatus !== 'all' || currentCampaign || currentCountry || currentQ;
 
   function setFilter(key, value) {
     const next = new URLSearchParams(searchParams);
@@ -173,6 +186,15 @@ export default function Seedings() {
             </button>
           ))}
         </div>
+
+        {/* Country filter */}
+        {countries.length > 1 && (
+          <select value={currentCountry} onChange={e => setFilter('country', e.target.value)}
+            style={{ padding: '7px 12px', border: `1px solid ${currentCountry ? C.accent : C.border}`, borderRadius: '6px', fontSize: '13px', backgroundColor: currentCountry ? C.accentFaint : C.surface, color: currentCountry ? C.accent : C.textSub, cursor: 'pointer' }}>
+            <option value="">All countries</option>
+            {countries.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        )}
 
         {/* Campaign filter */}
         {campaigns.length > 0 && (
