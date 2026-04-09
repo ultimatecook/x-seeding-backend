@@ -1,3 +1,4 @@
+import { authenticate } from '../shopify.server';
 import prisma from '../db.server';
 
 /**
@@ -5,6 +6,7 @@ import prisma from '../db.server';
  * Returns saved sizes for an influencer
  */
 export async function loader({ request }) {
+  await authenticate.admin(request);
   const url = new URL(request.url);
   const influencerId = parseInt(url.searchParams.get('influencerId'));
 
@@ -44,6 +46,8 @@ export async function loader({ request }) {
  * Body: { influencerId, category, size }
  */
 export async function action({ request }) {
+  await authenticate.admin(request);
+
   if (request.method !== 'POST' && request.method !== 'PUT') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), {
       status: 405,
@@ -53,7 +57,9 @@ export async function action({ request }) {
 
   try {
     const body = await request.json();
-    const { influencerId, category, size } = body;
+    const influencerId = parseInt(body.influencerId);
+    const category     = String(body.category  || '').slice(0, 50);
+    const size         = String(body.size       || '').slice(0, 20);
 
     if (!influencerId || !category || !size) {
       return new Response(

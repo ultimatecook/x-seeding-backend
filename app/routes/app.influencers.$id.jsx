@@ -11,17 +11,22 @@ export async function action({ request, params }) {
   const formData = await request.formData();
   const intent   = formData.get('intent');
   if (intent === 'updateNotes') {
-    await prisma.influencer.update({ where: { id }, data: { notes: formData.get('notes') || null } });
+    const notes = formData.get('notes') ? String(formData.get('notes')).slice(0, 1000) : null;
+    await prisma.influencer.update({ where: { id }, data: { notes } });
   }
   if (intent === 'updateProfile') {
+    const handle  = formData.get('handle')  ? String(formData.get('handle')).slice(0, 100).trim()  : undefined;
+    const name    = formData.get('name')    ? String(formData.get('name')).slice(0, 200).trim()    : undefined;
+    const country = formData.get('country') ? String(formData.get('country')).slice(0, 100).trim() : undefined;
+    const email   = formData.get('email')   ? String(formData.get('email')).slice(0, 254).trim().toLowerCase() : null;
     await prisma.influencer.update({
       where: { id },
       data: {
-        handle:    formData.get('handle') || undefined,
-        name:      formData.get('name')   || undefined,
-        followers: parseInt(formData.get('followers') || '0'),
-        country:   formData.get('country') || undefined,
-        email:     formData.get('email') || null,
+        handle,
+        name,
+        followers: Math.max(0, parseInt(formData.get('followers') || '0') || 0),
+        country,
+        email,
       },
     });
   }
