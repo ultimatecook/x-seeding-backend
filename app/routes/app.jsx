@@ -1,4 +1,4 @@
-import { Outlet, NavLink, useRouteError } from 'react-router';
+import { Outlet, NavLink, useLoaderData, useRouteError } from 'react-router';
 import { boundary } from '@shopify/shopify-app-react-router/server';
 import { C } from '../theme';
 import { requireRole } from '../utils/authz.server';
@@ -86,8 +86,25 @@ const navLinkStyle = ({ isActive }) => ({
 });
 
 export default function AppLayout() {
+  const data = useLoaderData();
+  const prefs = data?.preferences ?? { highContrast: false, reducedMotion: false, fontScale: 1 };
+  const className = `${prefs.highContrast ? 'high-contrast' : ''} ${
+    prefs.reducedMotion ? 'reduced-motion' : ''
+  }`.trim();
+
   return (
-    <div style={{ fontFamily: 'system-ui, sans-serif', maxWidth: '1140px', margin: '0 auto', padding: '24px 20px', backgroundColor: C.bg, minHeight: '100vh' }}>
+    <div
+      className={className}
+      style={{
+        fontFamily: 'system-ui, sans-serif',
+        maxWidth: '1140px',
+        margin: '0 auto',
+        padding: '24px 20px',
+        backgroundColor: C.bg,
+        minHeight: '100vh',
+        fontSize: `${16 * (prefs.fontScale ?? 1)}px`,
+      }}
+    >
       {/* Top bar */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${C.border}`, paddingBottom: '16px', marginBottom: '32px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>

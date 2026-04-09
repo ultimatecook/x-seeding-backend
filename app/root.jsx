@@ -1,14 +1,6 @@
-import { Links, Meta, Outlet, Scripts, ScrollRestoration, useMatches } from 'react-router';
+import { Links, Meta, Outlet, Scripts, ScrollRestoration } from 'react-router';
 
 export default function App() {
-  const matches = useMatches();
-  const appLayout = matches.find((m) => m.id === 'routes/app');
-  const preferences = appLayout?.data?.preferences ?? {
-    highContrast: false,
-    reducedMotion: false,
-    fontScale: 1,
-  };
-
   return (
     <html lang="en">
       <head>
@@ -20,7 +12,7 @@ export default function App() {
         <Links />
         <style>{`
           *, *::before, *::after { box-sizing: border-box; }
-          html, body { margin: 0; padding: 0; background: #F6F6F7; color: #1A1A1A; font-family: system-ui, sans-serif; font-size: calc(16px * var(--font-scale, 1)); }
+          html, body { margin: 0; padding: 0; background: #F6F6F7; color: #1A1A1A; font-family: system-ui, sans-serif; }
           input::placeholder, textarea::placeholder { color: #9CA3AF; }
           input:focus, textarea:focus, select:focus { outline: 2px solid #D97757; outline-offset: 1px; }
           .high-contrast { filter: contrast(1.15); }
@@ -32,14 +24,7 @@ export default function App() {
         `}</style>
       </head>
       <body>
-        <div
-          className={`${preferences.highContrast ? 'high-contrast' : ''} ${
-            preferences.reducedMotion ? 'reduced-motion' : ''
-          }`.trim()}
-          style={{ ['--font-scale']: preferences.fontScale ?? 1 }}
-        >
-          <Outlet />
-        </div>
+        <Outlet />
         <ScrollRestoration />
         <Scripts />
       </body>
