@@ -115,8 +115,24 @@ export async function action({ request }) {
 
   if (intent === 'bulkDelete') {
     const ids = formData.getAll('ids').map(Number);
-    await prisma.influencer.deleteMany({ where: { id: { in: ids } } });
-    return { bulkDone: ids.length };
+    // Filter out any influencers that have seedings — can't delete those
+    const withSeedings = await prisma.seeding.findMany({
+      where:  { influencerId: { in: ids } },
+      select: { influencerId: true },
+      distinct: ['influencerId'],
+    });
+    const blockedIds = new Set(withSeedings.map(s => s.influencerId));
+    const deletableIds = ids.filter(id => !blockedIds.has(id));
+    if (deletableIds.length > 0) {
+      await prisma.influencer.deleteMany({ where: { id: { in: deletableIds } } });
+    }
+    if (blockedIds.size > 0) {
+      return {
+        bulkDone: deletableIds.length,
+        error: `${blockedIds.size} influencer${blockedIds.size !== 1 ? 's' : ''} could not be deleted because they have seedings.`,
+      };
+    }
+    return { bulkDone: deletableIds.length };
   }
 
   if (intent === 'importCSV') {
