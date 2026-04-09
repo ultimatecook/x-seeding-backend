@@ -1,6 +1,6 @@
 client_id = "aeefa5eb5df60d6ed0b4b0727a08b3b2"
 name = "x-seeding"
-application_url = "https://localhost:3000"
+application_url = "https://x-seeding-backend.vercel.app"
 embedded = true
 
 [build]
@@ -18,4 +18,4 @@ api_version = "2026-07"
 scopes = "read_inventory,read_products,write_draft_orders,read_draft_orders,read_fulfillments"
 
 [auth]
-redirect_urls = [ "https://localhost:3000/auth/callback" ]
+redirect_urls = [ "https://x-seeding-backend.vercel.app/auth/callback" ]
