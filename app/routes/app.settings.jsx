@@ -7,6 +7,8 @@ import { C, btn, card, input, section } from '../theme';
 const ROLES = ['Owner', 'Editor', 'Viewer'];
 
 export async function loader({ request }) {
+  // Extract shop from the session without making extra DB calls
+  // authenticate.admin is already called by the parent app.jsx layout loader
   const { session } = await authenticate.admin(request);
   const shop = session.shop;
 
