@@ -1,6 +1,7 @@
-import { Outlet, NavLink, useRouteError } from 'react-router';
+import { Outlet, NavLink, useRouteError, useLoaderData } from 'react-router';
 import { authenticate } from '../shopify.server';
 import { boundary } from '@shopify/shopify-app-react-router/server';
+import { AppProvider } from '@shopify/shopify-app-react-router/react';
 import { C } from '../theme';
 
 export async function loader({ request }) {
@@ -51,11 +52,11 @@ export async function loader({ request }) {
       variantId: edge.node.variants.edges[0]?.node?.id ?? null,
     }));
 
-    return { products, shop: session.shop };
+    return { products, shop: session.shop, apiKey: process.env.SHOPIFY_API_KEY || '' };
   } catch (err) {
     if (err instanceof Response) throw err;
     console.error('Layout loader error:', err);
-    return { products: [], shop: '' };
+    return { products: [], shop: '', apiKey: process.env.SHOPIFY_API_KEY || '' };
   }
 }
 
@@ -72,7 +73,9 @@ const navLinkStyle = ({ isActive }) => ({
 });
 
 export default function AppLayout() {
+  const { apiKey } = useLoaderData();
   return (
+    <AppProvider isEmbeddedApp apiKey={apiKey}>
     <div style={{ fontFamily: 'system-ui, sans-serif', maxWidth: '1140px', margin: '0 auto', padding: '24px 20px', backgroundColor: C.bg, minHeight: '100vh' }}>
       {/* Top bar */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${C.border}`, paddingBottom: '16px', marginBottom: '32px' }}>
@@ -96,6 +99,7 @@ export default function AppLayout() {
       </div>
       <Outlet />
     </div>
+    </AppProvider>
   );
 }
 
