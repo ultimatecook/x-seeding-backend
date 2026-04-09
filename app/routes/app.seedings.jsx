@@ -65,16 +65,21 @@ export async function action({ request }) {
   const formData = await request.formData();
   const intent   = formData.get('intent');
 
+  const VALID_STATUSES = ['Pending', 'Ordered', 'Shipped', 'Delivered', 'Posted'];
+
   if (intent === 'updateStatus') {
+    const status = formData.get('status');
+    if (!VALID_STATUSES.includes(status)) return null; // reject unknown statuses
     await prisma.seeding.update({
       where: { id: parseInt(formData.get('id')) },
-      data:  { status: formData.get('status') },
+      data:  { status },
     });
   }
   if (intent === 'updateTracking') {
+    const trackingNumber = String(formData.get('trackingNumber') || '').slice(0, 200).trim() || null;
     await prisma.seeding.update({
       where: { id: parseInt(formData.get('id')) },
-      data:  { trackingNumber: formData.get('trackingNumber') },
+      data:  { trackingNumber },
     });
   }
   if (intent === 'delete') {

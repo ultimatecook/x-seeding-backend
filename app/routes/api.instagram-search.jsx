@@ -1,6 +1,10 @@
+import { authenticate } from '../shopify.server';
+
 export async function loader({ request }) {
+  await authenticate.admin(request);
+
   const url = new URL(request.url);
-  const q   = url.searchParams.get('q')?.trim().replace(/^@/, '');
+  const q   = url.searchParams.get('q')?.trim().replace(/^@/, '').slice(0, 60); // cap at 60 chars
 
   if (!q || q.length < 2) {
     return Response.json({ users: [] });

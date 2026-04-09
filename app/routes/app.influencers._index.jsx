@@ -62,13 +62,15 @@ export async function action({ request }) {
   const intent = formData.get('intent');
 
   if (intent === 'create') {
-    const handle = formData.get('handle') || '';
+    const handle  = String(formData.get('handle')  || '').slice(0, 100).trim();
+    const country = String(formData.get('country') || '').slice(0, 100).trim();
+    if (!handle) return { error: 'Handle is required.' };
     await prisma.influencer.create({
       data: {
         handle,
         name:      handle.replace(/^@/, ''), // placeholder — overwritten by Shopify checkout
-        followers: parseInt(formData.get('followers') || '0'),
-        country:   formData.get('country') || '',
+        followers: Math.max(0, parseInt(formData.get('followers') || '0') || 0),
+        country,
       },
     });
     return null;
@@ -85,9 +87,10 @@ export async function action({ request }) {
   }
 
   if (intent === 'updateNotes') {
+    const notes = formData.get('notes') ? String(formData.get('notes')).slice(0, 1000) : null;
     await prisma.influencer.update({
       where: { id: parseInt(formData.get('id')) },
-      data:  { notes: formData.get('notes') || null },
+      data:  { notes },
     });
     return null;
   }
