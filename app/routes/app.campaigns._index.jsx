@@ -3,9 +3,12 @@ import { useLoaderData, useActionData, Form, useNavigation, useRouteLoaderData, 
 import { boundary } from '@shopify/shopify-app-react-router/server';
 import prisma from '../db.server';
 import { C, btn, input, card, label as lbl, fmtDate, fmtNum } from '../theme';
+import { requireRole } from '../utils/authz.server';
 
-export async function loader() {
+export async function loader({ request }) {
+  const ctx = await requireRole(request, 'Viewer');
   const campaigns = await prisma.campaign.findMany({
+    where: { shop: ctx.shop },
     orderBy: { createdAt: 'desc' },
     include: { products: true, seedings: true },
   });
@@ -13,6 +16,7 @@ export async function loader() {
 }
 
 export async function action({ request }) {
+  const ctx = await requireRole(request, 'Editor');
   const formData = await request.formData();
   const intent = formData.get('intent');
 
@@ -23,7 +27,7 @@ export async function action({ request }) {
     const productNames = formData.getAll('productName');
     const imageUrls  = formData.getAll('imageUrl');
     const maxUnits   = formData.getAll('maxUnits');
-    const shop       = formData.get('shop') || '';
+    const shop       = ctx.shop;
 
     await prisma.campaign.create({
       data: {

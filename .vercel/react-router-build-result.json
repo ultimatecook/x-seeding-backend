@@ -28,6 +28,7 @@
       "routes/app.campaigns.$id": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
       "routes/app.additional": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
       "routes/app.seedings": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
+      "routes/app.settings": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
       "routes/app._index": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
       "routes/app.new": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0"
     },
@@ -205,6 +206,15 @@
           "runtime": "nodejs"
         }
       },
+      "routes/app.settings": {
+        "id": "routes/app.settings",
+        "parentId": "routes/app",
+        "file": "app/routes/app.settings.jsx",
+        "path": "settings",
+        "config": {
+          "runtime": "nodejs"
+        }
+      },
       "routes/app._index": {
         "id": "routes/app._index",
         "parentId": "routes/app",
@@ -361,6 +371,12 @@
         "file": "routes/app.seedings.jsx",
         "path": "seedings"
       },
+      "routes/app.settings": {
+        "id": "routes/app.settings",
+        "parentId": "routes/app",
+        "file": "routes/app.settings.jsx",
+        "path": "settings"
+      },
       "routes/app._index": {
         "id": "routes/app._index",
         "parentId": "routes/app",
@@ -486,6 +502,11 @@
                 "id": "routes/app.seedings",
                 "file": "routes/app.seedings.jsx",
                 "path": "seedings"
+              },
+              {
+                "id": "routes/app.settings",
+                "file": "routes/app.settings.jsx",
+                "path": "settings"
               },
               {
                 "id": "routes/app._index",

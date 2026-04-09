@@ -3,6 +3,7 @@ import { useLoaderData, useNavigate, useRouteError, Form, useNavigation } from '
 import { boundary } from '@shopify/shopify-app-react-router/server';
 import prisma from '../db.server';
 import { C, btn, card } from '../theme';
+import { requireRole } from '../utils/authz.server';
 
 const SIZE_OPTIONS = {
   tops:     ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', 'One Size'],
@@ -17,7 +18,8 @@ const CATEGORIES = [
 ];
 
 // ── Loader ────────────────────────────────────────────────────────────────────
-export async function loader({ params }) {
+export async function loader({ request, params }) {
+  await requireRole(request, 'Viewer');
   const id = parseInt(params.id);
   const influencer = await prisma.influencer.findUnique({
     where: { id },
@@ -33,6 +35,7 @@ export async function loader({ params }) {
 
 // ── Action ────────────────────────────────────────────────────────────────────
 export async function action({ request, params }) {
+  await requireRole(request, 'Editor');
   const influencerId = parseInt(params.id);
   const formData     = await request.formData();
   const intent       = formData.get('intent');
