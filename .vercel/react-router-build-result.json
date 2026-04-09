@@ -10,15 +10,24 @@
       }
     },
     "routeIdToServerBundleId": {
+      "routes/api.influencer-sizes": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
+      "routes/api.instagram-search": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
+      "routes/api.seedings-export": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
       "routes/api.products": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
+      "routes/api.health": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
       "routes/auth.login": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
       "routes/webhooks": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
       "routes/webhooks.app.scopes_update": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
       "routes/webhooks.app.uninstalled": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
       "routes/_index": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
       "routes/auth.$": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
-      "routes/app.influencers": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
+      "routes/app.influencer-sizes.$id": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
+      "routes/app.influencers._index": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
+      "routes/app.campaigns._index": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
+      "routes/app.influencers.$id": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
+      "routes/app.campaigns.$id": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
       "routes/app.additional": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
+      "routes/app.seedings": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
       "routes/app._index": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0",
       "routes/app.new": "nodejs_eyJydW50aW1lIjoibm9kZWpzIn0"
     },
@@ -29,11 +38,47 @@
         "path": "",
         "config": {}
       },
+      "routes/api.influencer-sizes": {
+        "id": "routes/api.influencer-sizes",
+        "parentId": "root",
+        "file": "app/routes/api.influencer-sizes.jsx",
+        "path": "api/influencer-sizes",
+        "config": {
+          "runtime": "nodejs"
+        }
+      },
+      "routes/api.instagram-search": {
+        "id": "routes/api.instagram-search",
+        "parentId": "root",
+        "file": "app/routes/api.instagram-search.jsx",
+        "path": "api/instagram-search",
+        "config": {
+          "runtime": "nodejs"
+        }
+      },
+      "routes/api.seedings-export": {
+        "id": "routes/api.seedings-export",
+        "parentId": "root",
+        "file": "app/routes/api.seedings-export.jsx",
+        "path": "api/seedings-export",
+        "config": {
+          "runtime": "nodejs"
+        }
+      },
       "routes/api.products": {
         "id": "routes/api.products",
         "parentId": "root",
         "file": "app/routes/api.products.jsx",
         "path": "api/products",
+        "config": {
+          "runtime": "nodejs"
+        }
+      },
+      "routes/api.health": {
+        "id": "routes/api.health",
+        "parentId": "root",
+        "file": "app/routes/api.health.jsx",
+        "path": "api/health",
         "config": {
           "runtime": "nodejs"
         }
@@ -95,11 +140,49 @@
         "path": "app",
         "config": {}
       },
-      "routes/app.influencers": {
-        "id": "routes/app.influencers",
+      "routes/app.influencer-sizes.$id": {
+        "id": "routes/app.influencer-sizes.$id",
         "parentId": "routes/app",
-        "file": "app/routes/app.influencers.jsx",
+        "file": "app/routes/app.influencer-sizes.$id.jsx",
+        "path": "influencer-sizes/:id",
+        "config": {
+          "runtime": "nodejs"
+        }
+      },
+      "routes/app.influencers._index": {
+        "id": "routes/app.influencers._index",
+        "parentId": "routes/app",
+        "file": "app/routes/app.influencers._index.jsx",
         "path": "influencers",
+        "index": true,
+        "config": {
+          "runtime": "nodejs"
+        }
+      },
+      "routes/app.campaigns._index": {
+        "id": "routes/app.campaigns._index",
+        "parentId": "routes/app",
+        "file": "app/routes/app.campaigns._index.jsx",
+        "path": "campaigns",
+        "index": true,
+        "config": {
+          "runtime": "nodejs"
+        }
+      },
+      "routes/app.influencers.$id": {
+        "id": "routes/app.influencers.$id",
+        "parentId": "routes/app",
+        "file": "app/routes/app.influencers.$id.jsx",
+        "path": "influencers/:id",
+        "config": {
+          "runtime": "nodejs"
+        }
+      },
+      "routes/app.campaigns.$id": {
+        "id": "routes/app.campaigns.$id",
+        "parentId": "routes/app",
+        "file": "app/routes/app.campaigns.$id.jsx",
+        "path": "campaigns/:id",
         "config": {
           "runtime": "nodejs"
         }
@@ -109,6 +192,15 @@
         "parentId": "routes/app",
         "file": "app/routes/app.additional.jsx",
         "path": "additional",
+        "config": {
+          "runtime": "nodejs"
+        }
+      },
+      "routes/app.seedings": {
+        "id": "routes/app.seedings",
+        "parentId": "routes/app",
+        "file": "app/routes/app.seedings.jsx",
+        "path": "seedings",
         "config": {
           "runtime": "nodejs"
         }
@@ -134,9 +226,9 @@
     }
   },
   "reactRouterConfig": {
-    "appDirectory": "/Users/tiagolocatelli/x-seeding/app",
+    "appDirectory": "/Users/tiagolocatelli/Desktop/x-seeding/app",
     "basename": "/",
-    "buildDirectory": "/Users/tiagolocatelli/x-seeding/build",
+    "buildDirectory": "/Users/tiagolocatelli/Desktop/x-seeding/build",
     "future": {
       "unstable_optimizeDeps": false,
       "unstable_passThroughRequests": false,
@@ -153,11 +245,35 @@
         "file": "root.jsx",
         "path": ""
       },
+      "routes/api.influencer-sizes": {
+        "id": "routes/api.influencer-sizes",
+        "parentId": "root",
+        "file": "routes/api.influencer-sizes.jsx",
+        "path": "api/influencer-sizes"
+      },
+      "routes/api.instagram-search": {
+        "id": "routes/api.instagram-search",
+        "parentId": "root",
+        "file": "routes/api.instagram-search.jsx",
+        "path": "api/instagram-search"
+      },
+      "routes/api.seedings-export": {
+        "id": "routes/api.seedings-export",
+        "parentId": "root",
+        "file": "routes/api.seedings-export.jsx",
+        "path": "api/seedings-export"
+      },
       "routes/api.products": {
         "id": "routes/api.products",
         "parentId": "root",
         "file": "routes/api.products.jsx",
         "path": "api/products"
+      },
+      "routes/api.health": {
+        "id": "routes/api.health",
+        "parentId": "root",
+        "file": "routes/api.health.jsx",
+        "path": "api/health"
       },
       "routes/auth.login": {
         "id": "routes/auth.login",
@@ -201,17 +317,49 @@
         "file": "routes/app.jsx",
         "path": "app"
       },
-      "routes/app.influencers": {
-        "id": "routes/app.influencers",
+      "routes/app.influencer-sizes.$id": {
+        "id": "routes/app.influencer-sizes.$id",
         "parentId": "routes/app",
-        "file": "routes/app.influencers.jsx",
-        "path": "influencers"
+        "file": "routes/app.influencer-sizes.$id.jsx",
+        "path": "influencer-sizes/:id"
+      },
+      "routes/app.influencers._index": {
+        "id": "routes/app.influencers._index",
+        "parentId": "routes/app",
+        "file": "routes/app.influencers._index.jsx",
+        "path": "influencers",
+        "index": true
+      },
+      "routes/app.campaigns._index": {
+        "id": "routes/app.campaigns._index",
+        "parentId": "routes/app",
+        "file": "routes/app.campaigns._index.jsx",
+        "path": "campaigns",
+        "index": true
+      },
+      "routes/app.influencers.$id": {
+        "id": "routes/app.influencers.$id",
+        "parentId": "routes/app",
+        "file": "routes/app.influencers.$id.jsx",
+        "path": "influencers/:id"
+      },
+      "routes/app.campaigns.$id": {
+        "id": "routes/app.campaigns.$id",
+        "parentId": "routes/app",
+        "file": "routes/app.campaigns.$id.jsx",
+        "path": "campaigns/:id"
       },
       "routes/app.additional": {
         "id": "routes/app.additional",
         "parentId": "routes/app",
         "file": "routes/app.additional.jsx",
         "path": "additional"
+      },
+      "routes/app.seedings": {
+        "id": "routes/app.seedings",
+        "parentId": "routes/app",
+        "file": "routes/app.seedings.jsx",
+        "path": "seedings"
       },
       "routes/app._index": {
         "id": "routes/app._index",
@@ -241,9 +389,29 @@
         "file": "root.jsx",
         "children": [
           {
+            "id": "routes/api.influencer-sizes",
+            "file": "routes/api.influencer-sizes.jsx",
+            "path": "api/influencer-sizes"
+          },
+          {
+            "id": "routes/api.instagram-search",
+            "file": "routes/api.instagram-search.jsx",
+            "path": "api/instagram-search"
+          },
+          {
+            "id": "routes/api.seedings-export",
+            "file": "routes/api.seedings-export.jsx",
+            "path": "api/seedings-export"
+          },
+          {
             "id": "routes/api.products",
             "file": "routes/api.products.jsx",
             "path": "api/products"
+          },
+          {
+            "id": "routes/api.health",
+            "file": "routes/api.health.jsx",
+            "path": "api/health"
           },
           {
             "id": "routes/auth.login",
@@ -283,14 +451,41 @@
             "path": "app",
             "children": [
               {
-                "id": "routes/app.influencers",
-                "file": "routes/app.influencers.jsx",
-                "path": "influencers"
+                "id": "routes/app.influencer-sizes.$id",
+                "file": "routes/app.influencer-sizes.$id.jsx",
+                "path": "influencer-sizes/:id"
+              },
+              {
+                "id": "routes/app.influencers._index",
+                "file": "routes/app.influencers._index.jsx",
+                "path": "influencers",
+                "index": true
+              },
+              {
+                "id": "routes/app.campaigns._index",
+                "file": "routes/app.campaigns._index.jsx",
+                "path": "campaigns",
+                "index": true
+              },
+              {
+                "id": "routes/app.influencers.$id",
+                "file": "routes/app.influencers.$id.jsx",
+                "path": "influencers/:id"
+              },
+              {
+                "id": "routes/app.campaigns.$id",
+                "file": "routes/app.campaigns.$id.jsx",
+                "path": "campaigns/:id"
               },
               {
                 "id": "routes/app.additional",
                 "file": "routes/app.additional.jsx",
                 "path": "additional"
+              },
+              {
+                "id": "routes/app.seedings",
+                "file": "routes/app.seedings.jsx",
+                "path": "seedings"
               },
               {
                 "id": "routes/app._index",
