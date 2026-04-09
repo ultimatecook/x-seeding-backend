@@ -113,12 +113,9 @@ function DonutChart({ data, total }) {
   );
 }
 
-function getTopProducts(seedings, days, now) {
-  const cutoff = new Date(now);
-  cutoff.setDate(cutoff.getDate() - days);
+function getTopProducts(seedings) {
   const map = {};
   for (const s of seedings) {
-    if (new Date(s.createdAt) < cutoff) continue;
     for (const p of s.products) {
       if (!map[p.productId]) map[p.productId] = { name: p.productName, image: p.imageUrl, count: 0, worth: 0 };
       map[p.productId].count += 1;
@@ -144,24 +141,33 @@ function getCountryData(seedings) {
 
 export default function Dashboard() {
   const { seedings, now } = useLoaderData();
-  const [period, setPeriod] = useState('30d');
+  const [period,  setPeriod]  = useState('30d');
+  const [country, setCountry] = useState('all');
 
   const selectedPeriod = PERIODS.find(p => p.label === period);
   const cutoff = new Date(now);
   cutoff.setDate(cutoff.getDate() - selectedPeriod.days);
-  const filtered = seedings.filter(s => new Date(s.createdAt) >= cutoff);
 
-  const topProducts = getTopProducts(seedings, selectedPeriod.days, now);
-  const totalCost   = filtered.reduce((sum, s) => sum + s.totalCost, 0);
-  const totalUnits  = filtered.reduce((sum, s) => sum + s.products.length, 0);
-  const countryData = getCountryData(filtered);
+  // All countries available in the current period (for the filter pills)
+  const byPeriod      = seedings.filter(s => new Date(s.createdAt) >= cutoff);
+  const allCountries  = [...new Set(byPeriod.map(s => s.influencer.country || 'Unknown'))].sort();
+
+  // Final filtered set — period + country
+  const filtered = byPeriod.filter(s =>
+    country === 'all' || (s.influencer.country || 'Unknown') === country
+  );
+
+  const topProducts   = getTopProducts(filtered);
+  const totalCost     = filtered.reduce((sum, s) => sum + s.totalCost, 0);
+  const totalUnits    = filtered.reduce((sum, s) => sum + s.products.length, 0);
+  const countryData   = getCountryData(filtered);
   const totalUnitsAll = countryData.reduce((s, d) => s + d.units, 0);
 
   const stats = [
     { label: 'Total Seedings', value: filtered.length },
     { label: 'Total Invested', value: `€${fmtNum(totalCost)}` },
     { label: 'Units Sent',     value: totalUnits },
-    { label: 'Countries',      value: countryData.length || 0 },
+    { label: 'Countries',      value: country === 'all' ? countryData.length : 1 },
   ];
 
   const statusCounts = STATUSES.reduce((acc, s) => {
@@ -171,10 +177,10 @@ export default function Dashboard() {
 
   return (
     <div>
-      {/* Period filter */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+      {/* Period + Country filters */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
         <h2 style={{ margin: 0, fontSize: '15px', fontWeight: '700', color: C.text }}>
-          Past {selectedPeriod.display}
+          Past {selectedPeriod.display}{country !== 'all' ? ` · ${getFlag(country)} ${country}` : ''}
         </h2>
         <div style={{ display: 'flex', gap: '4px' }}>
           {PERIODS.map(p => (
@@ -185,6 +191,23 @@ export default function Dashboard() {
           ))}
         </div>
       </div>
+
+      {/* Country filter pills */}
+      {allCountries.length > 1 && (
+        <div style={{ display: 'flex', gap: '6px', marginBottom: '20px', flexWrap: 'wrap' }}>
+          <button type="button" onClick={() => setCountry('all')}
+            style={{ padding: '5px 12px', fontSize: '12px', fontWeight: '600', borderRadius: '20px', border: `1.5px solid ${country === 'all' ? C.accent : C.border}`, backgroundColor: country === 'all' ? C.accent : 'transparent', color: country === 'all' ? '#fff' : C.textSub, cursor: 'pointer' }}>
+            All countries
+          </button>
+          {allCountries.map(c => (
+            <button key={c} type="button" onClick={() => setCountry(country === c ? 'all' : c)}
+              style={{ padding: '5px 12px', fontSize: '12px', fontWeight: '600', borderRadius: '20px', border: `1.5px solid ${country === c ? C.accent : C.border}`, backgroundColor: country === c ? C.accentFaint : 'transparent', color: country === c ? C.accent : C.textSub, cursor: 'pointer' }}>
+              {getFlag(c)} {c}
+            </button>
+          ))}
+        </div>
+      )}
+
 
       {/* Stat tiles */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '28px' }}>
