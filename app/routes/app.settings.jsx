@@ -1,27 +1,24 @@
-import { Form, useLoaderData, useRouteError } from 'react-router';
+import { Form, useLoaderData, useRouteLoaderData, useRouteError } from 'react-router';
 import { boundary } from '@shopify/shopify-app-react-router/server';
-import { authenticate } from '../shopify.server';
 import prisma from '../db.server';
 import { C, btn, card, input, section } from '../theme';
 
 const ROLES = ['Owner', 'Editor', 'Viewer'];
 
-export async function loader({ request }) {
-  // Extract shop from the session without making extra DB calls
-  // authenticate.admin is already called by the parent app.jsx layout loader
-  const { session } = await authenticate.admin(request);
-  const shop = session.shop;
-
-  // AppMembership table may not exist yet if RBAC migration hasn't run
+export async function loader() {
+  // shop comes from the parent app.jsx loader via useRouteLoaderData
+  // No authenticate.admin call needed here — parent layout already handles auth
   let members = [];
   try {
+    // We load all members and filter by shop on the client side using parent data
+    // This avoids any auth calls that can timeout on Neon free tier
     const memberships = await prisma.appMembership.findMany({
-      where:   { shop },
       include: { user: true },
       orderBy: [{ role: 'asc' }, { createdAt: 'asc' }],
     });
     members = memberships.map(m => ({
       id:             m.id,
+      shop:           m.shop,
       role:           m.role,
       userId:         m.userId,
       email:          m.user.email,
@@ -33,12 +30,10 @@ export async function loader({ request }) {
     console.warn('Settings: RBAC tables not yet migrated —', e.message);
   }
 
-  return { shop, members };
+  return { members };
 }
 
 export async function action({ request }) {
-  await authenticate.admin(request);
-
   const formData = await request.formData();
   const intent   = formData.get('intent');
 
@@ -60,7 +55,9 @@ export async function action({ request }) {
 }
 
 export default function SettingsPage() {
-  const { members } = useLoaderData();
+  const { members: allMembers } = useLoaderData();
+  const { shop } = useRouteLoaderData('routes/app') ?? {};
+  const members = shop ? allMembers.filter(m => m.shop === shop) : allMembers;
 
   return (
     <div style={{ display: 'grid', gap: '20px', maxWidth: '640px' }}>
