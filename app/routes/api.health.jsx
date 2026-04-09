@@ -1,6 +1,12 @@
 import prisma from '../db.server';
+import { rateLimit, getClientIp, tooManyRequests } from '../utils/rate-limit.server';
 
-export async function loader() {
+export async function loader({ request }) {
+  // 10 requests per minute per IP
+  const ip = getClientIp(request);
+  const { allowed, retryAfterMs } = rateLimit(`health:${ip}`, 10, 60_000);
+  if (!allowed) return tooManyRequests(retryAfterMs);
+
   const start = Date.now();
 
   try {

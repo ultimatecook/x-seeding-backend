@@ -1,7 +1,13 @@
 import { authenticate } from '../shopify.server';
+import { rateLimit, getClientIp, tooManyRequests } from '../utils/rate-limit.server';
 
 export async function loader({ request }) {
   await authenticate.admin(request);
+
+  // 30 lookups per minute per IP — debounce in UI already reduces this naturally
+  const ip = getClientIp(request);
+  const { allowed, retryAfterMs } = rateLimit(`ig-search:${ip}`, 30, 60_000);
+  if (!allowed) return tooManyRequests(retryAfterMs);
 
   const url = new URL(request.url);
   const q   = url.searchParams.get('q')?.trim().replace(/^@/, '').slice(0, 60); // cap at 60 chars
