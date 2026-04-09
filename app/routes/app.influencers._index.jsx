@@ -159,7 +159,15 @@ export default function Influencers() {
   const [igLookup,    setIgLookup]    = useState(null);   // { username, fullName, followers, profilePic }
   const [igLoading,   setIgLoading]   = useState(false);
   const [igError,     setIgError]     = useState(null);
+  const [tierPick,    setTierPick]    = useState(null);   // selected tier pill
   const debounceRef = useRef(null);
+
+  const TIER_PILLS = [
+    { label: 'Nano',       sub: '< 10K',      value: 5000 },
+    { label: 'Micro',      sub: '10K – 50K',  value: 25000 },
+    { label: 'Influencer', sub: '50K – 500K', value: 150000 },
+    { label: 'Celebrity',  sub: '500K+',      value: 750000 },
+  ];
 
   // Debounced lookup: fires 600ms after the user stops typing
   useEffect(() => {
@@ -334,11 +342,12 @@ export default function Influencers() {
 
       {/* Manual add form */}
       {showForm && (
-        <Form method="post" onSubmit={() => { if (!isSubmitting) { setShowForm(false); setIgHandle(''); setIgLookup(null); } }}
+        <Form method="post" onSubmit={() => { if (!isSubmitting) { setShowForm(false); setIgHandle(''); setIgLookup(null); setTierPick(null); } }}
           style={{ padding: '24px', backgroundColor: C.surface, border: `1px solid ${C.border}`, borderLeft: `3px solid ${C.accent}`, borderRadius: '8px', marginBottom: '24px' }}>
           <input type="hidden" name="intent" value="create" />
+          <input type="hidden" name="followers" value={tierPick?.value ?? 0} />
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '14px', alignItems: 'end' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px', alignItems: 'end' }}>
             {/* Handle */}
             <label style={{ ...lbl.base }}>
               Instagram Handle *
@@ -353,23 +362,27 @@ export default function Influencers() {
               </div>
             </label>
 
-            {/* Followers — pre-filled from IG if available, always editable */}
+            {/* Tier pills */}
             <label style={{ ...lbl.base }}>
-              Followers
-              <input
-                key={igLookup?.followers ?? 'manual'}
-                name="followers"
-                type="number"
-                min="0"
-                placeholder="e.g. 45000"
-                defaultValue={igLookup?.followers || ''}
-                style={{ ...inputSt, display: 'block', marginTop: '6px' }}
-              />
-              {igLookup?.followers && (
-                <div style={{ fontSize: '11px', color: '#16A34A', marginTop: '3px', fontWeight: '600' }}>
-                  ✓ auto-filled from Instagram
-                </div>
-              )}
+              Tier *
+              <div style={{ display: 'flex', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}>
+                {TIER_PILLS.map(t => {
+                  const active = tierPick?.label === t.label;
+                  return (
+                    <button key={t.label} type="button" onClick={() => setTierPick(t)}
+                      style={{
+                        padding: '5px 10px', borderRadius: '20px', border: `1.5px solid ${active ? C.accent : C.border}`,
+                        backgroundColor: active ? C.accentFaint : 'transparent',
+                        color: active ? C.accent : C.textSub,
+                        fontSize: '12px', fontWeight: active ? '700' : '500', cursor: 'pointer',
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', lineHeight: '1.3',
+                      }}>
+                      <span>{t.label}</span>
+                      <span style={{ fontSize: '10px', opacity: 0.75 }}>{t.sub}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </label>
 
             {/* Country */}
@@ -380,15 +393,16 @@ export default function Influencers() {
                 {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </label>
+          </div>
 
-            {/* Submit */}
-            <button type="submit" disabled={isSubmitting || !igHandle.trim()}
-              style={{ ...btn.primary, padding: '10px 20px', fontSize: '14px', opacity: igHandle.trim() ? 1 : 0.4 }}>
-              {isSubmitting ? 'Saving...' : 'Add'}
+          <div style={{ marginTop: '14px' }}>
+            <button type="submit" disabled={isSubmitting || !igHandle.trim() || !tierPick}
+              style={{ ...btn.primary, padding: '10px 24px', fontSize: '14px', opacity: (igHandle.trim() && tierPick) ? 1 : 0.4 }}>
+              {isSubmitting ? 'Saving...' : 'Add Influencer'}
             </button>
           </div>
 
-          <p style={{ margin: '12px 0 0', fontSize: '11px', color: C.textMuted }}>
+          <p style={{ margin: '10px 0 0', fontSize: '11px', color: C.textMuted }}>
             Name and email are fetched automatically when the influencer completes their first checkout.
           </p>
         </Form>
