@@ -1,12 +1,11 @@
-import { Outlet, NavLink, useLoaderData, useRouteError } from 'react-router';
+import { Outlet, NavLink, useRouteError } from 'react-router';
+import { authenticate } from '../shopify.server';
 import { boundary } from '@shopify/shopify-app-react-router/server';
 import { C } from '../theme';
-import { requireRole } from '../utils/authz.server';
 
 export async function loader({ request }) {
   try {
-    const auth = await requireRole(request, 'Viewer');
-    const { admin, session, role, user, preferences } = auth;
+    const { admin, session } = await authenticate.admin(request);
 
     const res = await admin.graphql(`
       #graphql
@@ -52,24 +51,11 @@ export async function loader({ request }) {
       variantId: edge.node.variants.edges[0]?.node?.id ?? null,
     }));
 
-    return {
-      products,
-      shop: session.shop,
-      auth: {
-        role,
-        user: {
-          id: user.id,
-          email: user.email,
-          firstName: user.firstName,
-          lastName: user.lastName,
-        },
-      },
-      preferences,
-    };
+    return { products, shop: session.shop };
   } catch (err) {
     if (err instanceof Response) throw err;
     console.error('Layout loader error:', err);
-    return { products: [], shop: '', auth: null, preferences: null };
+    return { products: [], shop: '' };
   }
 }
 
@@ -86,25 +72,8 @@ const navLinkStyle = ({ isActive }) => ({
 });
 
 export default function AppLayout() {
-  const data = useLoaderData();
-  const prefs = data?.preferences ?? { highContrast: false, reducedMotion: false, fontScale: 1 };
-  const className = `${prefs.highContrast ? 'high-contrast' : ''} ${
-    prefs.reducedMotion ? 'reduced-motion' : ''
-  }`.trim();
-
   return (
-    <div
-      className={className}
-      style={{
-        fontFamily: 'system-ui, sans-serif',
-        maxWidth: '1140px',
-        margin: '0 auto',
-        padding: '24px 20px',
-        backgroundColor: C.bg,
-        minHeight: '100vh',
-        fontSize: `${16 * (prefs.fontScale ?? 1)}px`,
-      }}
-    >
+    <div style={{ fontFamily: 'system-ui, sans-serif', maxWidth: '1140px', margin: '0 auto', padding: '24px 20px', backgroundColor: C.bg, minHeight: '100vh' }}>
       {/* Top bar */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${C.border}`, paddingBottom: '16px', marginBottom: '32px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
