@@ -120,5 +120,18 @@ export default function SettingsPage() {
 }
 
 export function ErrorBoundary() {
-  return boundary.error(useRouteError());
+  const error = useRouteError();
+  // Only use Shopify's boundary for Response errors (auth redirects)
+  // For regular errors, show a message instead of redirecting to login
+  if (error instanceof Response) {
+    return boundary.error(error);
+  }
+  return (
+    <div style={{ padding: 20 }}>
+      <h2>Something went wrong</h2>
+      <pre style={{ fontSize: 12, color: '#dc2626' }}>
+        {error?.message || String(error)}
+      </pre>
+    </div>
+  );
 }
