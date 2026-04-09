@@ -4,9 +4,20 @@ import { boundary } from '@shopify/shopify-app-react-router/server';
 import { C } from '../theme';
 
 export async function loader({ request }) {
-  try {
-    const { admin, session } = await authenticate.admin(request);
+  // Always authenticate first — this must succeed for any child route to work
+  const { admin, session } = await authenticate.admin(request);
+  const shop = session.shop;
 
+  // Only fetch products when navigating to pages that need them (new seeding)
+  // Skip for settings, seedings list, influencers, campaigns, dashboard
+  const url = new URL(request.url);
+  const needsProducts = url.pathname === '/app/new' || url.pathname === '/app';
+
+  if (!needsProducts) {
+    return { products: [], shop };
+  }
+
+  try {
     const res = await admin.graphql(`
       #graphql
       query GetProducts {
@@ -51,11 +62,10 @@ export async function loader({ request }) {
       variantId: edge.node.variants.edges[0]?.node?.id ?? null,
     }));
 
-    return { products, shop: session.shop };
+    return { products, shop };
   } catch (err) {
-    if (err instanceof Response) throw err;
-    console.error('Layout loader error:', err);
-    return { products: [], shop: '' };
+    console.error('Layout loader: products fetch failed:', err);
+    return { products: [], shop };
   }
 }
 

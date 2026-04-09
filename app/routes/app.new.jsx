@@ -22,12 +22,10 @@ export async function loader() {
   });
 
   // Build map: influencerId → Set of productIds seeded recently
-  // { [influencerId]: { [productId]: Date } }
   const recentlySeededMap = {};
   for (const s of recentSeedings) {
     if (!recentlySeededMap[s.influencerId]) recentlySeededMap[s.influencerId] = {};
     for (const p of s.products) {
-      // Keep the most recent date if seeded multiple times
       const existing = recentlySeededMap[s.influencerId][p.productId];
       if (!existing || new Date(s.createdAt) > new Date(existing)) {
         recentlySeededMap[s.influencerId][p.productId] = s.createdAt;
@@ -35,7 +33,21 @@ export async function loader() {
     }
   }
 
-  return { influencers, campaigns, recentlySeededMap };
+  // Load all saved sizes upfront — keyed by influencerId → { category: size }
+  // Avoids client-side fetch which breaks inside Shopify's embedded iframe
+  let allSavedSizes = {};
+  try {
+    const savedSizes = await prisma.influencerSavedSize.findMany();
+    for (const ss of savedSizes) {
+      if (!allSavedSizes[ss.influencerId]) allSavedSizes[ss.influencerId] = {};
+      allSavedSizes[ss.influencerId][ss.category] = ss.size;
+    }
+  } catch (e) {
+    // Table may not exist yet if migration hasn't run
+    console.warn('influencerSavedSize table not ready:', e.message);
+  }
+
+  return { influencers, campaigns, recentlySeededMap, allSavedSizes };
 }
 
 // ── Action ───────────────────────────────────────────────────────────────────
@@ -213,7 +225,7 @@ function Stepper({ step }) {
 
 // ── Main Component ────────────────────────────────────────────────────────────
 export default function NewSeeding() {
-  const { influencers, campaigns, recentlySeededMap } = useLoaderData();
+  const { influencers, campaigns, recentlySeededMap, allSavedSizes } = useLoaderData();
   const { products = [], shop = '' } = useRouteLoaderData('routes/app') ?? {};
   const navigate = useNavigate();
 
@@ -247,31 +259,23 @@ export default function NewSeeding() {
     ? (recentlySeededMap[selectedInfluencer.id] ?? {})
     : {};
 
-  // Load influencer saved sizes when influencer is selected
-  const [influencerSizeMap, setInfluencerSizeMap] = useState({});
+  // Sizes are pre-loaded in the loader — derive from allSavedSizes instead of fetching
+  const influencerSizeMap = selectedInfluencer?.id
+    ? (allSavedSizes[selectedInfluencer.id] ?? {})
+    : {};
 
+  // Auto-apply saved sizes when influencer changes
   useEffect(() => {
-    if (!selectedInfluencer?.id) {
-      setInfluencerSizeMap({});
-      return;
-    }
-
-    fetch(`/api/influencer-sizes?influencerId=${selectedInfluencer.id}`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.sizeMap) {
-          setInfluencerSizeMap(data.sizeMap);
-          // Auto-apply sizes to existing products
-          setSelectedProducts(prev =>
-            prev.map(p => {
-              if (p.size) return p; // Don't override if already set
-              const savedSize = data.sizeMap[p.category];
-              return savedSize ? { ...p, size: savedSize } : p;
-            })
-          );
-        }
+    if (!selectedInfluencer?.id) return;
+    const sizeMap = allSavedSizes[selectedInfluencer.id] ?? {};
+    if (Object.keys(sizeMap).length === 0) return;
+    setSelectedProducts(prev =>
+      prev.map(p => {
+        if (p.size) return p; // Don't override if already set
+        const savedSize = sizeMap[p.category];
+        return savedSize ? { ...p, size: savedSize } : p;
       })
-      .catch(err => console.error('Failed to load influencer sizes:', err));
+    );
   }, [selectedInfluencer?.id]);
 
   const filteredInfluencers = influencers.filter(inf => {
