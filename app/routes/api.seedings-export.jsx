@@ -7,19 +7,22 @@ export async function loader({ request }) {
   const url      = new URL(request.url);
   const status   = url.searchParams.get('status')   || 'all';
   const campaign = url.searchParams.get('campaign') || '';
+  const country  = url.searchParams.get('country')  || '';
   const q        = url.searchParams.get('q')        || '';
 
   const where = {};
-  if (status !== 'all') where.status = status;
+  if (status !== 'all') where.status     = status;
   if (campaign)         where.campaignId = parseInt(campaign);
+
+  const influencerWhere = {};
+  if (country) influencerWhere.country = country;
   if (q) {
-    where.influencer = {
-      OR: [
-        { handle: { contains: q, mode: 'insensitive' } },
-        { name:   { contains: q, mode: 'insensitive' } },
-      ],
-    };
+    influencerWhere.OR = [
+      { handle: { contains: q, mode: 'insensitive' } },
+      { name:   { contains: q, mode: 'insensitive' } },
+    ];
   }
+  if (Object.keys(influencerWhere).length > 0) where.influencer = influencerWhere;
 
   const seedings = await prisma.seeding.findMany({
     where,
