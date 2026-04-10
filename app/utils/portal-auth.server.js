@@ -60,7 +60,11 @@ export async function requirePortalUser(request) {
   if (!userId || !shop) {
     throw redirect('/portal-login');
   }
-  return { userId: parseInt(userId), shop };
+  // Load full user so callers have role for permission checks
+  const { default: prisma } = await import('../db.server.js');
+  const portalUser = await prisma.portalUser.findUnique({ where: { id: parseInt(userId) } });
+  if (!portalUser) throw redirect('/portal-login');
+  return { userId: parseInt(userId), shop, portalUser };
 }
 
 export async function getPortalUser(request) {

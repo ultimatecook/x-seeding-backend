@@ -1,13 +1,16 @@
 import { useLoaderData, Form, useSearchParams, Link } from 'react-router';
 import prisma from '../db.server';
 import { requirePortalUser } from '../utils/portal-auth.server';
+import { can, requirePermission } from '../utils/portal-permissions.js';
+import { audit } from '../utils/audit.server.js';
 import { C, btn, card, fmtDate } from '../theme';
 
 const STATUSES  = ['Pending', 'Ordered', 'Shipped', 'Delivered', 'Posted'];
 const PAGE_SIZE = 30;
 
 export async function loader({ request }) {
-  const { shop } = await requirePortalUser(request);
+  const { shop, portalUser } = await requirePortalUser(request);
+  requirePermission(portalUser.role, 'viewSeedings');
 
   const url      = new URL(request.url);
   const page     = Math.max(1, parseInt(url.searchParams.get('page')     || '1'));
@@ -56,42 +59,49 @@ export async function loader({ request }) {
 
   const countries = allCountries.map(i => i.country).filter(Boolean).sort();
 
-  return { seedings, total, page, countsByStatus, campaigns, countries };
+  return { seedings, total, page, countsByStatus, campaigns, countries, role: portalUser.role };
 }
 
 export async function action({ request }) {
-  await requirePortalUser(request);
+  const { shop, portalUser } = await requirePortalUser(request);
 
   const formData = await request.formData();
   const intent   = formData.get('intent');
   const VALID_STATUSES = ['Pending', 'Ordered', 'Shipped', 'Delivered', 'Posted'];
 
   if (intent === 'updateStatus') {
+    requirePermission(portalUser.role, 'updateSeeding');
     const status = formData.get('status');
     if (!VALID_STATUSES.includes(status)) return null;
-    await prisma.seeding.update({
-      where: { id: parseInt(formData.get('id')) },
-      data:  { status },
-    });
-  }
-  if (intent === 'updateTracking') {
-    const trackingNumber = String(formData.get('trackingNumber') || '').slice(0, 200).trim() || null;
-    await prisma.seeding.update({
-      where: { id: parseInt(formData.get('id')) },
-      data:  { trackingNumber },
-    });
-  }
-  if (intent === 'delete') {
     const id = parseInt(formData.get('id'));
-    // Portal users can't delete draft orders from Shopify (no admin token)
-    // Just delete the DB record
-    await prisma.seeding.delete({ where: { id } });
+    await prisma.seeding.update({ where: { id }, data: { status } });
+    await audit({ shop, portalUser, action: 'updated_status', entityType: 'seeding', entityId: id, detail: `Status → ${status}` });
   }
+
+  if (intent === 'updateTracking') {
+    requirePermission(portalUser.role, 'updateSeeding');
+    const trackingNumber = String(formData.get('trackingNumber') || '').slice(0, 200).trim() || null;
+    const id = parseInt(formData.get('id'));
+    await prisma.seeding.update({ where: { id }, data: { trackingNumber } });
+    await audit({ shop, portalUser, action: 'updated_tracking', entityType: 'seeding', entityId: id, detail: `Tracking → ${trackingNumber ?? 'cleared'}` });
+  }
+
+  if (intent === 'delete') {
+    requirePermission(portalUser.role, 'deleteSeeding');
+    const id = parseInt(formData.get('id'));
+    const seeding = await prisma.seeding.findUnique({ where: { id }, include: { influencer: true } });
+    await prisma.seeding.delete({ where: { id } });
+    await audit({ shop, portalUser, action: 'deleted_seeding', entityType: 'seeding', entityId: id, detail: `Deleted seeding for ${seeding?.influencer?.handle ?? id}` });
+  }
+
   return null;
 }
 
 export default function PortalSeedings() {
-  const { seedings, total, page, countsByStatus, campaigns, countries } = useLoaderData();
+  const { seedings, total, page, countsByStatus, campaigns, countries, role } = useLoaderData();
+  const canEdit   = can.updateSeeding(role);
+  const canDelete = can.deleteSeeding(role);
+  const canCreate = can.createSeeding(role);
   const [searchParams, setSearchParams] = useSearchParams();
 
   const currentStatus   = searchParams.get('status')   || 'all';
@@ -121,7 +131,7 @@ export default function PortalSeedings() {
           Seedings <span style={{ fontSize: '14px', fontWeight: '400', color: C.textMuted }}>({total})</span>
         </h2>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <Link to="/portal/new" style={{ ...btn.primary, textDecoration: 'none', display: 'inline-block' }}>+ New Seeding</Link>
+          {canCreate && <Link to="/portal/new" style={{ ...btn.primary, textDecoration: 'none', display: 'inline-block' }}>+ New Seeding</Link>}
         </div>
       </div>
 
@@ -212,23 +222,33 @@ export default function PortalSeedings() {
                     </td>
                     <td style={{ padding: '12px 12px', fontWeight: '700', color: C.text, whiteSpace: 'nowrap' }}>€{s.totalCost.toFixed(2)}</td>
                     <td style={{ padding: '12px 12px' }}>
-                      <Form method="post">
-                        <input type="hidden" name="intent" value="updateStatus" />
-                        <input type="hidden" name="id" value={s.id} />
-                        <select name="status" defaultValue={s.status} onChange={e => e.target.form.requestSubmit()}
-                          style={{ padding: '4px 8px', border: 'none', borderRadius: '12px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', ...(C.status[s.status] ?? {}) }}>
-                          {STATUSES.map(st => <option key={st} value={st}>{st}</option>)}
-                        </select>
-                      </Form>
+                      {canEdit ? (
+                        <Form method="post">
+                          <input type="hidden" name="intent" value="updateStatus" />
+                          <input type="hidden" name="id" value={s.id} />
+                          <select name="status" defaultValue={s.status} onChange={e => e.target.form.requestSubmit()}
+                            style={{ padding: '4px 8px', border: 'none', borderRadius: '12px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', ...(C.status[s.status] ?? {}) }}>
+                            {STATUSES.map(st => <option key={st} value={st}>{st}</option>)}
+                          </select>
+                        </Form>
+                      ) : (
+                        <span style={{ padding: '4px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: '700', ...(C.status[s.status] ?? {}) }}>
+                          {s.status}
+                        </span>
+                      )}
                     </td>
                     <td style={{ padding: '12px 12px' }}>
-                      <Form method="post" style={{ display: 'flex' }}>
-                        <input type="hidden" name="intent" value="updateTracking" />
-                        <input type="hidden" name="id" value={s.id} />
-                        <input type="text" name="trackingNumber" defaultValue={s.trackingNumber || ''} placeholder="Add tracking…"
-                          onBlur={e => e.target.form.requestSubmit()}
-                          style={{ width: '120px', padding: '4px 8px', border: `1px solid ${C.border}`, borderRadius: '5px', fontSize: '12px', color: C.text, backgroundColor: C.overlay }} />
-                      </Form>
+                      {canEdit ? (
+                        <Form method="post" style={{ display: 'flex' }}>
+                          <input type="hidden" name="intent" value="updateTracking" />
+                          <input type="hidden" name="id" value={s.id} />
+                          <input type="text" name="trackingNumber" defaultValue={s.trackingNumber || ''} placeholder="Add tracking…"
+                            onBlur={e => e.target.form.requestSubmit()}
+                            style={{ width: '120px', padding: '4px 8px', border: `1px solid ${C.border}`, borderRadius: '5px', fontSize: '12px', color: C.text, backgroundColor: C.overlay }} />
+                        </Form>
+                      ) : (
+                        <span style={{ fontSize: '12px', color: C.textSub }}>{s.trackingNumber || '—'}</span>
+                      )}
                     </td>
                     <td style={{ padding: '12px 12px' }}>
                       {s.invoiceUrl ? (
@@ -247,13 +267,15 @@ export default function PortalSeedings() {
                     <td style={{ padding: '12px 12px', color: C.textMuted, fontSize: '12px', whiteSpace: 'nowrap' }}>
                       {fmtDate(s.createdAt)}
                     </td>
-                    <td style={{ padding: '12px 12px' }}>
-                      <Form method="post" onSubmit={e => { if (!confirm('Delete this seeding?')) e.preventDefault(); }}>
-                        <input type="hidden" name="intent" value="delete" />
-                        <input type="hidden" name="id" value={s.id} />
-                        <button type="submit" style={{ background: 'none', border: 'none', color: C.textMuted, cursor: 'pointer', fontSize: '18px', lineHeight: 1 }}>×</button>
-                      </Form>
-                    </td>
+                    {canDelete && (
+                      <td style={{ padding: '12px 12px' }}>
+                        <Form method="post" onSubmit={e => { if (!confirm('Delete this seeding?')) e.preventDefault(); }}>
+                          <input type="hidden" name="intent" value="delete" />
+                          <input type="hidden" name="id" value={s.id} />
+                          <button type="submit" style={{ background: 'none', border: 'none', color: C.textMuted, cursor: 'pointer', fontSize: '18px', lineHeight: 1 }}>×</button>
+                        </Form>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

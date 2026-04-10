@@ -2,19 +2,21 @@ import { useState } from 'react';
 import { useLoaderData, Form, useSearchParams, Link } from 'react-router';
 import prisma from '../db.server';
 import { requirePortalUser } from '../utils/portal-auth.server';
+import { requirePermission } from '../utils/portal-permissions';
 import { C, btn, card, fmtNum } from '../theme';
 
 export async function loader({ request }) {
-  await requirePortalUser(request);
+  const { portalUser } = await requirePortalUser(request);
+  requirePermission(portalUser.role, 'viewInfluencers');
   const influencers = await prisma.influencer.findMany({
     where:   { archived: false },
     orderBy: { name: 'asc' },
   });
-  return { influencers };
+  return { influencers, role: portalUser.role };
 }
 
 export default function PortalInfluencers() {
-  const { influencers } = useLoaderData();
+  const { influencers, role } = useLoaderData();
   const [q, setQ] = useState('');
 
   const filtered = influencers.filter(inf =>
