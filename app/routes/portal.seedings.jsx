@@ -3,7 +3,30 @@ import prisma from '../db.server';
 import { requirePortalUser } from '../utils/portal-auth.server';
 import { can, requirePermission } from '../utils/portal-permissions.js';
 import { audit } from '../utils/audit.server.js';
-import { C, btn, card, fmtDate } from '../theme';
+import { fmtDate } from '../theme';
+
+const D = {
+  bg:          '#F7F8FA',
+  surface:     '#FFFFFF',
+  surfaceHigh: '#F3F4F6',
+  border:      '#E8E9EC',
+  borderLight: '#F0F1F3',
+  accent:      '#7C6FF7',
+  accentLight: '#EEF0FE',
+  text:        '#111827',
+  textSub:     '#6B7280',
+  textMuted:   '#9CA3AF',
+  shadow:      '0 1px 3px rgba(0,0,0,0.06)',
+  errorText:   '#EF4444',
+};
+
+const STATUS_META = {
+  Pending:   { bg: '#FFFBEB', text: '#B45309', dot: '#F59E0B' },
+  Ordered:   { bg: '#EFF6FF', text: '#1D4ED8', dot: '#3B82F6' },
+  Shipped:   { bg: '#F0FDF4', text: '#15803D', dot: '#22C55E' },
+  Delivered: { bg: '#F0FDFA', text: '#0F766E', dot: '#14B8A6' },
+  Posted:    { bg: '#FDF4FF', text: '#7E22CE', dot: '#A855F7' },
+};
 
 const STATUSES  = ['Pending', 'Ordered', 'Shipped', 'Delivered', 'Posted'];
 const PAGE_SIZE = 30;
@@ -124,180 +147,194 @@ export default function PortalSeedings() {
     setSearchParams(next, { preventScrollReset: true });
   }
 
+  const btnGhost = { padding: '6px 14px', backgroundColor: 'transparent', color: D.textSub, border: `1px solid ${D.border}`, cursor: 'pointer', fontWeight: '600', fontSize: '12px', borderRadius: '7px' };
+
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-        <h2 style={{ margin: 0, color: C.text }}>
-          Seedings <span style={{ fontSize: '14px', fontWeight: '400', color: C.textMuted }}>({total})</span>
-        </h2>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          {canCreate && <Link to="/portal/new" style={{ ...btn.primary, textDecoration: 'none', display: 'inline-block' }}>+ New Seeding</Link>}
+    <div style={{ display: 'grid', gap: '16px' }}>
+
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: D.text, letterSpacing: '-0.3px' }}>Seedings</h2>
+          <p style={{ margin: '2px 0 0', fontSize: '13px', color: D.textSub }}>{total} seeding{total !== 1 ? 's' : ''}{hasFilters ? ' matching filters' : ''}</p>
         </div>
+        {canCreate && (
+          <Link to="/portal/new" style={{ padding: '8px 18px', background: 'linear-gradient(135deg, #7C6FF7 0%, #9C8FFF 100%)', color: '#fff', borderRadius: '8px', textDecoration: 'none', fontSize: '13px', fontWeight: '700', boxShadow: '0 2px 6px rgba(124,111,247,0.35)' }}>
+            + New Seeding
+          </Link>
+        )}
       </div>
 
       {/* Filter bar */}
-      <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
         <input
           type="text" placeholder="Search influencer…"
           defaultValue={currentQ} key={currentQ}
           onKeyDown={e => { if (e.key === 'Enter') setFilter('q', e.target.value); }}
           onBlur={e => { if (e.target.value !== currentQ) setFilter('q', e.target.value); }}
-          style={{ padding: '8px 12px', border: `1px solid ${C.border}`, borderRadius: '6px', fontSize: '13px', width: '200px', backgroundColor: C.surface, color: C.text }}
+          style={{ padding: '7px 12px', border: `1px solid ${D.border}`, borderRadius: '7px', fontSize: '13px', width: '190px', backgroundColor: D.surface, color: D.text }}
         />
         <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-          {['all', ...STATUSES].map(s => (
-            <button key={s} type="button" onClick={() => setFilter('status', s)}
-              style={{ padding: '6px 12px', fontSize: '12px', fontWeight: '600', borderRadius: '20px', cursor: 'pointer', border: `1px solid ${currentStatus === s ? C.accent : C.border}`, backgroundColor: currentStatus === s ? C.accentFaint : 'transparent', color: currentStatus === s ? C.accent : C.textSub, whiteSpace: 'nowrap' }}>
-              {s === 'all' ? `All · ${Object.values(countsByStatus).reduce((a, b) => a + b, 0)}` : `${s} · ${countsByStatus[s]}`}
-            </button>
-          ))}
+          {['all', ...STATUSES].map(s => {
+            const active = currentStatus === s;
+            const m = s !== 'all' ? STATUS_META[s] : null;
+            return (
+              <button key={s} type="button" onClick={() => setFilter('status', s)} style={{
+                padding: '5px 12px', fontSize: '12px', fontWeight: '600', borderRadius: '20px', cursor: 'pointer',
+                border: `1.5px solid ${active ? (m?.dot ?? D.accent) : D.border}`,
+                backgroundColor: active ? (m?.bg ?? D.accentLight) : 'transparent',
+                color: active ? (m?.text ?? D.accent) : D.textSub, whiteSpace: 'nowrap',
+              }}>
+                {s === 'all' ? `All · ${Object.values(countsByStatus).reduce((a, b) => a + b, 0)}` : `${s} · ${countsByStatus[s]}`}
+              </button>
+            );
+          })}
         </div>
         {countries.length > 1 && (
           <select value={currentCountry} onChange={e => setFilter('country', e.target.value)}
-            style={{ padding: '7px 12px', border: `1px solid ${currentCountry ? C.accent : C.border}`, borderRadius: '6px', fontSize: '13px', backgroundColor: currentCountry ? C.accentFaint : C.surface, color: currentCountry ? C.accent : C.textSub, cursor: 'pointer' }}>
+            style={{ padding: '7px 10px', border: `1px solid ${currentCountry ? D.accent : D.border}`, borderRadius: '7px', fontSize: '13px', backgroundColor: D.surface, color: currentCountry ? D.accent : D.textSub, cursor: 'pointer' }}>
             <option value="">All countries</option>
             {countries.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
         )}
         {campaigns.length > 0 && (
           <select value={currentCampaign} onChange={e => setFilter('campaign', e.target.value)}
-            style={{ padding: '7px 12px', border: `1px solid ${currentCampaign ? C.accent : C.border}`, borderRadius: '6px', fontSize: '13px', backgroundColor: currentCampaign ? C.accentFaint : C.surface, color: currentCampaign ? C.accent : C.textSub, cursor: 'pointer' }}>
+            style={{ padding: '7px 10px', border: `1px solid ${currentCampaign ? D.accent : D.border}`, borderRadius: '7px', fontSize: '13px', backgroundColor: D.surface, color: currentCampaign ? D.accent : D.textSub, cursor: 'pointer' }}>
             <option value="">All campaigns</option>
             {campaigns.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
           </select>
         )}
         {hasFilters && (
-          <button type="button" onClick={() => setSearchParams(new URLSearchParams(), { preventScrollReset: true })}
-            style={{ ...btn.ghost }}>Clear ×</button>
+          <button type="button" onClick={() => setSearchParams(new URLSearchParams(), { preventScrollReset: true })} style={btnGhost}>Clear ×</button>
         )}
-        <span style={{ marginLeft: 'auto', fontSize: '12px', color: C.textMuted }}>
-          {total} result{total !== 1 ? 's' : ''}{hasFilters ? ' matching filters' : ''}
-        </span>
       </div>
 
       {seedings.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '60px', color: C.textMuted, border: `2px dashed ${C.border}`, borderRadius: '8px' }}>
+        <div style={{ textAlign: 'center', padding: '60px', color: D.textMuted, border: `2px dashed ${D.border}`, borderRadius: '12px' }}>
           {hasFilters ? (
             <>
-              <p style={{ margin: '0 0 12px', fontSize: '16px', color: C.textSub }}>No seedings match these filters.</p>
-              <button type="button" onClick={() => setSearchParams(new URLSearchParams())} style={{ ...btn.ghost }}>Clear filters</button>
+              <p style={{ margin: '0 0 12px', fontSize: '15px', color: D.textSub }}>No seedings match these filters.</p>
+              <button type="button" onClick={() => setSearchParams(new URLSearchParams())} style={btnGhost}>Clear filters</button>
             </>
           ) : (
             <>
-              <p style={{ margin: '0 0 12px', fontSize: '16px', color: C.textSub }}>No seedings yet.</p>
-              <Link to="/portal/new" style={{ color: C.accent, fontWeight: '700', textDecoration: 'none' }}>Create your first one →</Link>
+              <p style={{ margin: '0 0 12px', fontSize: '15px', color: D.textSub }}>No seedings yet.</p>
+              <Link to="/portal/new" style={{ color: D.accent, fontWeight: '700', textDecoration: 'none' }}>Create your first one →</Link>
             </>
           )}
         </div>
       ) : (
         <>
-          <div style={{ ...card.flat, overflow: 'hidden' }}>
+          <div style={{ backgroundColor: D.surface, border: `1px solid ${D.border}`, borderRadius: '12px', boxShadow: D.shadow, overflow: 'hidden' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
               <thead>
-                <tr style={{ borderBottom: `1px solid ${C.border}` }}>
+                <tr style={{ backgroundColor: D.bg }}>
                   {['Influencer', 'Country', 'Ship To', 'Products', 'Cost', 'Status', 'Tracking', 'Checkout Link', 'Date', ''].map(h => (
-                    <th key={h} style={{ padding: '12px 12px', textAlign: 'left', fontWeight: '700', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.7px', color: C.textSub, whiteSpace: 'nowrap' }}>{h}</th>
+                    <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontWeight: '700', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.7px', color: D.textMuted, whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {seedings.map(s => (
-                  <tr key={s.id} style={{ borderBottom: `1px solid ${C.borderLight}` }}>
-                    <td style={{ padding: '12px 12px', fontWeight: '700', color: C.text, whiteSpace: 'nowrap' }}>
-                      {s.influencer.handle}
-                      <div style={{ fontSize: '11px', fontWeight: '400', color: C.textMuted }}>{s.influencer.name}</div>
-                    </td>
-                    <td style={{ padding: '12px 12px', color: C.textSub }}>{s.influencer.country}</td>
-                    <td style={{ padding: '12px 12px', maxWidth: '160px', color: C.textSub }}>
-                      {s.shippingAddress ? (
-                        <span style={{ fontSize: '11px', lineHeight: '1.4', display: 'block' }}>{s.shippingAddress}</span>
-                      ) : (
-                        <span style={{ fontSize: '11px', color: C.textMuted, fontStyle: 'italic' }}>
-                          {s.status === 'Pending' ? 'Awaiting checkout' : '—'}
-                        </span>
-                      )}
-                    </td>
-                    <td style={{ padding: '12px 12px', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: C.textSub }}>
-                      {s.products.map(p => p.productName).join(', ')}
-                    </td>
-                    <td style={{ padding: '12px 12px', fontWeight: '700', color: C.text, whiteSpace: 'nowrap' }}>€{s.totalCost.toFixed(2)}</td>
-                    <td style={{ padding: '12px 12px' }}>
-                      {canEdit ? (
-                        <Form method="post">
-                          <input type="hidden" name="intent" value="updateStatus" />
-                          <input type="hidden" name="id" value={s.id} />
-                          <select name="status" defaultValue={s.status} onChange={e => e.target.form.requestSubmit()}
-                            style={{ padding: '4px 8px', border: 'none', borderRadius: '12px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', ...(C.status[s.status] ?? {}) }}>
-                            {STATUSES.map(st => <option key={st} value={st}>{st}</option>)}
-                          </select>
-                        </Form>
-                      ) : (
-                        <span style={{ padding: '4px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: '700', ...(C.status[s.status] ?? {}) }}>
-                          {s.status}
-                        </span>
-                      )}
-                    </td>
-                    <td style={{ padding: '12px 12px' }}>
-                      {canEdit ? (
-                        <Form method="post" style={{ display: 'flex' }}>
-                          <input type="hidden" name="intent" value="updateTracking" />
-                          <input type="hidden" name="id" value={s.id} />
-                          <input type="text" name="trackingNumber" defaultValue={s.trackingNumber || ''} placeholder="Add tracking…"
-                            onBlur={e => e.target.form.requestSubmit()}
-                            style={{ width: '120px', padding: '4px 8px', border: `1px solid ${C.border}`, borderRadius: '5px', fontSize: '12px', color: C.text, backgroundColor: C.overlay }} />
-                        </Form>
-                      ) : (
-                        <span style={{ fontSize: '12px', color: C.textSub }}>{s.trackingNumber || '—'}</span>
-                      )}
-                    </td>
-                    <td style={{ padding: '12px 12px' }}>
-                      {s.invoiceUrl ? (
-                        <button type="button"
-                          onClick={() => {
-                            navigator.clipboard.writeText(s.invoiceUrl);
-                            const b = document.getElementById(`copy-${s.id}`);
-                            if (b) { b.textContent = 'Copied ✓'; setTimeout(() => { b.textContent = 'Copy Link'; }, 2000); }
-                          }}
-                          id={`copy-${s.id}`}
-                          style={{ ...btn.ghost, fontSize: '11px', padding: '4px 10px' }}>
-                          Copy Link
-                        </button>
-                      ) : <span style={{ color: C.textMuted }}>—</span>}
-                    </td>
-                    <td style={{ padding: '12px 12px', color: C.textMuted, fontSize: '12px', whiteSpace: 'nowrap' }}>
-                      {fmtDate(s.createdAt)}
-                    </td>
-                    {canDelete && (
-                      <td style={{ padding: '12px 12px' }}>
-                        <Form method="post" onSubmit={e => { if (!confirm('Delete this seeding?')) e.preventDefault(); }}>
-                          <input type="hidden" name="intent" value="delete" />
-                          <input type="hidden" name="id" value={s.id} />
-                          <button type="submit" style={{ background: 'none', border: 'none', color: C.textMuted, cursor: 'pointer', fontSize: '18px', lineHeight: 1 }}>×</button>
-                        </Form>
+                {seedings.map(s => {
+                  const sm = STATUS_META[s.status] ?? { bg: '#F3F4F6', text: '#374151', dot: '#9CA3AF' };
+                  return (
+                    <tr key={s.id} style={{ borderTop: `1px solid ${D.borderLight}` }}>
+                      <td style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>
+                        <div style={{ fontWeight: '700', color: D.text }}>@{s.influencer.handle}</div>
+                        <div style={{ fontSize: '11px', color: D.textMuted, marginTop: '1px' }}>{s.influencer.name}</div>
                       </td>
-                    )}
-                  </tr>
-                ))}
+                      <td style={{ padding: '12px 14px', color: D.textSub, fontSize: '12px' }}>{s.influencer.country}</td>
+                      <td style={{ padding: '12px 14px', maxWidth: '150px', color: D.textSub }}>
+                        {s.shippingAddress ? (
+                          <span style={{ fontSize: '11px', lineHeight: '1.4', display: 'block' }}>{s.shippingAddress}</span>
+                        ) : (
+                          <span style={{ fontSize: '11px', color: D.textMuted, fontStyle: 'italic' }}>
+                            {s.status === 'Pending' ? 'Awaiting checkout' : '—'}
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ padding: '12px 14px', maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: D.textSub, fontSize: '12px' }}>
+                        {s.products.map(p => p.productName).join(', ')}
+                      </td>
+                      <td style={{ padding: '12px 14px', fontWeight: '700', color: D.text, whiteSpace: 'nowrap' }}>€{s.totalCost.toFixed(2)}</td>
+                      <td style={{ padding: '12px 14px' }}>
+                        {canEdit ? (
+                          <Form method="post">
+                            <input type="hidden" name="intent" value="updateStatus" />
+                            <input type="hidden" name="id" value={s.id} />
+                            <select name="status" defaultValue={s.status} onChange={e => e.target.form.requestSubmit()}
+                              style={{ padding: '4px 8px', border: 'none', borderRadius: '12px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', backgroundColor: sm.bg, color: sm.text }}>
+                              {STATUSES.map(st => <option key={st} value={st}>{st}</option>)}
+                            </select>
+                          </Form>
+                        ) : (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700', backgroundColor: sm.bg, color: sm.text }}>
+                            <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: sm.dot }} />{s.status}
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ padding: '12px 14px' }}>
+                        {canEdit ? (
+                          <Form method="post">
+                            <input type="hidden" name="intent" value="updateTracking" />
+                            <input type="hidden" name="id" value={s.id} />
+                            <input type="text" name="trackingNumber" defaultValue={s.trackingNumber || ''} placeholder="Add tracking…"
+                              onBlur={e => e.target.form.requestSubmit()}
+                              style={{ width: '120px', padding: '4px 8px', border: `1px solid ${D.border}`, borderRadius: '6px', fontSize: '12px', color: D.text, backgroundColor: D.bg }} />
+                          </Form>
+                        ) : (
+                          <span style={{ fontSize: '12px', color: D.textSub }}>{s.trackingNumber || '—'}</span>
+                        )}
+                      </td>
+                      <td style={{ padding: '12px 14px' }}>
+                        {s.invoiceUrl ? (
+                          <button type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(s.invoiceUrl);
+                              const b = document.getElementById(`copy-${s.id}`);
+                              if (b) { b.textContent = 'Copied ✓'; setTimeout(() => { b.textContent = 'Copy'; }, 2000); }
+                            }}
+                            id={`copy-${s.id}`}
+                            style={{ ...btnGhost, fontSize: '11px', padding: '4px 10px' }}>
+                            Copy
+                          </button>
+                        ) : <span style={{ color: D.textMuted, fontSize: '12px' }}>—</span>}
+                      </td>
+                      <td style={{ padding: '12px 14px', color: D.textMuted, fontSize: '12px', whiteSpace: 'nowrap' }}>
+                        {fmtDate(s.createdAt)}
+                      </td>
+                      {canDelete && (
+                        <td style={{ padding: '12px 14px' }}>
+                          <Form method="post" onSubmit={e => { if (!confirm('Delete this seeding?')) e.preventDefault(); }}>
+                            <input type="hidden" name="intent" value="delete" />
+                            <input type="hidden" name="id" value={s.id} />
+                            <button type="submit" style={{ background: 'none', border: 'none', color: D.textMuted, cursor: 'pointer', fontSize: '18px', lineHeight: 1 }}>×</button>
+                          </Form>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
 
           {totalPages > 1 && (
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', marginTop: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
               <button type="button" onClick={() => setPage(page - 1)} disabled={page <= 1}
-                style={{ ...btn.ghost, opacity: page <= 1 ? 0.4 : 1, cursor: page <= 1 ? 'not-allowed' : 'pointer' }}>← Prev</button>
+                style={{ ...btnGhost, opacity: page <= 1 ? 0.4 : 1, cursor: page <= 1 ? 'not-allowed' : 'pointer' }}>← Prev</button>
               {Array.from({ length: totalPages }, (_, i) => i + 1)
                 .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 2)
                 .reduce((acc, p, i, arr) => { if (i > 0 && p - arr[i - 1] > 1) acc.push('...'); acc.push(p); return acc; }, [])
                 .map((p, i) => p === '...' ? (
-                  <span key={`e-${i}`} style={{ fontSize: '13px', color: C.textMuted, padding: '0 4px' }}>…</span>
+                  <span key={`e-${i}`} style={{ fontSize: '13px', color: D.textMuted, padding: '0 4px' }}>…</span>
                 ) : (
                   <button key={p} type="button" onClick={() => setPage(p)}
-                    style={{ width: '34px', height: '34px', borderRadius: '6px', border: `1px solid ${page === p ? C.accent : C.border}`, backgroundColor: page === p ? C.accent : 'transparent', color: page === p ? '#fff' : C.textSub, fontWeight: '600', fontSize: '13px', cursor: 'pointer' }}>{p}</button>
+                    style={{ width: '34px', height: '34px', borderRadius: '7px', border: `1px solid ${page === p ? D.accent : D.border}`, backgroundColor: page === p ? D.accent : 'transparent', color: page === p ? '#fff' : D.textSub, fontWeight: '600', fontSize: '13px', cursor: 'pointer' }}>{p}</button>
                 ))}
               <button type="button" onClick={() => setPage(page + 1)} disabled={page >= totalPages}
-                style={{ ...btn.ghost, opacity: page >= totalPages ? 0.4 : 1, cursor: page >= totalPages ? 'not-allowed' : 'pointer' }}>Next →</button>
-              <span style={{ fontSize: '12px', color: C.textMuted, marginLeft: '8px' }}>
+                style={{ ...btnGhost, opacity: page >= totalPages ? 0.4 : 1, cursor: page >= totalPages ? 'not-allowed' : 'pointer' }}>Next →</button>
+              <span style={{ fontSize: '12px', color: D.textMuted, marginLeft: '8px' }}>
                 {((page - 1) * PAGE_SIZE) + 1}–{Math.min(page * PAGE_SIZE, total)} of {total}
               </span>
             </div>
