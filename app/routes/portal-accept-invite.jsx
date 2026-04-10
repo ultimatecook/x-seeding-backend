@@ -11,7 +11,7 @@ export async function loader({ request }) {
   const url   = new URL(request.url);
   const token = url.searchParams.get('token');
 
-  if (!token) throw redirect('/portal/login');
+  if (!token) throw redirect('/portal-login');
 
   const user = await prisma.portalUser.findUnique({
     where: { inviteToken: token },
@@ -91,7 +91,7 @@ export default function AcceptInvite() {
         }}>
           <div style={{ fontSize: '32px', marginBottom: '12px' }}>⚠️</div>
           <p style={{ color: C.text, fontWeight: '600', marginBottom: '16px' }}>{loaderData?.error}</p>
-          <a href="/portal/login" style={{ color: C.accent, fontWeight: '700', fontSize: '14px' }}>
+          <a href="/portal-login" style={{ color: C.accent, fontWeight: '700', fontSize: '14px' }}>
             Go to login →
           </a>
         </div>

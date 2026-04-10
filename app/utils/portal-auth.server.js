@@ -58,7 +58,7 @@ export async function requirePortalUser(request) {
   const userId  = session.get('portalUserId');
   const shop    = session.get('portalShop');
   if (!userId || !shop) {
-    throw redirect('/portal/login');
+    throw redirect('/portal-login');
   }
   return { userId: parseInt(userId), shop };
 }
