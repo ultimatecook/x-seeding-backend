@@ -47,7 +47,11 @@ export async function loader({ request }) {
   const [seedings, total, statusCounts, campaigns, allCountries] = await Promise.all([
     prisma.seeding.findMany({
       where,
-      include: { influencer: true, products: true },
+      select: {
+        id: true, status: true, trackingNumber: true, totalCost: true, createdAt: true,
+        influencer: { select: { id: true, handle: true, name: true, country: true } },
+        products:   { select: { id: true, productName: true, price: true, imageUrl: true } },
+      },
       orderBy: { createdAt: 'desc' },
       skip:    (page - 1) * PAGE_SIZE,
       take:    PAGE_SIZE,

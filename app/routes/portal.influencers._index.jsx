@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useLoaderData, useActionData, Form, useNavigation, Link } from 'react-router';
+import { useState, useCallback } from 'react';
+import { useLoaderData, useActionData, Form, useNavigation, Link, useNavigate, useSearchParams } from 'react-router';
 import prisma from '../db.server';
 import { requirePortalUser } from '../utils/portal-auth.server';
 import { can, requirePermission } from '../utils/portal-permissions';
@@ -62,15 +62,50 @@ function parseCSV(text) {
   }).filter(inf => inf.name && inf.handle);
 }
 
+const PAGE_SIZE = 40;
+
 // ── Loader ────────────────────────────────────────────────────────────────────
 export async function loader({ request }) {
   const { portalUser } = await requirePortalUser(request);
   requirePermission(portalUser.role, 'viewInfluencers');
-  const influencers = await prisma.influencer.findMany({
-    orderBy: { name: 'asc' },
-    include: { _count: { select: { seedings: true } } },
-  });
-  return { influencers, role: portalUser.role };
+
+  const url      = new URL(request.url);
+  const q        = url.searchParams.get('q')?.trim() || '';
+  const view     = url.searchParams.get('view')  || 'active';   // active | archived
+  const tier     = url.searchParams.get('tier')  || 'all';      // all | micro | mid | celeb
+  const page     = Math.max(1, parseInt(url.searchParams.get('page') || '1'));
+
+  // Build where clause on the server
+  const where = { archived: view === 'archived' };
+  if (q) {
+    where.OR = [
+      { handle:  { contains: q, mode: 'insensitive' } },
+      { name:    { contains: q, mode: 'insensitive' } },
+      { country: { contains: q, mode: 'insensitive' } },
+    ];
+  }
+  if (tier === 'micro') { where.followers = { lt: 50000 }; }
+  if (tier === 'mid')   { where.followers = { gte: 50000, lt: 500000 }; }
+  if (tier === 'celeb') { where.followers = { gte: 500000 }; }
+
+  const [influencers, total, activeCount, archivedCount] = await Promise.all([
+    prisma.influencer.findMany({
+      where,
+      orderBy: { name: 'asc' },
+      skip:    (page - 1) * PAGE_SIZE,
+      take:    PAGE_SIZE,
+      select: {
+        id: true, handle: true, name: true, followers: true,
+        country: true, email: true, archived: true,
+        _count: { select: { seedings: true } },
+      },
+    }),
+    prisma.influencer.count({ where }),
+    prisma.influencer.count({ where: { archived: false } }),
+    prisma.influencer.count({ where: { archived: true  } }),
+  ]);
+
+  return { influencers, total, page, activeCount, archivedCount, q, view, tier, role: portalUser.role };
 }
 
 // ── Action ────────────────────────────────────────────────────────────────────
@@ -133,56 +168,54 @@ function downloadTemplate() {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function PortalInfluencers() {
-  const { influencers, role } = useLoaderData();
-  const actionData  = useActionData();
-  const navigation  = useNavigation();
-  const isSubmitting = navigation.state === 'submitting';
+  const { influencers, total, page, activeCount, archivedCount, q: initQ, view, tier, role } = useLoaderData();
+  const actionData   = useActionData();
+  const navigation   = useNavigation();
+  const navigate     = useNavigate();
+  const [searchParams] = useSearchParams();
+  const isSubmitting  = navigation.state === 'submitting';
 
   const canCreate = can.createInfluencer(role);
   const canEdit   = can.editInfluencer(role);
 
-  const [viewFilter, setViewFilter] = useState('active');
-  const [tierFilter, setTierFilter] = useState('all');
-  const [q,          setQ]          = useState('');
   const [showForm,   setShowForm]   = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [selected,   setSelected]   = useState(new Set());
   const [tierPick,   setTierPick]   = useState(null);
+  const [localQ,     setLocalQ]     = useState(initQ);
 
   // Close form on success
-  if (actionData?.created && showForm)  { setShowForm(false);   setTierPick(null); }
+  if (actionData?.created  && showForm)   { setShowForm(false);   setTierPick(null); }
   if (actionData?.imported && showImport) { setShowImport(false); }
 
+  const totalPages = Math.ceil(total / 40);
+
   const TIERS = [
-    { key: 'all',   label: 'All',           emoji: '' },
-    { key: 'micro', label: 'Micro',         emoji: '🌱', sub: '0 – 50K'    },
-    { key: 'mid',   label: 'Influencer',    emoji: '⭐', sub: '50K – 500K' },
-    { key: 'celeb', label: 'Celebrity',     emoji: '🏆', sub: '500K+'      },
+    { key: 'all',   label: 'All',        emoji: '' },
+    { key: 'micro', label: 'Micro',      emoji: '🌱', sub: '0 – 50K'    },
+    { key: 'mid',   label: 'Influencer', emoji: '⭐', sub: '50K – 500K' },
+    { key: 'celeb', label: 'Celebrity',  emoji: '🏆', sub: '500K+'      },
   ];
 
-  const tierMatch = (inf) => {
-    const f = inf.followers || 0;
-    if (tierFilter === 'micro') return f < 50000;
-    if (tierFilter === 'mid')   return f >= 50000 && f < 500000;
-    if (tierFilter === 'celeb') return f >= 500000;
-    return true;
-  };
+  // Navigate with updated search params
+  const setParam = useCallback((key, value) => {
+    const p = new URLSearchParams(searchParams);
+    if (value && value !== 'all' && value !== 'active' && value !== '') p.set(key, value);
+    else p.delete(key);
+    if (key !== 'page') p.delete('page'); // reset page on filter change
+    navigate(`?${p.toString()}`, { replace: true });
+  }, [searchParams, navigate]);
 
-  const activeCount   = influencers.filter(i => !i.archived).length;
-  const archivedCount = influencers.filter(i =>  i.archived).length;
+  // Debounced search — navigate after 350ms pause
+  const handleSearch = useCallback((val) => {
+    setLocalQ(val);
+    clearTimeout(window._searchTimer);
+    window._searchTimer = setTimeout(() => setParam('q', val), 350);
+  }, [setParam]);
 
-  const filtered = influencers.filter(inf => {
-    if (viewFilter === 'archived' ? !inf.archived : inf.archived) return false;
-    if (!tierMatch(inf)) return false;
-    if (q && !inf.name?.toLowerCase().includes(q.toLowerCase()) &&
-             !inf.handle?.toLowerCase().includes(q.toLowerCase()) &&
-             !inf.country?.toLowerCase().includes(q.toLowerCase())) return false;
-    return true;
-  });
-
-  const allSelected    = filtered.length > 0 && filtered.every(i => selected.has(i.id));
-  const someSelected   = filtered.some(i => selected.has(i.id));
-  const selectedInView = filtered.filter(i => selected.has(i.id)).map(i => i.id);
+  const filtered      = influencers; // server already filtered
+  const allSelected   = filtered.length > 0 && filtered.every(i => selected.has(i.id));
+  const selectedInView= filtered.filter(i => selected.has(i.id)).map(i => i.id);
   const toggleOne = (id) => setSelected(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
   const toggleAll = () => setSelected(allSelected ? new Set() : new Set(filtered.map(i => i.id)));
   const clearSel  = () => setSelected(new Set());
@@ -197,7 +230,7 @@ export default function PortalInfluencers() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: D.text, letterSpacing: '-0.3px' }}>Influencers</h2>
-          <p style={{ margin: '2px 0 0', fontSize: '13px', color: D.textSub }}>{filtered.length} shown</p>
+          <p style={{ margin: '2px 0 0', fontSize: '13px', color: D.textSub }}>{total} total · {influencers.length} on this page</p>
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
           {canCreate && (
@@ -325,14 +358,14 @@ export default function PortalInfluencers() {
           { key: 'active',   label: 'Active',   count: activeCount },
           { key: 'archived', label: 'Archived', count: archivedCount },
         ].map(tab => (
-          <button key={tab.key} type="button" onClick={() => { setViewFilter(tab.key); clearSel(); setTierFilter('all'); }} style={{
+          <button key={tab.key} type="button" onClick={() => { setParam('view', tab.key); clearSel(); }} style={{
             padding: '8px 16px', fontSize: '13px', fontWeight: '600', border: 'none', cursor: 'pointer',
-            backgroundColor: 'transparent', color: viewFilter === tab.key ? D.accent : D.textSub,
-            borderBottom: `2px solid ${viewFilter === tab.key ? D.accent : 'transparent'}`,
+            backgroundColor: 'transparent', color: view === tab.key ? D.accent : D.textSub,
+            borderBottom: `2px solid ${view === tab.key ? D.accent : 'transparent'}`,
             marginBottom: '-1px',
           }}>
             {tab.label}
-            <span style={{ marginLeft: '6px', fontSize: '11px', fontWeight: '700', backgroundColor: viewFilter === tab.key ? D.accent : D.surfaceHigh, color: viewFilter === tab.key ? '#fff' : D.textSub, borderRadius: '10px', padding: '1px 7px' }}>
+            <span style={{ marginLeft: '6px', fontSize: '11px', fontWeight: '700', backgroundColor: view === tab.key ? D.accent : D.surfaceHigh, color: view === tab.key ? '#0D0F14' : D.textSub, borderRadius: '10px', padding: '1px 7px' }}>
               {tab.count}
             </span>
           </button>
@@ -342,17 +375,9 @@ export default function PortalInfluencers() {
       {/* ── Tier + search filters ─────────────────────────────── */}
       <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
         {TIERS.map(t => {
-          const base  = influencers.filter(i => viewFilter === 'archived' ? i.archived : !i.archived);
-          const count = t.key === 'all' ? base.length : base.filter(i => {
-            const f = i.followers || 0;
-            if (t.key === 'micro') return f < 50000;
-            if (t.key === 'mid')   return f >= 50000 && f < 500000;
-            if (t.key === 'celeb') return f >= 500000;
-            return false;
-          }).length;
-          const active = tierFilter === t.key;
+          const active = tier === t.key;
           return (
-            <button key={t.key} type="button" onClick={() => setTierFilter(t.key)} style={{
+            <button key={t.key} type="button" onClick={() => setParam('tier', t.key)} style={{
               padding: '5px 14px', borderRadius: '20px', cursor: 'pointer',
               border: `1.5px solid ${active ? D.accent : D.border}`,
               backgroundColor: active ? D.accentLight : 'transparent',
@@ -363,26 +388,23 @@ export default function PortalInfluencers() {
               {t.emoji && <span>{t.emoji}</span>}
               {t.label}
               {t.sub && <span style={{ fontSize: '10px', color: active ? D.accent : D.textMuted }}>{t.sub}</span>}
-              <span style={{ fontSize: '10px', fontWeight: '700', backgroundColor: active ? D.accent : D.surfaceHigh, color: active ? '#fff' : D.textSub, borderRadius: '10px', padding: '1px 6px' }}>
-                {count}
-              </span>
             </button>
           );
         })}
 
         <input
           type="text" placeholder="Search name, handle, country…"
-          value={q} onChange={e => setQ(e.target.value)}
+          value={localQ} onChange={e => handleSearch(e.target.value)}
           style={{ marginLeft: 'auto', padding: '6px 12px', border: `1px solid ${D.border}`, borderRadius: '7px', fontSize: '13px', width: '220px', backgroundColor: D.surface, color: D.text }}
         />
       </div>
 
       {/* ── Bulk action bar ───────────────────────────────────── */}
-      {someSelected && canEdit && (
+      {selectedInView.length > 0 && canEdit && (
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 16px', backgroundColor: D.accentLight, border: `1px solid ${D.accent}`, borderRadius: '8px', flexWrap: 'wrap' }}>
           <span style={{ fontSize: '13px', fontWeight: '700', color: D.accent }}>{selectedInView.length} selected</span>
           <div style={{ flex: 1 }} />
-          {viewFilter === 'active' ? (
+          {view !== 'archived' ? (
             <Form method="post" style={{ display: 'inline' }} onSubmit={clearSel}>
               <input type="hidden" name="intent" value="bulkArchive" />
               {selectedInView.map(id => <input key={id} type="hidden" name="ids" value={id} />)}
@@ -400,13 +422,13 @@ export default function PortalInfluencers() {
       )}
 
       {/* ── Table ────────────────────────────────────────────── */}
-      {filtered.length === 0 ? (
+      {influencers.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '60px', color: D.textMuted, border: `2px dashed ${D.border}`, borderRadius: '12px' }}>
           <p style={{ margin: '0 0 6px', fontSize: '15px', color: D.textSub }}>
-            {viewFilter === 'archived' ? 'No archived influencers.' : 'No influencers yet.'}
+            {view === 'archived' ? 'No archived influencers.' : 'No influencers yet.'}
           </p>
           <p style={{ margin: 0, fontSize: '13px' }}>
-            {viewFilter === 'archived' ? 'Archive influencers from the Active tab.' : 'Add one manually or import a CSV.'}
+            {view === 'archived' ? 'Archive influencers from the Active tab.' : 'Add one manually or import a CSV.'}
           </p>
         </div>
       ) : (
@@ -425,7 +447,7 @@ export default function PortalInfluencers() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map(inf => (
+              {influencers.map(inf => (
                 <tr key={inf.id} style={{ borderTop: `1px solid ${D.borderLight}`, opacity: inf.archived ? 0.65 : 1 }}>
                   {canEdit && (
                     <td style={{ padding: '12px 16px' }}>
@@ -465,6 +487,25 @@ export default function PortalInfluencers() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* ── Pagination ────────────────────────────────────────── */}
+      {totalPages > 1 && (
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px' }}>
+          <button
+            type="button" disabled={page <= 1}
+            onClick={() => setParam('page', String(page - 1))}
+            style={{ padding: '6px 14px', borderRadius: '7px', border: `1px solid ${D.border}`, backgroundColor: 'transparent', color: page <= 1 ? D.textMuted : D.textSub, cursor: page <= 1 ? 'default' : 'pointer', fontSize: '13px', fontWeight: '600' }}
+          >← Prev</button>
+          <span style={{ fontSize: '13px', color: D.textSub, padding: '0 8px' }}>
+            Page {page} of {totalPages} · {total} total
+          </span>
+          <button
+            type="button" disabled={page >= totalPages}
+            onClick={() => setParam('page', String(page + 1))}
+            style={{ padding: '6px 14px', borderRadius: '7px', border: `1px solid ${D.border}`, backgroundColor: 'transparent', color: page >= totalPages ? D.textMuted : D.textSub, cursor: page >= totalPages ? 'default' : 'pointer', fontSize: '13px', fontWeight: '600' }}
+          >Next →</button>
         </div>
       )}
     </div>
