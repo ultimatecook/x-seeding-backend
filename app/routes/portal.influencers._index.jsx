@@ -5,25 +5,9 @@ import { requirePortalUser } from '../utils/portal-auth.server';
 import { can, requirePermission } from '../utils/portal-permissions';
 import { audit } from '../utils/audit.server.js';
 import { fmtNum } from '../theme';
+import { D } from '../utils/portal-theme';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
-const D = {
-  bg:          '#F7F8FA',
-  surface:     '#FFFFFF',
-  surfaceHigh: '#F3F4F6',
-  border:      '#E8E9EC',
-  borderLight: '#F0F1F3',
-  accent:      '#7C6FF7',
-  accentLight: '#EEF0FE',
-  text:        '#111827',
-  textSub:     '#6B7280',
-  textMuted:   '#9CA3AF',
-  shadow:      '0 1px 3px rgba(0,0,0,0.06)',
-  successBg:   '#F0FDF4',
-  successText: '#15803D',
-  errorBg:     '#FEF2F2',
-  errorText:   '#DC2626',
-};
 
 const COUNTRIES = [
   'Afghanistan','Albania','Algeria','Andorra','Angola','Argentina','Armenia','Australia','Austria','Azerbaijan',

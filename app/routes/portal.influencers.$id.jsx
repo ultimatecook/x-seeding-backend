@@ -5,31 +5,18 @@ import { requirePortalUser } from '../utils/portal-auth.server';
 import { can, requirePermission } from '../utils/portal-permissions';
 import { audit } from '../utils/audit.server.js';
 import { fmtNum, fmtDate } from '../theme';
+import { D } from '../utils/portal-theme';
 
 // ─── Design tokens (portal purple palette) ───────────────────────────────────
-const D = {
-  bg:          '#F7F6FB',
-  surface:     '#FFFFFF',
-  surfaceHigh: '#F3F2F8',
-  border:      '#E5E3F0',
-  borderLight: '#EFEEFC',
-  accent:      '#7C6FF7',
-  accentHover: '#6558E8',
-  accentLight: '#EDE9FF',
-  text:        '#1A1523',
-  textSub:     '#6B6880',
-  textMuted:   '#A09CB8',
-  radius:      '12px',
-  shadow:      '0 1px 4px rgba(0,0,0,0.07)',
-};
 
 const STATUS_COLORS = {
-  Pending:   { bg: '#FEF9C3', color: '#854D0E' },
-  Ordered:   { bg: '#DBEAFE', color: '#1E40AF' },
-  Shipped:   { bg: '#EDE9FE', color: '#5B21B6' },
-  Delivered: { bg: '#DCFCE7', color: '#166534' },
-  Posted:    { bg: '#F0FDF4', color: '#15803D' },
+  Pending:   { bg: 'var(--pt-status-pending-bg)',   color: 'var(--pt-status-pending-text)'   },
+  Ordered:   { bg: 'var(--pt-status-ordered-bg)',   color: 'var(--pt-status-ordered-text)'   },
+  Shipped:   { bg: 'var(--pt-status-shipped-bg)',   color: 'var(--pt-status-shipped-text)'   },
+  Delivered: { bg: 'var(--pt-status-delivered-bg)', color: 'var(--pt-status-delivered-text)' },
+  Posted:    { bg: 'var(--pt-status-posted-bg)',    color: 'var(--pt-status-posted-text)'    },
 };
+
 
 const STATUSES = ['Pending', 'Ordered', 'Shipped', 'Delivered', 'Posted'];
 
@@ -75,12 +62,12 @@ export async function action({ request, params }) {
 
 // ─── Loader ──────────────────────────────────────────────────────────────────
 export async function loader({ request, params }) {
-  const { shop, portalUser } = await requirePortalUser(request);
+  const { portalUser } = await requirePortalUser(request);
   requirePermission(portalUser.role, 'viewInfluencers');
   const id = parseInt(params.id);
 
-  const influencer = await prisma.influencer.findFirst({
-    where: { id, shop },
+  const influencer = await prisma.influencer.findUnique({
+    where: { id },
     include: {
       seedings: {
         include: {
