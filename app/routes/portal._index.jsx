@@ -7,56 +7,72 @@ import { D } from '../utils/portal-theme';
 export async function loader({ request }) {
   const { shop } = await requirePortalUser(request);
 
+  // Run all queries in parallel — 4 round-trips instead of 10
   const [
-    totalSeedings,
-    pendingSeedings,
-    orderedSeedings,
-    shippedSeedings,
-    deliveredSeedings,
-    postedSeedings,
+    statusCounts,
     totalInfluencers,
     recentSeedings,
     topInfluencers,
-    seedingsWithCountry,
+    countryRaw,
   ] = await Promise.all([
-    prisma.seeding.count({ where: { shop } }),
-    prisma.seeding.count({ where: { shop, status: 'Pending' } }),
-    prisma.seeding.count({ where: { shop, status: 'Ordered' } }),
-    prisma.seeding.count({ where: { shop, status: 'Shipped' } }),
-    prisma.seeding.count({ where: { shop, status: 'Delivered' } }),
-    prisma.seeding.count({ where: { shop, status: 'Posted' } }),
+    // Single groupBy replaces 6 separate count() calls
+    prisma.seeding.groupBy({
+      by:    ['status'],
+      where: { shop },
+      _count: { _all: true },
+    }),
     prisma.influencer.count({ where: { archived: false } }),
+    // Recent seedings — select only columns we render
     prisma.seeding.findMany({
       where:   { shop },
-      include: { influencer: true, campaign: true },
+      select: {
+        id: true, status: true, totalCost: true, createdAt: true,
+        influencer: { select: { id: true, handle: true, name: true } },
+        campaign:   { select: { id: true, title: true } },
+      },
       orderBy: { createdAt: 'desc' },
       take:    8,
     }),
+    // Top influencers — no need for full row
     prisma.influencer.findMany({
       where:   { archived: false },
       orderBy: { seedings: { _count: 'desc' } },
       take:    5,
-      include: { _count: { select: { seedings: true } } },
+      select: {
+        id: true, handle: true, name: true, followers: true, country: true,
+        _count: { select: { seedings: true } },
+      },
     }),
-    // For country breakdown
+    // Country stats — only the 3 fields we need, capped at 500 rows
     prisma.seeding.findMany({
-      where:   { shop },
-      include: { influencer: { select: { country: true } }, products: { select: { price: true } } },
+      where:  { shop },
+      select: { influencerId: true, totalCost: true, influencer: { select: { country: true } } },
+      take:   500,
     }),
   ]);
 
-  // Build country stats
+  // Derive counts from groupBy result
+  const countMap = Object.fromEntries(statusCounts.map(r => [r.status, r._count._all]));
+  const totalSeedings    = statusCounts.reduce((s, r) => s + r._count._all, 0);
+  const pendingSeedings  = countMap['Pending']  ?? 0;
+  const orderedSeedings  = countMap['Ordered']  ?? 0;
+  const shippedSeedings  = countMap['Shipped']  ?? 0;
+  const deliveredSeedings= countMap['Delivered']?? 0;
+  const postedSeedings   = countMap['Posted']   ?? 0;
+
+  // Build country stats in JS
   const countryMap = {};
-  for (const s of seedingsWithCountry) {
+  for (const s of countryRaw) {
     const c = s.influencer?.country || 'Unknown';
     if (!countryMap[c]) countryMap[c] = { seedings: 0, spend: 0, influencers: new Set() };
     countryMap[c].seedings++;
-    countryMap[c].spend += s.totalCost ?? s.products.reduce((sum, p) => sum + (p.price ?? 0), 0);
+    countryMap[c].spend += s.totalCost ?? 0;
     if (s.influencerId) countryMap[c].influencers.add(s.influencerId);
   }
   const countryData = Object.entries(countryMap)
     .map(([country, d]) => ({ country, seedings: d.seedings, spend: d.spend, influencers: d.influencers.size }))
-    .sort((a, b) => b.seedings - a.seedings);
+    .sort((a, b) => b.seedings - a.seedings)
+    .slice(0, 10);
 
   return {
     totalSeedings, pendingSeedings, orderedSeedings,

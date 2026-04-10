@@ -44,7 +44,11 @@ export async function loader({ request, params }) {
     include: {
       products: true,
       seedings: {
-        include: { influencer: true, products: true },
+        select: {
+          id: true, status: true, trackingNumber: true, totalCost: true, createdAt: true,
+          influencer: { select: { id: true, handle: true, name: true, country: true } },
+          products:   { select: { id: true, productId: true, productName: true, price: true, imageUrl: true } },
+        },
         orderBy: { createdAt: 'desc' },
       },
     },
