@@ -291,8 +291,17 @@ export default function PortalDashboard() {
                       </div>
                     )}
                   </td>
-                  <td style={{ padding: '13px 24px', color: D.textSub, fontSize: '12px' }}>
-                    {s.campaign?.title || <span style={{ color: D.textMuted }}>—</span>}
+                  <td style={{ padding: '13px 24px', fontSize: '12px' }}>
+                    {s.campaign ? (
+                      <Link
+                        to={`/portal/seedings?campaign=${s.campaign.id}`}
+                        style={{ color: D.accent, fontWeight: '600', textDecoration: 'none' }}
+                      >
+                        {s.campaign.title}
+                      </Link>
+                    ) : (
+                      <span style={{ color: D.textMuted }}>—</span>
+                    )}
                   </td>
                   <td style={{ padding: '13px 24px' }}>
                     <StatusPill status={s.status} />
