@@ -3,19 +3,8 @@ import prisma from '../db.server';
 import { requirePortalUser } from '../utils/portal-auth.server';
 import { requirePermission } from '../utils/portal-permissions';
 import { fmtDate, fmtNum } from '../theme';
+import { D } from '../utils/portal-theme';
 
-const D = {
-  bg:          '#F7F8FA',
-  surface:     '#FFFFFF',
-  surfaceHigh: '#F3F4F6',
-  border:      '#E8E9EC',
-  borderLight: '#F0F1F3',
-  accent:      '#7C6FF7',
-  text:        '#111827',
-  textSub:     '#6B7280',
-  textMuted:   '#9CA3AF',
-  shadow:      '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
-};
 
 export async function loader({ request }) {
   const { shop, portalUser } = await requirePortalUser(request);

@@ -8,7 +8,8 @@ import prisma from '../db.server';
 import { requirePortalUser } from '../utils/portal-auth.server';
 import { requirePermission } from '../utils/portal-permissions.js';
 import { audit } from '../utils/audit.server.js';
-import { C, btn, input, fmtNum } from '../theme';
+import { btn, input, fmtNum } from '../theme';
+import { D } from '../utils/portal-theme';
 import { guessProductCategory, extractSizeFromVariant } from '../utils/size-helpers';
 
 // ── Loader ────────────────────────────────────────────────────────────────────
@@ -314,7 +315,7 @@ export default function PortalNewSeeding() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-        <h2 style={{ margin: 0, color: C.text }}>New Seeding</h2>
+        <h2 style={{ margin: 0, color: D.text }}>New Seeding</h2>
         <button type="button" onClick={() => navigate('/portal/seedings')}
           style={{ ...btn.ghost }}>← Back</button>
       </div>
@@ -340,8 +341,8 @@ export default function PortalNewSeeding() {
           {/* Left panel */}
           <div style={{ display: 'grid', gap: '16px' }}>
             {/* Influencer picker */}
-            <div style={{ backgroundColor: '#fff', border: `1px solid ${C.border}`, borderRadius: '10px', padding: '16px' }}>
-              <div style={{ fontWeight: '700', fontSize: '13px', color: C.text, marginBottom: '10px' }}>Influencer</div>
+            <div style={{ backgroundColor: D.surface, border: `1px solid ${D.border}`, borderRadius: '10px', padding: '16px' }}>
+              <div style={{ fontWeight: '700', fontSize: '13px', color: D.text, marginBottom: '10px' }}>Influencer</div>
               <input type="text" placeholder="Search…" value={infSearch} onChange={e => setInfSearch(e.target.value)}
                 style={{ ...input.base, width: '100%', marginBottom: '10px', boxSizing: 'border-box', fontSize: '13px' }} />
               <div style={{ maxHeight: '220px', overflowY: 'auto', display: 'grid', gap: '4px' }}>
@@ -353,12 +354,12 @@ export default function PortalNewSeeding() {
                       style={{
                         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                         padding: '8px 10px', borderRadius: '6px', cursor: 'pointer', textAlign: 'left',
-                        border: `1px solid ${selectedInfluencer?.id === inf.id ? C.accent : 'transparent'}`,
-                        backgroundColor: selectedInfluencer?.id === inf.id ? C.accentFaint : 'transparent',
-                        color: C.text,
+                        border: `1px solid ${selectedInfluencer?.id === inf.id ? D.accent : 'transparent'}`,
+                        backgroundColor: selectedInfluencer?.id === inf.id ? D.accentFaint : 'transparent',
+                        color: D.text,
                       }}>
                       <span style={{ fontSize: '13px', fontWeight: '600' }}>@{inf.handle}</span>
-                      <span style={{ fontSize: '11px', color: C.textMuted }}>{inf.country}</span>
+                      <span style={{ fontSize: '11px', color: D.textMuted }}>{inf.country}</span>
                     </button>
                   ))
                 }
@@ -366,16 +367,16 @@ export default function PortalNewSeeding() {
             </div>
 
             {/* Campaign picker */}
-            <div style={{ backgroundColor: '#fff', border: `1px solid ${C.border}`, borderRadius: '10px', padding: '16px' }}>
-              <div style={{ fontWeight: '700', fontSize: '13px', color: C.text, marginBottom: '10px' }}>Campaign (optional)</div>
+            <div style={{ backgroundColor: D.surface, border: `1px solid ${D.border}`, borderRadius: '10px', padding: '16px' }}>
+              <div style={{ fontWeight: '700', fontSize: '13px', color: D.text, marginBottom: '10px' }}>Campaign (optional)</div>
               <div style={{ display: 'grid', gap: '4px' }}>
                 <button type="button" onClick={() => setSelectedCampaign(null)}
-                  style={{ padding: '7px 10px', borderRadius: '6px', cursor: 'pointer', textAlign: 'left', fontSize: '13px', border: `1px solid ${!selectedCampaign ? C.accent : 'transparent'}`, backgroundColor: !selectedCampaign ? C.accentFaint : 'transparent', color: C.text, fontWeight: !selectedCampaign ? '700' : '400' }}>
+                  style={{ padding: '7px 10px', borderRadius: '6px', cursor: 'pointer', textAlign: 'left', fontSize: '13px', border: `1px solid ${!selectedCampaign ? D.accent : 'transparent'}`, backgroundColor: !selectedCampaign ? D.accentFaint : 'transparent', color: D.text, fontWeight: !selectedCampaign ? '700' : '400' }}>
                   No campaign
                 </button>
                 {campaigns.map(c => (
                   <button key={c.id} type="button" onClick={() => setSelectedCampaign(c)}
-                    style={{ padding: '7px 10px', borderRadius: '6px', cursor: 'pointer', textAlign: 'left', fontSize: '13px', border: `1px solid ${selectedCampaign?.id === c.id ? C.accent : 'transparent'}`, backgroundColor: selectedCampaign?.id === c.id ? C.accentFaint : 'transparent', color: C.text }}>
+                    style={{ padding: '7px 10px', borderRadius: '6px', cursor: 'pointer', textAlign: 'left', fontSize: '13px', border: `1px solid ${selectedCampaign?.id === c.id ? D.accent : 'transparent'}`, backgroundColor: selectedCampaign?.id === c.id ? D.accentFaint : 'transparent', color: D.text }}>
                     {c.title}
                   </button>
                 ))}
@@ -383,8 +384,8 @@ export default function PortalNewSeeding() {
             </div>
 
             {/* Notes */}
-            <div style={{ backgroundColor: '#fff', border: `1px solid ${C.border}`, borderRadius: '10px', padding: '16px' }}>
-              <div style={{ fontWeight: '700', fontSize: '13px', color: C.text, marginBottom: '8px' }}>Notes</div>
+            <div style={{ backgroundColor: D.surface, border: `1px solid ${D.border}`, borderRadius: '10px', padding: '16px' }}>
+              <div style={{ fontWeight: '700', fontSize: '13px', color: D.text, marginBottom: '8px' }}>Notes</div>
               <textarea name="notes" value={notes} onChange={e => setNotes(e.target.value)} rows={3}
                 placeholder="Any notes about this seeding…"
                 style={{ ...input.base, width: '100%', resize: 'vertical', boxSizing: 'border-box', fontSize: '13px' }} />
@@ -405,7 +406,7 @@ export default function PortalNewSeeding() {
           {/* Right panel — product picker + drop zone */}
           <div style={{ display: 'grid', gap: '16px' }}>
             {/* Product search */}
-            <div style={{ backgroundColor: '#fff', border: `1px solid ${C.border}`, borderRadius: '10px', padding: '16px' }}>
+            <div style={{ backgroundColor: D.surface, border: `1px solid ${D.border}`, borderRadius: '10px', padding: '16px' }}>
               <input type="text" placeholder="🔍 Search products…" value={search} onChange={e => setSearch(e.target.value)}
                 style={{ ...input.base, width: '100%', marginBottom: '12px', boxSizing: 'border-box' }} />
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '10px', maxHeight: '340px', overflowY: 'auto' }}>
@@ -421,18 +422,18 @@ export default function PortalNewSeeding() {
                       onDragEnd={() => setDragProductId(null)}
                       onClick={() => { if (!outOfStock && !recentlySent && !alreadyAdded) handleDrop(prod); }}
                       style={{
-                        border: `1px solid ${alreadyAdded ? C.accent : C.border}`,
+                        border: `1px solid ${alreadyAdded ? D.accent : D.border}`,
                         borderRadius: '8px', overflow: 'hidden', cursor: outOfStock || recentlySent ? 'not-allowed' : 'pointer',
                         opacity: outOfStock || recentlySent ? 0.45 : 1,
-                        backgroundColor: alreadyAdded ? C.accentFaint : '#fff',
+                        backgroundColor: alreadyAdded ? D.accentFaint : D.surface,
                         animation: isShaking ? 'shake 0.4s' : 'none',
                         transition: 'all 0.15s',
                       }}>
                       {prod.image && <img src={prod.image} alt={prod.name} style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block' }} />}
                       <div style={{ padding: '8px' }}>
-                        <div style={{ fontSize: '11px', fontWeight: '700', color: C.text, lineHeight: 1.3, marginBottom: '3px' }}>{prod.name}</div>
-                        <div style={{ fontSize: '11px', color: C.textMuted }}>€{prod.price.toFixed(2)}</div>
-                        {recentlySent && <div style={{ fontSize: '10px', color: C.accent, fontWeight: '700', marginTop: '2px' }}>Recently sent</div>}
+                        <div style={{ fontSize: '11px', fontWeight: '700', color: D.text, lineHeight: 1.3, marginBottom: '3px' }}>{prod.name}</div>
+                        <div style={{ fontSize: '11px', color: D.textMuted }}>€{prod.price.toFixed(2)}</div>
+                        {recentlySent && <div style={{ fontSize: '10px', color: D.accent, fontWeight: '700', marginTop: '2px' }}>Recently sent</div>}
                         {outOfStock && <div style={{ fontSize: '10px', color: '#DC2626', fontWeight: '700', marginTop: '2px' }}>Out of stock</div>}
                       </div>
                     </div>
@@ -451,13 +452,13 @@ export default function PortalNewSeeding() {
                 if (prod) handleDrop(prod);
               }}
               style={{
-                border: `2px ${dragOver ? 'solid' : 'dashed'} ${dragOver ? C.accent : '#E3E3E3'}`,
+                border: `2px ${dragOver ? 'solid' : 'dashed'} ${dragOver ? D.accent : '#E3E3E3'}`,
                 borderRadius: '10px', padding: '16px', minHeight: '120px',
-                backgroundColor: dragOver ? C.accentFaint : '#FAFAFA',
+                backgroundColor: dragOver ? D.accentFaint : '#FAFAFA',
                 transition: 'all 0.2s',
               }}>
               {selectedProducts.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '20px', color: C.textMuted }}>
+                <div style={{ textAlign: 'center', padding: '20px', color: D.textMuted }}>
                   <div style={{ fontSize: '32px', marginBottom: '8px' }}>📦</div>
                   <div style={{ fontSize: '13px' }}>Drag products here or click them to add</div>
                 </div>
@@ -466,12 +467,12 @@ export default function PortalNewSeeding() {
                   {selectedProducts.map((prod, i) => (
                     <div key={prod.id} style={{
                       display: 'grid', gridTemplateColumns: '48px 1fr auto', gap: '10px', alignItems: 'center',
-                      backgroundColor: '#fff', border: `1px solid ${C.border}`, borderRadius: '8px', padding: '10px',
+                      backgroundColor: D.surface, border: `1px solid ${D.border}`, borderRadius: '8px', padding: '10px',
                     }}>
                       {prod.image && <img src={prod.image} alt={prod.name} style={{ width: '48px', height: '48px', objectFit: 'cover', borderRadius: '4px' }} />}
-                      {!prod.image && <div style={{ width: '48px', height: '48px', backgroundColor: C.surfaceHigh, borderRadius: '4px' }} />}
+                      {!prod.image && <div style={{ width: '48px', height: '48px', backgroundColor: D.surfaceHigh, borderRadius: '4px' }} />}
                       <div>
-                        <div style={{ fontSize: '13px', fontWeight: '700', color: C.text }}>{prod.name}</div>
+                        <div style={{ fontSize: '13px', fontWeight: '700', color: D.text }}>{prod.name}</div>
                         <div style={{ display: 'flex', gap: '6px', marginTop: '4px', flexWrap: 'wrap' }}>
                           {/* Size selector */}
                           {prod.variants && prod.variants.length > 1 ? (
@@ -484,7 +485,7 @@ export default function PortalNewSeeding() {
                                   p.id === prod.id ? { ...p, size, selectedVariant: variant ?? p.selectedVariant, sizeUnavailable: false } : p
                                 ));
                               }}
-                              style={{ fontSize: '12px', padding: '3px 6px', borderRadius: '4px', border: `1px solid ${!prod.size ? '#DC2626' : C.border}`, backgroundColor: !prod.size ? '#FEF2F2' : '#fff' }}>
+                              style={{ fontSize: '12px', padding: '3px 6px', borderRadius: '4px', border: `1px solid ${!prod.size ? '#DC2626' : D.border}`, backgroundColor: !prod.size ? '#FEF2F2' : D.surface }}>
                               <option value="">Pick size</option>
                               {prod.variants.filter(v => v.available !== false).map(v => (
                                 <option key={v.id} value={extractSizeFromVariant(v.title)}>
@@ -493,17 +494,17 @@ export default function PortalNewSeeding() {
                               ))}
                             </select>
                           ) : (
-                            <span style={{ fontSize: '12px', color: C.textMuted }}>One size</span>
+                            <span style={{ fontSize: '12px', color: D.textMuted }}>One size</span>
                           )}
-                          <span style={{ fontSize: '12px', color: C.textMuted }}>€{(prod.selectedVariant?.price ?? prod.price).toFixed(2)}</span>
+                          <span style={{ fontSize: '12px', color: D.textMuted }}>€{(prod.selectedVariant?.price ?? prod.price).toFixed(2)}</span>
                         </div>
                       </div>
                       <button type="button"
                         onClick={() => setSelectedProducts(prev => prev.filter(p => p.id !== prod.id))}
-                        style={{ background: 'none', border: 'none', color: C.textMuted, cursor: 'pointer', fontSize: '18px', lineHeight: 1 }}>×</button>
+                        style={{ background: 'none', border: 'none', color: D.textMuted, cursor: 'pointer', fontSize: '18px', lineHeight: 1 }}>×</button>
                     </div>
                   ))}
-                  <div style={{ fontSize: '13px', fontWeight: '700', color: C.text, textAlign: 'right', paddingTop: '6px', borderTop: `1px solid ${C.border}` }}>
+                  <div style={{ fontSize: '13px', fontWeight: '700', color: D.text, textAlign: 'right', paddingTop: '6px', borderTop: `1px solid ${D.border}` }}>
                     Total: €{totalCost.toFixed(2)}
                   </div>
                 </div>

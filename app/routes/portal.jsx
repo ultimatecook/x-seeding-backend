@@ -1,6 +1,8 @@
+import { useState, useEffect } from 'react';
 import { Outlet, NavLink, useLoaderData, redirect, Form } from 'react-router';
 import { requirePortalUser, destroyPortalSession, getPortalSession } from '../utils/portal-auth.server';
 import { can } from '../utils/portal-permissions';
+import { D, PORTAL_THEME_CSS } from '../utils/portal-theme';
 
 export async function loader({ request }) {
   const { portalUser, shop } = await requirePortalUser(request);
@@ -18,37 +20,113 @@ export async function action({ request }) {
   return null;
 }
 
-const ROLE_COLOR = {
+// ─── Theme Toggle Button ──────────────────────────────────────────────────────
+function ThemeToggle({ dark, onToggle }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      title={dark ? 'Switch to light mode' : 'Switch to dark mode'}
+      suppressHydrationWarning
+      style={{
+        width: '36px',
+        height: '20px',
+        borderRadius: '10px',
+        border: 'none',
+        cursor: 'pointer',
+        position: 'relative',
+        padding: 0,
+        backgroundColor: dark ? '#9C8FFF' : '#E5E3F0',
+        transition: 'background-color 0.2s ease',
+        flexShrink: 0,
+      }}
+    >
+      <span style={{
+        position: 'absolute',
+        top: '2px',
+        left: dark ? '18px' : '2px',
+        width: '16px',
+        height: '16px',
+        borderRadius: '50%',
+        backgroundColor: '#fff',
+        transition: 'left 0.2s ease',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: '9px',
+        lineHeight: 1,
+      }}>
+        {dark ? '🌙' : '☀️'}
+      </span>
+    </button>
+  );
+}
+
+// ─── Role badge colors (adapt to theme via inline logic) ──────────────────────
+const ROLE_LIGHT = {
   Owner:  { bg: '#EDE9FE', text: '#5B21B6' },
   Editor: { bg: '#DBEAFE', text: '#1E40AF' },
   Viewer: { bg: '#F3F4F6', text: '#374151' },
 };
+const ROLE_DARK = {
+  Owner:  { bg: '#2A2550', text: '#C4BAFF' },
+  Editor: { bg: '#0D1A36', text: '#93C5FD' },
+  Viewer: { bg: '#252333', text: '#9490AE' },
+};
 
+// ─── Layout ───────────────────────────────────────────────────────────────────
 export default function PortalLayout() {
   const { portalUser, role } = useLoaderData();
-  const rc = ROLE_COLOR[role] || ROLE_COLOR.Viewer;
+
+  // Read from localStorage — use null as "not yet hydrated" to avoid mismatch
+  const [dark, setDark] = useState(null);
+
+  useEffect(() => {
+    const stored = localStorage.getItem('portal-theme');
+    setDark(stored === 'dark');
+  }, []);
+
+  const toggleTheme = () => {
+    setDark(prev => {
+      const next = !prev;
+      localStorage.setItem('portal-theme', next ? 'dark' : 'light');
+      return next;
+    });
+  };
+
+  // While hydrating (dark===null) render with no data-theme so server & client match
+  const themeAttr = dark === null ? undefined : (dark ? 'dark' : 'light');
+  const rc = (dark ? ROLE_DARK : ROLE_LIGHT)[role] || (dark ? ROLE_DARK : ROLE_LIGHT).Viewer;
 
   const navItems = [
-    { to: '/portal',             label: 'Dashboard', end: true },
+    { to: '/portal',             label: 'Dashboard',   end: true },
     { to: '/portal/seedings',    label: 'Seedings' },
     { to: '/portal/influencers', label: 'Influencers' },
     { to: '/portal/campaigns',   label: 'Campaigns' },
   ];
 
   return (
-    <div style={{
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif',
-      backgroundColor: '#F7F8FA',
-      minHeight: '100vh',
-    }}>
-      {/* ── Top header bar ─────────────────────────────────────── */}
+    <div
+      data-portal-theme={themeAttr}
+      suppressHydrationWarning
+      style={{
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif',
+        backgroundColor: D.bg,
+        minHeight: '100vh',
+        colorScheme: dark ? 'dark' : 'light',
+      }}
+    >
+      {/* Inject theme CSS */}
+      <style suppressHydrationWarning>{PORTAL_THEME_CSS}</style>
+
+      {/* ── Top header bar ────────────────────────────────────────── */}
       <header style={{
-        backgroundColor: '#FFFFFF',
-        borderBottom: '1px solid #E8E9EC',
+        backgroundColor: D.surface,
+        borderBottom: `1px solid ${D.border}`,
         position: 'sticky',
         top: 0,
         zIndex: 100,
-        boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+        boxShadow: D.shadow,
       }}>
         <div style={{
           maxWidth: '1200px',
@@ -70,7 +148,7 @@ export default function PortalLayout() {
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: '14px', boxShadow: '0 2px 6px rgba(124,111,247,0.35)',
             }}>✦</div>
-            <span style={{ fontSize: '14px', fontWeight: '800', letterSpacing: '-0.3px', color: '#111827' }}>
+            <span style={{ fontSize: '14px', fontWeight: '800', letterSpacing: '-0.3px', color: D.text }}>
               X Seeding
             </span>
           </div>
@@ -88,8 +166,8 @@ export default function PortalLayout() {
                   textDecoration: 'none',
                   fontSize: '13px',
                   fontWeight: isActive ? '700' : '500',
-                  color: isActive ? '#7C6FF7' : '#6B7280',
-                  backgroundColor: isActive ? '#EEF0FE' : 'transparent',
+                  color: isActive ? D.accent : D.textSub,
+                  backgroundColor: isActive ? D.accentLight : 'transparent',
                   transition: 'all 0.12s',
                 })}
               >
@@ -111,7 +189,7 @@ export default function PortalLayout() {
                   background: isActive
                     ? 'linear-gradient(135deg, #5B4CF0 0%, #7C6FF7 100%)'
                     : 'linear-gradient(135deg, #7C6FF7 0%, #9C8FFF 100%)',
-                  boxShadow: '0 2px 6px rgba(124,111,247,0.35)',
+                  boxShadow: '0 2px 6px rgba(124,111,247,0.3)',
                   transition: 'all 0.12s',
                 })}
               >
@@ -120,18 +198,22 @@ export default function PortalLayout() {
             )}
           </nav>
 
-          {/* User info + sign out */}
+          {/* Right side: theme toggle + user + sign out */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+
+            {/* Theme toggle */}
+            <ThemeToggle dark={!!dark} onToggle={toggleTheme} />
+
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: '13px', fontWeight: '700', color: '#111827', lineHeight: 1.2 }}>
+              <div style={{ fontSize: '13px', fontWeight: '700', color: D.text, lineHeight: 1.2 }}>
                 {portalUser.name}
               </div>
-              <div style={{ fontSize: '11px', color: '#9CA3AF', lineHeight: 1.2 }}>
+              <div style={{ fontSize: '11px', color: D.textMuted, lineHeight: 1.2 }}>
                 {portalUser.email}
               </div>
             </div>
 
-            {/* Avatar circle */}
+            {/* Avatar */}
             <div style={{
               width: '32px', height: '32px',
               borderRadius: '50%',
@@ -148,6 +230,7 @@ export default function PortalLayout() {
               fontSize: '10px', fontWeight: '800', textTransform: 'uppercase',
               letterSpacing: '0.6px', padding: '3px 8px', borderRadius: '20px',
               backgroundColor: rc.bg, color: rc.text,
+              transition: 'background-color 0.2s, color 0.2s',
             }}>
               {role}
             </span>
@@ -157,13 +240,12 @@ export default function PortalLayout() {
               <button type="submit" style={{
                 padding: '6px 12px',
                 backgroundColor: 'transparent',
-                border: '1px solid #E8E9EC',
+                border: `1px solid ${D.border}`,
                 borderRadius: '7px',
                 fontSize: '12px',
-                color: '#6B7280',
+                color: D.textSub,
                 cursor: 'pointer',
                 fontWeight: '600',
-                transition: 'all 0.12s',
               }}>
                 Sign out
               </button>
@@ -172,7 +254,7 @@ export default function PortalLayout() {
         </div>
       </header>
 
-      {/* ── Page content ───────────────────────────────────────── */}
+      {/* ── Page content ──────────────────────────────────────────── */}
       <main style={{
         maxWidth: '1200px',
         margin: '0 auto',

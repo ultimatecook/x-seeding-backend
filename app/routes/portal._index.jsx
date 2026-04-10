@@ -2,6 +2,7 @@ import { useLoaderData, Link } from 'react-router';
 import prisma from '../db.server';
 import { requirePortalUser } from '../utils/portal-auth.server';
 import { fmtDate, fmtNum } from '../theme';
+import { D } from '../utils/portal-theme';
 
 export async function loader({ request }) {
   const { shop } = await requirePortalUser(request);
@@ -65,28 +66,15 @@ export async function loader({ request }) {
 }
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
-const D = {
-  bg:          '#F7F8FA',
-  surface:     '#FFFFFF',
-  surfaceHigh: '#F3F4F6',
-  border:      '#E8E9EC',
-  borderLight: '#F0F1F3',
-  accent:      '#7C6FF7',
-  accentLight: '#EEF0FE',
-  text:        '#111827',
-  textSub:     '#6B7280',
-  textMuted:   '#9CA3AF',
-  shadow:      '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
-  shadowMd:    '0 4px 16px rgba(0,0,0,0.08)',
-};
 
 const STATUS_META = {
-  Pending:   { bg: '#FFFBEB', text: '#B45309', dot: '#F59E0B' },
-  Ordered:   { bg: '#EFF6FF', text: '#1D4ED8', dot: '#3B82F6' },
-  Shipped:   { bg: '#F0FDF4', text: '#15803D', dot: '#22C55E' },
-  Delivered: { bg: '#F0FDFA', text: '#0F766E', dot: '#14B8A6' },
-  Posted:    { bg: '#FDF4FF', text: '#7E22CE', dot: '#A855F7' },
+  Pending:   { bg: 'var(--pt-status-pending-bg)',   text: 'var(--pt-status-pending-text)',   dot: '#F59E0B' },
+  Ordered:   { bg: 'var(--pt-status-ordered-bg)',   text: 'var(--pt-status-ordered-text)',   dot: '#3B82F6' },
+  Shipped:   { bg: 'var(--pt-status-shipped-bg)',   text: 'var(--pt-status-shipped-text)',   dot: '#22C55E' },
+  Delivered: { bg: 'var(--pt-status-delivered-bg)', text: 'var(--pt-status-delivered-text)', dot: '#14B8A6' },
+  Posted:    { bg: 'var(--pt-status-posted-bg)',    text: 'var(--pt-status-posted-text)',    dot: '#A855F7' },
 };
+
 
 // Country ISO codes → emoji flag
 const COUNTRY_CODES = {
@@ -278,11 +266,11 @@ export default function PortalDashboard() {
               </div>
               <div style={{
                 display: 'flex', alignItems: 'center', gap: '5px',
-                backgroundColor: '#F0FDF4', borderRadius: '8px',
+                backgroundColor: D.accentLight, borderRadius: '8px',
                 padding: '6px 12px',
               }}>
                 <span style={{ fontSize: '13px' }}>🌍</span>
-                <span style={{ fontSize: '12px', fontWeight: '700', color: '#15803D' }}>Global</span>
+                <span style={{ fontSize: '12px', fontWeight: '700', color: D.accent }}>Global</span>
               </div>
             </div>
 
