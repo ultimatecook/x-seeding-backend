@@ -8,11 +8,11 @@ import { D } from '../utils/portal-theme';
 
 
 const STATUS_META = {
-  Pending:   { bg: 'var(--pt-status-pending-bg)',   text: 'var(--pt-status-pending-text)',   dot: '#F59E0B' },
-  Ordered:   { bg: 'var(--pt-status-ordered-bg)',   text: 'var(--pt-status-ordered-text)',   dot: '#3B82F6' },
-  Shipped:   { bg: 'var(--pt-status-shipped-bg)',   text: 'var(--pt-status-shipped-text)',   dot: '#22C55E' },
-  Delivered: { bg: 'var(--pt-status-delivered-bg)', text: 'var(--pt-status-delivered-text)', dot: '#14B8A6' },
-  Posted:    { bg: 'var(--pt-status-posted-bg)',    text: 'var(--pt-status-posted-text)',    dot: '#A855F7' },
+  Pending:   { bg: D.statusPending.bg,   text: D.statusPending.color,   dot: D.statusPending.dot   },
+  Ordered:   { bg: D.statusOrdered.bg,   text: D.statusOrdered.color,   dot: D.statusOrdered.dot   },
+  Shipped:   { bg: D.statusShipped.bg,   text: D.statusShipped.color,   dot: D.statusShipped.dot   },
+  Delivered: { bg: D.statusDelivered.bg, text: D.statusDelivered.color, dot: D.statusDelivered.dot },
+  Posted:    { bg: D.statusPosted.bg,    text: D.statusPosted.color,    dot: D.statusPosted.dot    },
 };
 
 
@@ -224,7 +224,7 @@ export default function PortalSeedings() {
               </thead>
               <tbody>
                 {seedings.map(s => {
-                  const sm = STATUS_META[s.status] ?? { bg: '#F3F4F6', text: '#374151', dot: '#9CA3AF' };
+                  const sm = STATUS_META[s.status] ?? { bg: D.surfaceHigh, text: D.textSub, dot: D.textMuted };
                   return (
                     <tr key={s.id} style={{ borderTop: `1px solid ${D.borderLight}` }}>
                       <td style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>

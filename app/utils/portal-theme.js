@@ -14,27 +14,35 @@
 
 // ── CSS variable references (used in component style props) ──────────────────
 export const D = {
-  bg:           'var(--pt-bg)',
-  surface:      'var(--pt-surface)',
-  surfaceHigh:  'var(--pt-surface-high)',
-  surfaceRaised:'var(--pt-surface-raised)',
-  border:       'var(--pt-border)',
-  borderLight:  'var(--pt-border-light)',
-  accent:       'var(--pt-accent)',
-  accentHover:  'var(--pt-accent-hover)',
-  accentLight:  'var(--pt-accent-light)',
-  accentText:   'var(--pt-accent-text)',
-  text:         'var(--pt-text)',
-  textSub:      'var(--pt-text-sub)',
-  textMuted:    'var(--pt-text-muted)',
-  shadow:       'var(--pt-shadow)',
-  radius:       '12px',
-  // Status colors (we use data-attrs so they flip automatically too)
-  statusPending:   { bg: 'var(--pt-status-pending-bg)',   color: 'var(--pt-status-pending-text)'   },
-  statusOrdered:   { bg: 'var(--pt-status-ordered-bg)',   color: 'var(--pt-status-ordered-text)'   },
-  statusShipped:   { bg: 'var(--pt-status-shipped-bg)',   color: 'var(--pt-status-shipped-text)'   },
-  statusDelivered: { bg: 'var(--pt-status-delivered-bg)', color: 'var(--pt-status-delivered-text)' },
-  statusPosted:    { bg: 'var(--pt-status-posted-bg)',    color: 'var(--pt-status-posted-text)'    },
+  bg:            'var(--pt-bg)',
+  surface:       'var(--pt-surface)',
+  surfaceHigh:   'var(--pt-surface-high)',
+  surfaceRaised: 'var(--pt-surface-raised)',
+  border:        'var(--pt-border)',
+  borderLight:   'var(--pt-border-light)',
+  accent:        'var(--pt-accent)',
+  accentHover:   'var(--pt-accent-hover)',
+  accentLight:   'var(--pt-accent-light)',
+  accentFaint:   'var(--pt-accent-faint)',   // very subtle tint for selections
+  accentText:    'var(--pt-accent-text)',
+  purple:        'var(--pt-purple)',
+  purpleLight:   'var(--pt-purple-light)',
+  purpleFaint:   'var(--pt-purple-faint)',
+  text:          'var(--pt-text)',
+  textSub:       'var(--pt-text-sub)',
+  textMuted:     'var(--pt-text-muted)',
+  shadow:        'var(--pt-shadow)',
+  errorBg:       'var(--pt-error-bg)',
+  errorText:     'var(--pt-error-text)',
+  warningBg:     'var(--pt-warning-bg)',
+  warningText:   'var(--pt-warning-text)',
+  radius:        '12px',
+  // Status colors
+  statusPending:   { bg: 'var(--pt-status-pending-bg)',   color: 'var(--pt-status-pending-text)',   dot: 'var(--pt-status-pending-dot)'   },
+  statusOrdered:   { bg: 'var(--pt-status-ordered-bg)',   color: 'var(--pt-status-ordered-text)',   dot: 'var(--pt-status-ordered-dot)'   },
+  statusShipped:   { bg: 'var(--pt-status-shipped-bg)',   color: 'var(--pt-status-shipped-text)',   dot: 'var(--pt-status-shipped-dot)'   },
+  statusDelivered: { bg: 'var(--pt-status-delivered-bg)', color: 'var(--pt-status-delivered-text)', dot: 'var(--pt-status-delivered-dot)' },
+  statusPosted:    { bg: 'var(--pt-status-posted-bg)',    color: 'var(--pt-status-posted-text)',    dot: 'var(--pt-status-posted-dot)'    },
 };
 
 // ── Light theme values ────────────────────────────────────────────────────────
@@ -48,22 +56,35 @@ export const LIGHT_THEME = `
   --pt-accent:        #7C6FF7;
   --pt-accent-hover:  #6558E8;
   --pt-accent-light:  #EDE9FF;
+  --pt-accent-faint:  #F4F2FF;
   --pt-accent-text:   #5B4CF0;
+  --pt-purple:        #7C6FF7;
+  --pt-purple-light:  #A78BFA;
+  --pt-purple-faint:  #EDE9FF;
   --pt-text:          #1A1523;
   --pt-text-sub:      #6B6880;
   --pt-text-muted:    #A09CB8;
   --pt-shadow:        0 1px 4px rgba(0,0,0,0.07);
+  --pt-error-bg:      #FEF2F2;
+  --pt-error-text:    #DC2626;
+  --pt-warning-bg:    #FFFBEB;
+  --pt-warning-text:  #B45309;
 
   --pt-status-pending-bg:    #FEF9C3;
   --pt-status-pending-text:  #854D0E;
+  --pt-status-pending-dot:   #F59E0B;
   --pt-status-ordered-bg:    #DBEAFE;
   --pt-status-ordered-text:  #1E40AF;
+  --pt-status-ordered-dot:   #3B82F6;
   --pt-status-shipped-bg:    #EDE9FE;
   --pt-status-shipped-text:  #5B21B6;
+  --pt-status-shipped-dot:   #7C6FF7;
   --pt-status-delivered-bg:  #DCFCE7;
   --pt-status-delivered-text:#166534;
+  --pt-status-delivered-dot: #22C55E;
   --pt-status-posted-bg:     #F0FDF4;
   --pt-status-posted-text:   #15803D;
+  --pt-status-posted-dot:    #4ADE80;
 `;
 
 // ── Dark theme values ─────────────────────────────────────────────────────────
@@ -71,28 +92,41 @@ export const DARK_THEME = `
   --pt-bg:            #0D0F14;
   --pt-surface:       #151922;
   --pt-surface-high:  #1B2130;
-  --pt-surface-raised:#1B2130;
+  --pt-surface-raised:#1F2536;
   --pt-border:        #2A3142;
   --pt-border-light:  #222838;
   --pt-accent:        #7CFF6B;
   --pt-accent-hover:  #4CD964;
-  --pt-accent-light:  #0D2010;
+  --pt-accent-light:  #122010;
+  --pt-accent-faint:  #0A160A;
   --pt-accent-text:   #4CD964;
+  --pt-purple:        #A855F7;
+  --pt-purple-light:  #C084FC;
+  --pt-purple-faint:  #1A0D2E;
   --pt-text:          #E6EAF2;
   --pt-text-sub:      #9AA3B2;
   --pt-text-muted:    #6B7280;
-  --pt-shadow:        0 1px 8px rgba(0,0,0,0.45);
+  --pt-shadow:        0 1px 8px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.03);
+  --pt-error-bg:      #1F0A0A;
+  --pt-error-text:    #F87171;
+  --pt-warning-bg:    #1A1200;
+  --pt-warning-text:  #FCD34D;
 
   --pt-status-pending-bg:    #1E1A0A;
   --pt-status-pending-text:  #FCD34D;
+  --pt-status-pending-dot:   #FCD34D;
   --pt-status-ordered-bg:    #0A1428;
   --pt-status-ordered-text:  #93C5FD;
+  --pt-status-ordered-dot:   #60A5FA;
   --pt-status-shipped-bg:    #1A0D2E;
   --pt-status-shipped-text:  #C084FC;
+  --pt-status-shipped-dot:   #C084FC;
   --pt-status-delivered-bg:  #081A0F;
   --pt-status-delivered-text:#7CFF6B;
-  --pt-status-posted-bg:     #081A0F;
+  --pt-status-delivered-dot: #7CFF6B;
+  --pt-status-posted-bg:     #0A1F0A;
   --pt-status-posted-text:   #4CD964;
+  --pt-status-posted-dot:    #4CD964;
 `;
 
 // ── The full <style> block injected into the portal shell ─────────────────────
@@ -105,21 +139,44 @@ export const PORTAL_THEME_CSS = `
   }
 
   /* Smooth transitions on theme switch */
-  [data-portal-theme] * {
+  [data-portal-theme] *,
+  [data-portal-theme] *::before,
+  [data-portal-theme] *::after {
     transition:
-      background-color 0.2s ease,
-      border-color     0.2s ease,
-      color            0.15s ease,
-      box-shadow       0.2s ease;
+      background-color 0.18s ease,
+      border-color     0.18s ease,
+      color            0.12s ease,
+      box-shadow       0.18s ease;
   }
 
-  /* Scrollbar theming */
+  /* Dark mode base resets */
+  [data-portal-theme="dark"] { color-scheme: dark; }
+
+  /* Scrollbar */
+  [data-portal-theme="dark"] ::-webkit-scrollbar       { width: 6px; height: 6px; }
   [data-portal-theme="dark"] ::-webkit-scrollbar-track { background: #0D0F14; }
   [data-portal-theme="dark"] ::-webkit-scrollbar-thumb { background: #2A3142; border-radius: 3px; }
+  [data-portal-theme="dark"] ::-webkit-scrollbar-thumb:hover { background: #3A4257; }
+
+  /* Inputs */
+  [data-portal-theme="dark"] input,
+  [data-portal-theme="dark"] textarea,
+  [data-portal-theme="dark"] select {
+    background-color: #151922;
+    color: #E6EAF2;
+    border-color: #2A3142;
+  }
   [data-portal-theme="dark"] input::placeholder,
   [data-portal-theme="dark"] textarea::placeholder { color: #6B7280; }
   [data-portal-theme="dark"] input:focus,
   [data-portal-theme="dark"] textarea:focus,
-  [data-portal-theme="dark"] select:focus { outline-color: #7CFF6B; }
-  [data-portal-theme="dark"] select option { background: #151922; color: #E6EAF2; }
+  [data-portal-theme="dark"] select:focus {
+    outline: 2px solid #7CFF6B;
+    outline-offset: 1px;
+    border-color: #7CFF6B;
+  }
+  [data-portal-theme="dark"] select option { background: #1B2130; color: #E6EAF2; }
+
+  /* Images — slight dim in dark mode */
+  [data-portal-theme="dark"] img { opacity: 0.92; }
 `;

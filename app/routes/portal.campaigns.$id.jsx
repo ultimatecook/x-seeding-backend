@@ -9,18 +9,18 @@ import { D } from '../utils/portal-theme';
 // ── Design tokens (matches portal dashboard) ──────────────────────────────
 
 const STATUS_META = {
-  Pending:   { bg: 'var(--pt-status-pending-bg)',   text: 'var(--pt-status-pending-text)',   dot: '#F59E0B' },
-  Ordered:   { bg: 'var(--pt-status-ordered-bg)',   text: 'var(--pt-status-ordered-text)',   dot: '#3B82F6' },
-  Shipped:   { bg: 'var(--pt-status-shipped-bg)',   text: 'var(--pt-status-shipped-text)',   dot: '#22C55E' },
-  Delivered: { bg: 'var(--pt-status-delivered-bg)', text: 'var(--pt-status-delivered-text)', dot: '#14B8A6' },
-  Posted:    { bg: 'var(--pt-status-posted-bg)',    text: 'var(--pt-status-posted-text)',    dot: '#A855F7' },
+  Pending:   { bg: D.statusPending.bg,   text: D.statusPending.color,   dot: D.statusPending.dot   },
+  Ordered:   { bg: D.statusOrdered.bg,   text: D.statusOrdered.color,   dot: D.statusOrdered.dot   },
+  Shipped:   { bg: D.statusShipped.bg,   text: D.statusShipped.color,   dot: D.statusShipped.dot   },
+  Delivered: { bg: D.statusDelivered.bg, text: D.statusDelivered.color, dot: D.statusDelivered.dot },
+  Posted:    { bg: D.statusPosted.bg,    text: D.statusPosted.color,    dot: D.statusPosted.dot    },
 };
 
 
 const STATUSES = ['Pending', 'Ordered', 'Shipped', 'Delivered', 'Posted'];
 
 function StatusPill({ status }) {
-  const m = STATUS_META[status] || { bg: '#F3F4F6', text: '#374151', dot: '#9CA3AF' };
+  const m = STATUS_META[status] || { bg: D.surfaceHigh, text: D.textSub, dot: D.textMuted };
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: '5px',
@@ -160,7 +160,7 @@ export default function PortalCampaignDetail() {
             <span style={{ fontWeight: '700', color: D.text }}>€{totalRetail.toFixed(2)} / €{fmtNum(campaign.budget)} ({budgetPct.toFixed(0)}%)</span>
           </div>
           <div style={{ height: '6px', backgroundColor: D.surfaceHigh, borderRadius: '99px', overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: `${budgetPct}%`, backgroundColor: budgetPct >= 90 ? '#EF4444' : budgetPct >= 70 ? '#F59E0B' : D.accent, borderRadius: '99px', transition: 'width 0.3s' }} />
+            <div style={{ height: '100%', width: `${budgetPct}%`, backgroundColor: budgetPct >= 90 ? D.errorText : budgetPct >= 70 ? D.statusPending.dot : D.accent, borderRadius: '99px', transition: 'width 0.3s' }} />
           </div>
         </div>
       )}
@@ -170,7 +170,7 @@ export default function PortalCampaignDetail() {
         <div style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.8px', color: D.textMuted, marginBottom: '14px' }}>Pipeline</div>
         {seedings.length > 0 && (
           <div style={{ display: 'flex', height: '6px', borderRadius: '99px', overflow: 'hidden', marginBottom: '14px', backgroundColor: D.surfaceHigh }}>
-            {[['#F59E0B', statusCounts.Pending], ['#3B82F6', statusCounts.Ordered], ['#22C55E', statusCounts.Shipped], ['#14B8A6', statusCounts.Delivered], ['#A855F7', statusCounts.Posted]].map(([color, count], i) =>
+            {[[D.statusPending.dot, statusCounts.Pending], [D.statusOrdered.dot, statusCounts.Ordered], [D.statusShipped.dot, statusCounts.Shipped], [D.statusDelivered.dot, statusCounts.Delivered], [D.statusPosted.dot, statusCounts.Posted]].map(([color, count], i) =>
               count > 0 ? <div key={i} style={{ width: `${(count / seedings.length) * 100}%`, backgroundColor: color }} /> : null
             )}
           </div>
@@ -214,7 +214,7 @@ export default function PortalCampaignDetail() {
                     <div style={{ fontSize: '11px', color: D.textSub }}>{count} seeded{cp.maxUnits ? ` / ${cp.maxUnits} max` : ''}</div>
                     {pct !== null && (
                       <div style={{ height: '3px', backgroundColor: D.border, borderRadius: '99px', marginTop: '5px', overflow: 'hidden' }}>
-                        <div style={{ height: '100%', width: `${pct}%`, backgroundColor: pct >= 100 ? '#EF4444' : D.accent, borderRadius: '99px' }} />
+                        <div style={{ height: '100%', width: `${pct}%`, backgroundColor: pct >= 100 ? D.errorText : D.accent, borderRadius: '99px' }} />
                       </div>
                     )}
                   </div>

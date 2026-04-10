@@ -68,11 +68,11 @@ export async function loader({ request }) {
 // ── Design tokens ─────────────────────────────────────────────────────────────
 
 const STATUS_META = {
-  Pending:   { bg: 'var(--pt-status-pending-bg)',   text: 'var(--pt-status-pending-text)',   dot: '#F59E0B' },
-  Ordered:   { bg: 'var(--pt-status-ordered-bg)',   text: 'var(--pt-status-ordered-text)',   dot: '#3B82F6' },
-  Shipped:   { bg: 'var(--pt-status-shipped-bg)',   text: 'var(--pt-status-shipped-text)',   dot: '#22C55E' },
-  Delivered: { bg: 'var(--pt-status-delivered-bg)', text: 'var(--pt-status-delivered-text)', dot: '#14B8A6' },
-  Posted:    { bg: 'var(--pt-status-posted-bg)',    text: 'var(--pt-status-posted-text)',    dot: '#A855F7' },
+  Pending:   { bg: D.statusPending.bg,   text: D.statusPending.color,   dot: D.statusPending.dot   },
+  Ordered:   { bg: D.statusOrdered.bg,   text: D.statusOrdered.color,   dot: D.statusOrdered.dot   },
+  Shipped:   { bg: D.statusShipped.bg,   text: D.statusShipped.color,   dot: D.statusShipped.dot   },
+  Delivered: { bg: D.statusDelivered.bg, text: D.statusDelivered.color, dot: D.statusDelivered.dot },
+  Posted:    { bg: D.statusPosted.bg,    text: D.statusPosted.color,    dot: D.statusPosted.dot    },
 };
 
 
@@ -127,7 +127,7 @@ function KpiCard({ label, value, sub }) {
 }
 
 function StatusPill({ status }) {
-  const m = STATUS_META[status] || { bg: '#F3F4F6', text: '#374151', dot: '#9CA3AF' };
+  const m = STATUS_META[status] || { bg: D.surfaceHigh, text: D.textSub, dot: D.textMuted };
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: '5px',
@@ -154,11 +154,11 @@ export default function PortalDashboard() {
   const totalCountrySeedings = countryData.reduce((s, d) => s + d.seedings, 0);
 
   const statusBreakdown = [
-    { label: 'Pending',   count: pendingSeedings,   color: '#F59E0B' },
-    { label: 'Ordered',   count: orderedSeedings,   color: '#3B82F6' },
-    { label: 'Shipped',   count: shippedSeedings,   color: '#22C55E' },
-    { label: 'Delivered', count: deliveredSeedings, color: '#14B8A6' },
-    { label: 'Posted',    count: postedSeedings,    color: '#A855F7' },
+    { label: 'Pending',   count: pendingSeedings,   color: D.statusPending.dot },
+    { label: 'Ordered',   count: orderedSeedings,   color: D.statusOrdered.dot },
+    { label: 'Shipped',   count: shippedSeedings,   color: D.statusDelivered.dot },
+    { label: 'Delivered', count: deliveredSeedings, color: D.statusDelivered.dot },
+    { label: 'Posted',    count: postedSeedings,    color: D.purple },
   ].filter(s => s.count > 0);
 
   return (
@@ -192,11 +192,11 @@ export default function PortalDashboard() {
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px' }}>
                 {[
-                  { label: 'Pending',   count: pendingSeedings,   color: '#F59E0B' },
-                  { label: 'Ordered',   count: orderedSeedings,   color: '#3B82F6' },
-                  { label: 'Shipped',   count: shippedSeedings,   color: '#22C55E' },
-                  { label: 'Delivered', count: deliveredSeedings, color: '#14B8A6' },
-                  { label: 'Posted',    count: postedSeedings,    color: '#A855F7' },
+                  { label: 'Pending',   count: pendingSeedings,   color: D.statusPending.dot },
+                  { label: 'Ordered',   count: orderedSeedings,   color: D.statusOrdered.dot },
+                  { label: 'Shipped',   count: shippedSeedings,   color: D.statusDelivered.dot },
+                  { label: 'Delivered', count: deliveredSeedings, color: D.statusDelivered.dot },
+                  { label: 'Posted',    count: postedSeedings,    color: D.purple },
                 ].map(s => (
                   <div key={s.label} style={{ padding: '10px 12px', borderRadius: '8px', backgroundColor: D.surfaceHigh }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '6px' }}>
@@ -330,7 +330,7 @@ export default function PortalDashboard() {
               {countryData.slice(0, 7).map((d, i) => {
                 const totalSpend = countryData.reduce((s, x) => s + x.spend, 0);
                 const pct = totalSpend > 0 ? Math.round((d.spend / totalSpend) * 100) : 0;
-                const COLORS = ['#7C6FF7','#60A5FA','#34D399','#F472B6','#FBBF24','#FB923C','#A78BFA'];
+                const COLORS = [D.accent, D.purple, D.statusDelivered.dot, D.statusShipped.dot, D.statusPending.dot, D.statusOrdered.dot, D.purpleLight];
                 const color  = COLORS[i % COLORS.length];
                 return (
                   <div key={d.country}>
