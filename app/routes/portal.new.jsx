@@ -393,7 +393,7 @@ export default function PortalNewSeeding() {
 
             {/* Submit */}
             {submitError && (
-              <div style={{ padding: '10px 14px', backgroundColor: '#FEF2F2', color: '#DC2626', borderRadius: '6px', fontSize: '13px', fontWeight: '600' }}>
+              <div style={{ padding: '10px 14px', backgroundColor: D.errorBg, color: D.errorText, borderRadius: '6px', fontSize: '13px', fontWeight: '600' }}>
                 {submitError}
               </div>
             )}
@@ -434,7 +434,7 @@ export default function PortalNewSeeding() {
                         <div style={{ fontSize: '11px', fontWeight: '700', color: D.text, lineHeight: 1.3, marginBottom: '3px' }}>{prod.name}</div>
                         <div style={{ fontSize: '11px', color: D.textMuted }}>€{prod.price.toFixed(2)}</div>
                         {recentlySent && <div style={{ fontSize: '10px', color: D.accent, fontWeight: '700', marginTop: '2px' }}>Recently sent</div>}
-                        {outOfStock && <div style={{ fontSize: '10px', color: '#DC2626', fontWeight: '700', marginTop: '2px' }}>Out of stock</div>}
+                        {outOfStock && <div style={{ fontSize: '10px', color: D.errorText, fontWeight: '700', marginTop: '2px' }}>Out of stock</div>}
                       </div>
                     </div>
                   );
@@ -452,9 +452,9 @@ export default function PortalNewSeeding() {
                 if (prod) handleDrop(prod);
               }}
               style={{
-                border: `2px ${dragOver ? 'solid' : 'dashed'} ${dragOver ? D.accent : '#E3E3E3'}`,
+                border: `2px ${dragOver ? 'solid' : 'dashed'} ${dragOver ? D.accent : D.border}`,
                 borderRadius: '10px', padding: '16px', minHeight: '120px',
-                backgroundColor: dragOver ? D.accentFaint : '#FAFAFA',
+                backgroundColor: dragOver ? D.accentFaint : D.surface,
                 transition: 'all 0.2s',
               }}>
               {selectedProducts.length === 0 ? (
@@ -485,7 +485,7 @@ export default function PortalNewSeeding() {
                                   p.id === prod.id ? { ...p, size, selectedVariant: variant ?? p.selectedVariant, sizeUnavailable: false } : p
                                 ));
                               }}
-                              style={{ fontSize: '12px', padding: '3px 6px', borderRadius: '4px', border: `1px solid ${!prod.size ? '#DC2626' : D.border}`, backgroundColor: !prod.size ? '#FEF2F2' : D.surface }}>
+                              style={{ fontSize: '12px', padding: '3px 6px', borderRadius: '4px', border: `1px solid ${!prod.size ? D.errorText : D.border}`, backgroundColor: !prod.size ? D.errorBg : D.surface }}>
                               <option value="">Pick size</option>
                               {prod.variants.filter(v => v.available !== false).map(v => (
                                 <option key={v.id} value={extractSizeFromVariant(v.title)}>

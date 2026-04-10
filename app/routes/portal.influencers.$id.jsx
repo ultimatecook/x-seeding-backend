@@ -10,11 +10,11 @@ import { D } from '../utils/portal-theme';
 // ─── Design tokens (portal purple palette) ───────────────────────────────────
 
 const STATUS_COLORS = {
-  Pending:   { bg: 'var(--pt-status-pending-bg)',   color: 'var(--pt-status-pending-text)'   },
-  Ordered:   { bg: 'var(--pt-status-ordered-bg)',   color: 'var(--pt-status-ordered-text)'   },
-  Shipped:   { bg: 'var(--pt-status-shipped-bg)',   color: 'var(--pt-status-shipped-text)'   },
-  Delivered: { bg: 'var(--pt-status-delivered-bg)', color: 'var(--pt-status-delivered-text)' },
-  Posted:    { bg: 'var(--pt-status-posted-bg)',    color: 'var(--pt-status-posted-text)'    },
+  Pending:   { bg: D.statusPending.bg,   color: D.statusPending.color   },
+  Ordered:   { bg: D.statusOrdered.bg,   color: D.statusOrdered.color   },
+  Shipped:   { bg: D.statusShipped.bg,   color: D.statusShipped.color   },
+  Delivered: { bg: D.statusDelivered.bg, color: D.statusDelivered.color },
+  Posted:    { bg: D.statusPosted.bg,    color: D.statusPosted.color    },
 };
 
 
@@ -181,7 +181,7 @@ export default function PortalInfluencerDetail() {
                 <a href={`mailto:${influencer.email}`} style={{ fontSize: '12px', color: D.accent, textDecoration: 'none' }}>✉ {influencer.email}</a>
               )}
               {influencer.archived && (
-                <span style={{ fontSize: '11px', fontWeight: '700', padding: '2px 8px', borderRadius: '6px', backgroundColor: '#FEF2F2', color: '#B91C1C' }}>Archived</span>
+                <span style={{ fontSize: '11px', fontWeight: '700', padding: '2px 8px', borderRadius: '6px', backgroundColor: D.errorBg, color: D.errorText }}>Archived</span>
               )}
             </div>
           </div>
@@ -346,7 +346,7 @@ export default function PortalInfluencerDetail() {
             <Form method="post">
               <input type="hidden" name="intent" value={influencer.archived ? 'unarchive' : 'archive'} />
               <button type="submit" disabled={isSubmitting}
-                style={{ width: '100%', padding: '9px 16px', borderRadius: '8px', border: `1px solid ${influencer.archived ? D.accent : '#FCD34D'}`, cursor: 'pointer', fontSize: '13px', fontWeight: '700', backgroundColor: influencer.archived ? D.accentLight : '#FFFBEB', color: influencer.archived ? D.accent : '#92400E' }}>
+                style={{ width: '100%', padding: '9px 16px', borderRadius: '8px', border: `1px solid ${influencer.archived ? D.accent : D.warningText}`, cursor: 'pointer', fontSize: '13px', fontWeight: '700', backgroundColor: influencer.archived ? D.accentLight : D.warningBg, color: influencer.archived ? D.accent : D.warningText }}>
                 {influencer.archived ? '↩ Unarchive' : '📦 Archive'}
               </button>
             </Form>
