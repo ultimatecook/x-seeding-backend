@@ -7,7 +7,7 @@ export async function loader({ request }) {
   const { userId, shop } = await requirePortalUser(request);
 
   const portalUser = await prisma.portalUser.findUnique({ where: { id: userId } });
-  if (!portalUser) throw redirect('/portal/login');
+  if (!portalUser) throw redirect('/portal-login');
 
   return { portalUser, shop };
 }
@@ -16,7 +16,7 @@ export async function action({ request }) {
   const formData = await request.formData();
   if (formData.get('intent') === 'logout') {
     const session = await getPortalSession(request);
-    return redirect('/portal/login', {
+    return redirect('/portal-login', {
       headers: { 'Set-Cookie': await destroyPortalSession(session) },
     });
   }

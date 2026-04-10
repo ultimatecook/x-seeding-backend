@@ -81,7 +81,7 @@ export async function action({ request }) {
       return { error: 'Could not create invite: ' + e.message };
     }
 
-    const inviteUrl = `${process.env.SHOPIFY_APP_URL || ''}/portal/accept-invite?token=${token}`;
+    const inviteUrl = `${process.env.SHOPIFY_APP_URL || ''}/portal-accept-invite?token=${token}`;
     return { inviteUrl, invitedEmail: email };
   }
 
@@ -138,9 +138,9 @@ export default function SettingsPage() {
 
         <p style={{ margin: '0 0 14px', fontSize: '13px', color: C.textSub }}>
           Portal users can access the app at{' '}
-          <a href="/portal/login" target="_blank" rel="noopener noreferrer"
+          <a href="/portal-login" target="_blank" rel="noopener noreferrer"
             style={{ color: C.accent, fontWeight: '700' }}>
-            /portal/login
+            /portal-login
           </a>
           {' '}without needing a Shopify account.
         </p>
