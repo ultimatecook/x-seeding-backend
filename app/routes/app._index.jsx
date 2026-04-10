@@ -2,7 +2,7 @@ import { useLoaderData, useRouteError } from 'react-router';
 import { useState } from 'react';
 import { boundary } from '@shopify/shopify-app-react-router/server';
 import prisma from '../db.server';
-import { C, card, section, btn, fmtNum } from '../theme';
+import { fmtNum } from '../theme';
 
 const STATUSES = ['Pending', 'Ordered', 'Shipped', 'Delivered', 'Posted'];
 
@@ -14,10 +14,33 @@ export async function loader() {
     },
     orderBy: { createdAt: 'desc' },
   });
-  // Pass server timestamp so client hydration uses the same value (avoids React #418)
   return { seedings, now: Date.now() };
 }
 
+// ── Design tokens ─────────────────────────────────────────────────────────────
+const D = {
+  bg:          '#F7F8FA',
+  surface:     '#FFFFFF',
+  surfaceHigh: '#F3F4F6',
+  border:      '#E8E9EC',
+  borderLight: '#F0F1F3',
+  accent:      '#D97757',
+  accentLight: '#FDF0EB',
+  text:        '#111827',
+  textSub:     '#6B7280',
+  textMuted:   '#9CA3AF',
+  shadow:      '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
+};
+
+const STATUS_META = {
+  Pending:   { bg: '#FFFBEB', text: '#B45309', dot: '#F59E0B' },
+  Ordered:   { bg: '#EFF6FF', text: '#1D4ED8', dot: '#3B82F6' },
+  Shipped:   { bg: '#F0FDF4', text: '#15803D', dot: '#22C55E' },
+  Delivered: { bg: '#F0FDFA', text: '#0F766E', dot: '#14B8A6' },
+  Posted:    { bg: '#FDF4FF', text: '#7E22CE', dot: '#A855F7' },
+};
+
+const CHART_COLORS = ['#D97757','#60A5FA','#34D399','#A78BFA','#F472B6','#FBBF24','#FB923C','#6EE7B7'];
 
 const PERIODS = [
   { label: '7d',  days: 7,   display: '7 days'    },
@@ -26,7 +49,6 @@ const PERIODS = [
   { label: '1Y',  days: 365, display: 'Yearly'    },
 ];
 
-// Country name → ISO-2 code
 const COUNTRY_CODES = {
   'Afghanistan':'AF','Albania':'AL','Algeria':'DZ','Andorra':'AD','Angola':'AO',
   'Argentina':'AR','Armenia':'AM','Australia':'AU','Austria':'AT','Azerbaijan':'AZ',
@@ -67,14 +89,12 @@ function getFlag(name) {
   return [...code].map(c => String.fromCodePoint(0x1F1E0 + c.charCodeAt(0) - 65)).join('');
 }
 
-const CHART_COLORS = ['#D97757','#60A5FA','#34D399','#A78BFA','#F472B6','#FBBF24','#FB923C','#6EE7B7'];
-
-// Pure SVG donut — no library, deterministic (no hydration risk)
+// Pure SVG donut — no library, deterministic
 function DonutChart({ data, total }) {
   if (!total) return null;
   const cx = 90, cy = 90, r = 66, ir = 44;
-  const pt = n => Math.round(n * 10000) / 10000; // stable precision
-  let angle = -Math.PI / 2; // start at 12 o'clock
+  const pt = n => Math.round(n * 10000) / 10000;
+  let angle = -Math.PI / 2;
 
   function slicePath(startA, endA) {
     const cos1 = pt(Math.cos(startA)), sin1 = pt(Math.sin(startA));
@@ -92,9 +112,7 @@ function DonutChart({ data, total }) {
 
   return (
     <svg width="180" height="180" viewBox="0 0 180 180">
-      {/* Background ring */}
-      <circle cx={cx} cy={cy} r={(r + ir) / 2} fill="none" stroke={C.surfaceHigh}
-        strokeWidth={r - ir} />
+      <circle cx={cx} cy={cy} r={(r + ir) / 2} fill="none" stroke={D.surfaceHigh} strokeWidth={r - ir} />
       {data.map((d, i) => {
         const sweep  = (d.units / total) * 2 * Math.PI;
         const startA = angle;
@@ -104,10 +122,9 @@ function DonutChart({ data, total }) {
             fill={CHART_COLORS[i % CHART_COLORS.length]} />
         );
       })}
-      {/* Centre */}
       <text x={cx} y={cy - 8} textAnchor="middle" fontSize="22" fontWeight="900"
-        fill={C.text} fontFamily="system-ui,sans-serif">{data.length}</text>
-      <text x={cx} y={cy + 10} textAnchor="middle" fontSize="11" fill={C.textSub}
+        fill={D.text} fontFamily="system-ui,sans-serif">{data.length}</text>
+      <text x={cx} y={cy + 10} textAnchor="middle" fontSize="11" fill={D.textSub}
         fontFamily="system-ui,sans-serif">countries</text>
     </svg>
   );
@@ -136,7 +153,57 @@ function getCountryData(seedings) {
   }
   return Object.entries(map)
     .map(([country, d]) => ({ country, ...d }))
-    .sort((a, b) => b.spend - a.spend); // sort by spend, not units
+    .sort((a, b) => b.spend - a.spend);
+}
+
+// ── Components ────────────────────────────────────────────────────────────────
+
+function KpiCard({ label, value, sub }) {
+  return (
+    <div style={{
+      backgroundColor: D.surface,
+      border: `1px solid ${D.border}`,
+      borderRadius: '12px',
+      padding: '20px 22px',
+      boxShadow: D.shadow,
+    }}>
+      <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.8px', color: D.textMuted, marginBottom: '8px' }}>
+        {label}
+      </div>
+      <div style={{ fontSize: '30px', fontWeight: '800', color: D.text, letterSpacing: '-1px', lineHeight: 1.1 }}>
+        {value}
+      </div>
+      {sub && (
+        <div style={{ fontSize: '12px', color: D.textSub, fontWeight: '500', marginTop: '5px' }}>{sub}</div>
+      )}
+    </div>
+  );
+}
+
+function StatusPill({ status, count }) {
+  const m = STATUS_META[status] || { bg: '#F3F4F6', text: '#374151', dot: '#9CA3AF' };
+  return (
+    <div style={{
+      backgroundColor: D.surface,
+      border: `1px solid ${D.border}`,
+      borderRadius: '10px',
+      padding: '12px 16px',
+      boxShadow: D.shadow,
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '6px',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: m.dot, flexShrink: 0 }} />
+        <span style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.6px', color: D.textMuted }}>
+          {status}
+        </span>
+      </div>
+      <span style={{ fontSize: '26px', fontWeight: '800', color: D.text, letterSpacing: '-0.5px', lineHeight: 1 }}>
+        {count}
+      </span>
+    </div>
+  );
 }
 
 export default function Dashboard() {
@@ -148,11 +215,9 @@ export default function Dashboard() {
   const cutoff = new Date(now);
   cutoff.setDate(cutoff.getDate() - selectedPeriod.days);
 
-  // All countries available in the current period (for the filter pills)
-  const byPeriod      = seedings.filter(s => new Date(s.createdAt) >= cutoff);
-  const allCountries  = [...new Set(byPeriod.map(s => s.influencer.country || 'Unknown'))].sort();
+  const byPeriod     = seedings.filter(s => new Date(s.createdAt) >= cutoff);
+  const allCountries = [...new Set(byPeriod.map(s => s.influencer.country || 'Unknown'))].sort();
 
-  // Final filtered set — period + country
   const filtered = byPeriod.filter(s =>
     country === 'all' || (s.influencer.country || 'Unknown') === country
   );
@@ -163,97 +228,143 @@ export default function Dashboard() {
   const countryData   = getCountryData(filtered);
   const totalUnitsAll = countryData.reduce((s, d) => s + d.units, 0);
 
-  const stats = [
-    { label: 'Total Seedings', value: filtered.length },
-    { label: 'Total Invested', value: `€${fmtNum(totalCost)}` },
-    { label: 'Units Sent',     value: totalUnits },
-    { label: 'Countries',      value: country === 'all' ? countryData.length : 1 },
-  ];
-
   const statusCounts = STATUSES.reduce((acc, s) => {
     acc[s] = filtered.filter(sd => sd.status === s).length;
     return acc;
   }, {});
 
   return (
-    <div>
-      {/* Period + Country filters */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
-        <h2 style={{ margin: 0, fontSize: '15px', fontWeight: '700', color: C.text }}>
-          Past {selectedPeriod.display}{country !== 'all' ? ` · ${getFlag(country)} ${country}` : ''}
-        </h2>
-        <div style={{ display: 'flex', gap: '4px' }}>
+    <div style={{ display: 'grid', gap: '20px' }}>
+
+      {/* ── Header row: title + period filters ─────────────── */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: D.text, letterSpacing: '-0.3px' }}>
+            Dashboard
+          </h2>
+          <p style={{ margin: '2px 0 0', fontSize: '13px', color: D.textSub }}>
+            Past {selectedPeriod.display}{country !== 'all' ? ` · ${getFlag(country)} ${country}` : ''}
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: '4px', backgroundColor: D.surfaceHigh, borderRadius: '8px', padding: '3px' }}>
           {PERIODS.map(p => (
             <button key={p.label} type="button" onClick={() => setPeriod(p.label)}
-              style={{ padding: '5px 12px', fontSize: '12px', fontWeight: '700', border: `1px solid ${period === p.label ? C.accent : C.border}`, cursor: 'pointer', borderRadius: '5px', backgroundColor: period === p.label ? C.accent : 'transparent', color: period === p.label ? '#fff' : C.textSub }}>
+              style={{
+                padding: '5px 14px', fontSize: '12px', fontWeight: '700',
+                border: 'none', cursor: 'pointer', borderRadius: '6px',
+                backgroundColor: period === p.label ? D.surface : 'transparent',
+                color: period === p.label ? D.text : D.textMuted,
+                boxShadow: period === p.label ? D.shadow : 'none',
+                transition: 'all 0.12s',
+              }}>
               {p.label}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Country filter pills */}
+      {/* ── Country filter pills ────────────────────────────── */}
       {allCountries.length > 1 && (
-        <div style={{ display: 'flex', gap: '6px', marginBottom: '20px', flexWrap: 'wrap' }}>
-          <button type="button" onClick={() => setCountry('all')}
-            style={{ padding: '5px 12px', fontSize: '12px', fontWeight: '600', borderRadius: '20px', border: `1.5px solid ${country === 'all' ? C.accent : C.border}`, backgroundColor: country === 'all' ? C.accent : 'transparent', color: country === 'all' ? '#fff' : C.textSub, cursor: 'pointer' }}>
-            All countries
-          </button>
+        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+          <button type="button" onClick={() => setCountry('all')} style={{
+            padding: '5px 14px', fontSize: '12px', fontWeight: '600', borderRadius: '20px',
+            border: `1.5px solid ${country === 'all' ? D.accent : D.border}`,
+            backgroundColor: country === 'all' ? D.accent : D.surface,
+            color: country === 'all' ? '#fff' : D.textSub, cursor: 'pointer',
+          }}>All countries</button>
           {allCountries.map(c => (
-            <button key={c} type="button" onClick={() => setCountry(country === c ? 'all' : c)}
-              style={{ padding: '5px 12px', fontSize: '12px', fontWeight: '600', borderRadius: '20px', border: `1.5px solid ${country === c ? C.accent : C.border}`, backgroundColor: country === c ? C.accentFaint : 'transparent', color: country === c ? C.accent : C.textSub, cursor: 'pointer' }}>
-              {getFlag(c)} {c}
-            </button>
+            <button key={c} type="button" onClick={() => setCountry(country === c ? 'all' : c)} style={{
+              padding: '5px 14px', fontSize: '12px', fontWeight: '600', borderRadius: '20px',
+              border: `1.5px solid ${country === c ? D.accent : D.border}`,
+              backgroundColor: country === c ? D.accentLight : D.surface,
+              color: country === c ? D.accent : D.textSub, cursor: 'pointer',
+            }}>{getFlag(c)} {c}</button>
           ))}
         </div>
       )}
 
-
-      {/* Stat tiles */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '28px' }}>
-        {stats.map(({ label, value }) => (
-          <div key={label} style={{ ...card.base, borderLeft: `3px solid ${C.accent}` }}>
-            <div style={{ fontSize: '11px', color: C.textSub, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '8px' }}>{label}</div>
-            <div style={{ fontSize: '30px', fontWeight: '900', color: C.text }}>{value}</div>
-          </div>
-        ))}
+      {/* ── KPI cards ───────────────────────────────────────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '14px' }}>
+        <KpiCard label="Total Seedings" value={filtered.length} sub="In period" />
+        <KpiCard label="Total Invested" value={`€${fmtNum(totalCost)}`} sub="Retail value" />
+        <KpiCard label="Units Sent" value={totalUnits} sub="Across all products" />
+        <KpiCard label="Countries" value={country === 'all' ? countryData.length : 1} sub="Markets reached" />
       </div>
 
-      {/* Status breakdown */}
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '32px', flexWrap: 'wrap' }}>
-        {STATUSES.map(s => (
-          <div key={s} style={{ padding: '5px 14px', ...C.status[s], borderRadius: '20px', fontSize: '12px', fontWeight: '700' }}>
-            {s} · {statusCounts[s]}
-          </div>
-        ))}
+      {/* ── Status pipeline ─────────────────────────────────── */}
+      <div style={{
+        backgroundColor: D.surface,
+        border: `1px solid ${D.border}`,
+        borderRadius: '12px',
+        padding: '20px 24px',
+        boxShadow: D.shadow,
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <h3 style={{ margin: 0, fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.8px', color: D.textMuted }}>
+            Seeding Pipeline
+          </h3>
+          <span style={{ fontSize: '11px', color: D.textMuted, fontWeight: '600' }}>{filtered.length} total</span>
+        </div>
+
+        {filtered.length === 0 ? (
+          <p style={{ margin: 0, color: D.textMuted, fontSize: '13px' }}>No seedings in this period.</p>
+        ) : (
+          <>
+            {/* Stacked progress bar */}
+            <div style={{ display: 'flex', height: '8px', borderRadius: '99px', overflow: 'hidden', marginBottom: '16px', backgroundColor: D.surfaceHigh }}>
+              {STATUSES.map((s, i) => {
+                const pct = filtered.length > 0 ? (statusCounts[s] / filtered.length) * 100 : 0;
+                return pct > 0 ? (
+                  <div key={s} style={{ width: `${pct}%`, backgroundColor: CHART_COLORS[i], transition: 'width 0.3s' }} />
+                ) : null;
+              })}
+            </div>
+
+            {/* Status cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px' }}>
+              {STATUSES.map(s => (
+                <StatusPill key={s} status={s} count={statusCounts[s]} />
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
-      {/* Country breakdown — primary operational view */}
-      <div style={{ marginBottom: '36px' }}>
-        <h2 style={{ margin: '0 0 16px', ...section.title }}>Reach by country</h2>
+      {/* ── Country breakdown ───────────────────────────────── */}
+      <div style={{
+        backgroundColor: D.surface,
+        border: `1px solid ${D.border}`,
+        borderRadius: '12px',
+        boxShadow: D.shadow,
+        overflow: 'hidden',
+      }}>
+        <div style={{ padding: '18px 24px', borderBottom: `1px solid ${D.border}` }}>
+          <h3 style={{ margin: 0, fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.8px', color: D.textMuted }}>
+            Reach by Country
+          </h3>
+        </div>
+
         {countryData.length === 0 ? (
-          <div style={{ padding: '32px', textAlign: 'center', border: `2px dashed ${C.border}`, color: C.textMuted, fontSize: '13px', borderRadius: '8px' }}>
+          <div style={{ padding: '48px 24px', textAlign: 'center', color: D.textMuted, fontSize: '13px' }}>
             No seedings in this period yet.
           </div>
         ) : (
-          <div style={{ ...card.base, display: 'flex', gap: '32px', alignItems: 'flex-start' }}>
-            {/* Donut chart */}
-            <div style={{ flexShrink: 0 }}>
+          <div style={{ display: 'flex', gap: '0', alignItems: 'flex-start' }}>
+            {/* Donut + legend */}
+            <div style={{ padding: '24px', flexShrink: 0, borderRight: `1px solid ${D.border}` }}>
               <DonutChart data={countryData.slice(0, 8)} total={totalUnitsAll} />
-              <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+              <div style={{ marginTop: '14px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 {countryData.slice(0, 8).map((d, i) => (
                   <div key={d.country} style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
-                    <div style={{ width: '10px', height: '10px', borderRadius: '2px', backgroundColor: CHART_COLORS[i % CHART_COLORS.length], flexShrink: 0 }} />
-                    <span style={{ fontSize: '11px', color: C.textSub }}>{getFlag(d.country)} {d.country}</span>
+                    <div style={{ width: '8px', height: '8px', borderRadius: '2px', backgroundColor: CHART_COLORS[i % CHART_COLORS.length], flexShrink: 0 }} />
+                    <span style={{ fontSize: '11px', color: D.textSub }}>{getFlag(d.country)} {d.country}</span>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div style={{ width: '1px', backgroundColor: C.borderLight, alignSelf: 'stretch' }} />
-
-            {/* Country rows — sorted by spend */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {/* Country rows */}
+            <div style={{ flex: 1, padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
               {(() => {
                 const totalSpend = countryData.reduce((s, x) => s + x.spend, 0);
                 return countryData.map((d, i) => {
@@ -261,25 +372,21 @@ export default function Dashboard() {
                   const color = CHART_COLORS[i % CHART_COLORS.length];
                   return (
                     <div key={d.country}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <span style={{ fontSize: '18px', lineHeight: 1 }}>{getFlag(d.country)}</span>
-                          <span style={{ fontSize: '13px', fontWeight: '700', color: C.text }}>{d.country}</span>
-                          <span style={{ fontSize: '11px', color: C.textMuted }}>
+                          <span style={{ fontSize: '13px', fontWeight: '700', color: D.text }}>{d.country}</span>
+                          <span style={{ fontSize: '11px', color: D.textMuted }}>
                             {d.seedings} seeding{d.seedings !== 1 ? 's' : ''} · {d.units} unit{d.units !== 1 ? 's' : ''}
                           </span>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <span style={{ fontSize: '14px', fontWeight: '800', color }}>
-                            €{fmtNum(d.spend)}
-                          </span>
-                          <span style={{ fontSize: '11px', color: C.textMuted, width: '34px', textAlign: 'right' }}>
-                            {Math.round(pct)}%
-                          </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <span style={{ fontSize: '14px', fontWeight: '800', color }}>€{fmtNum(d.spend)}</span>
+                          <span style={{ fontSize: '11px', color: D.textMuted, width: '32px', textAlign: 'right' }}>{Math.round(pct)}%</span>
                         </div>
                       </div>
-                      <div style={{ height: '4px', backgroundColor: C.surfaceHigh, borderRadius: '2px', overflow: 'hidden' }}>
-                        <div style={{ height: '100%', width: `${pct}%`, backgroundColor: color, borderRadius: '2px', transition: 'width 0.4s ease' }} />
+                      <div style={{ height: '5px', backgroundColor: D.surfaceHigh, borderRadius: '99px', overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${pct}%`, backgroundColor: color, borderRadius: '99px', transition: 'width 0.4s ease' }} />
                       </div>
                     </div>
                   );
@@ -290,42 +397,59 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* Top products */}
-      <div style={{ marginBottom: '36px' }}>
-        <h2 style={{ margin: '0 0 16px', ...section.title }}>Top products</h2>
-        {topProducts.length === 0 ? (
-          <div style={{ padding: '32px', textAlign: 'center', border: `2px dashed ${C.border}`, color: C.textMuted, fontSize: '13px', borderRadius: '8px' }}>
-            No seedings in this period yet.
+      {/* ── Top products ────────────────────────────────────── */}
+      {topProducts.length > 0 && (
+        <div style={{
+          backgroundColor: D.surface,
+          border: `1px solid ${D.border}`,
+          borderRadius: '12px',
+          boxShadow: D.shadow,
+          overflow: 'hidden',
+        }}>
+          <div style={{ padding: '18px 24px', borderBottom: `1px solid ${D.border}` }}>
+            <h3 style={{ margin: 0, fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.8px', color: D.textMuted }}>
+              Top Products
+            </h3>
           </div>
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '14px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)' }}>
             {topProducts.map((prod, i) => (
-              <div key={prod.name} style={{ ...card.flat, overflow: 'hidden' }}>
+              <div key={prod.name} style={{
+                borderRight: i < topProducts.length - 1 ? `1px solid ${D.border}` : 'none',
+                overflow: 'hidden',
+              }}>
                 <div style={{ position: 'relative' }}>
                   {prod.image ? (
-                    <div style={{ width: '100%', aspectRatio: '4/3', backgroundColor: '#FFFFFF', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ width: '100%', aspectRatio: '4/3', backgroundColor: D.surfaceHigh, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <img src={prod.image} alt={prod.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                     </div>
                   ) : (
-                    <div style={{ width: '100%', aspectRatio: '4/3', backgroundColor: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '36px' }}>📦</div>
+                    <div style={{ width: '100%', aspectRatio: '4/3', backgroundColor: D.surfaceHigh, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '36px' }}>📦</div>
                   )}
-                  <div style={{ position: 'absolute', top: '8px', left: '8px', backgroundColor: C.accent, color: '#fff', fontSize: '10px', fontWeight: '800', padding: '3px 8px', borderRadius: '4px' }}>#{i + 1}</div>
+                  <div style={{
+                    position: 'absolute', top: '10px', left: '10px',
+                    backgroundColor: D.accent, color: '#fff',
+                    fontSize: '10px', fontWeight: '800', padding: '3px 8px', borderRadius: '6px',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.15)',
+                  }}>#{i + 1}</div>
                 </div>
-                <div style={{ padding: '14px' }}>
-                  <div style={{ fontSize: '13px', fontWeight: '700', marginBottom: '10px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: C.text }}>{prod.name}</div>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '5px', marginBottom: '4px' }}>
-                    <span style={{ fontSize: '22px', fontWeight: '900', color: C.accent, lineHeight: 1 }}>{prod.count}</span>
-                    <span style={{ fontSize: '11px', color: C.textSub, textTransform: 'uppercase', letterSpacing: '0.4px' }}>pieces seeded</span>
+                <div style={{ padding: '16px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: '700', color: D.text, marginBottom: '10px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {prod.name}
                   </div>
-                  <div style={{ fontSize: '13px', fontWeight: '700', color: C.text }}>
-                    €{prod.worth.toFixed(2)} <span style={{ fontSize: '11px', color: C.textMuted, fontWeight: '400' }}>worth</span>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '5px', marginBottom: '4px' }}>
+                    <span style={{ fontSize: '24px', fontWeight: '800', color: D.accent, lineHeight: 1, letterSpacing: '-0.5px' }}>{prod.count}</span>
+                    <span style={{ fontSize: '11px', color: D.textMuted, textTransform: 'uppercase', letterSpacing: '0.4px' }}>seeded</span>
+                  </div>
+                  <div style={{ fontSize: '13px', fontWeight: '700', color: D.text }}>
+                    €{prod.worth.toFixed(2)} <span style={{ fontSize: '11px', color: D.textMuted, fontWeight: '400' }}>retail value</span>
                   </div>
                 </div>
               </div>
             ))}
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
     </div>
   );
 }
