@@ -151,6 +151,24 @@ model SeedingProduct {
   category    String?         // product category for size lookup (e.g., "tops", "bottoms")
 }
 
+model PortalUser {
+  id            Int       @id @default(autoincrement())
+  shop          String                        // which Shopify shop they belong to
+  email         String
+  name          String
+  passwordHash  String?                       // null until invite is accepted
+  role          AppRole   @default(Viewer)
+  inviteToken   String?   @unique             // one-time token for accepting invite
+  inviteExpires DateTime?
+  acceptedAt    DateTime?                     // null = pending invite
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([shop, email])
+  @@index([shop])
+  @@index([inviteToken])
+}
+
 model Campaign {
   id           Int                @id @default(autoincrement())
   shop         String
