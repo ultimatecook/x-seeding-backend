@@ -20,7 +20,7 @@ export async function action({ request }) {
   return null;
 }
 
-// ─── Theme Toggle Button ──────────────────────────────────────────────────────
+// ─── Theme Toggle Button (fixed bottom-right) ─────────────────────────────────
 function ThemeToggle({ dark, onToggle }) {
   return (
     <button
@@ -29,33 +29,42 @@ function ThemeToggle({ dark, onToggle }) {
       title={dark ? 'Switch to light mode' : 'Switch to dark mode'}
       suppressHydrationWarning
       style={{
-        width: '36px',
-        height: '20px',
-        borderRadius: '10px',
-        border: 'none',
+        position: 'fixed',
+        bottom: '24px',
+        right: '24px',
+        zIndex: 9999,
+        width: '56px',
+        height: '30px',
+        borderRadius: '15px',
+        border: `1.5px solid ${dark ? '#4CD964' : '#D1CEEA'}`,
         cursor: 'pointer',
-        position: 'relative',
         padding: 0,
-        backgroundColor: dark ? '#9C8FFF' : '#E5E3F0',
-        transition: 'background-color 0.2s ease',
-        flexShrink: 0,
+        backgroundColor: dark ? '#0D2010' : '#EDE9FF',
+        boxShadow: dark
+          ? '0 0 14px rgba(124,255,107,0.25), 0 4px 12px rgba(0,0,0,0.4)'
+          : '0 2px 8px rgba(0,0,0,0.12)',
+        transition: 'all 0.2s ease',
       }}
     >
-      <span style={{
-        position: 'absolute',
-        top: '2px',
-        left: dark ? '18px' : '2px',
-        width: '16px',
-        height: '16px',
-        borderRadius: '50%',
-        backgroundColor: '#fff',
-        transition: 'left 0.2s ease',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontSize: '9px',
-        lineHeight: 1,
-      }}>
+      <span
+        suppressHydrationWarning
+        style={{
+          position: 'absolute',
+          top: '3px',
+          left: dark ? '29px' : '3px',
+          width: '22px',
+          height: '22px',
+          borderRadius: '50%',
+          backgroundColor: dark ? '#7CFF6B' : '#7C6FF7',
+          transition: 'left 0.2s ease, background-color 0.2s ease',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '12px',
+          lineHeight: 1,
+          boxShadow: dark ? '0 0 8px rgba(124,255,107,0.5)' : '0 1px 4px rgba(0,0,0,0.2)',
+        }}
+      >
         {dark ? '🌙' : '☀️'}
       </span>
     </button>
@@ -69,9 +78,9 @@ const ROLE_LIGHT = {
   Viewer: { bg: '#F3F4F6', text: '#374151' },
 };
 const ROLE_DARK = {
-  Owner:  { bg: '#2A2550', text: '#C4BAFF' },
-  Editor: { bg: '#0D1A36', text: '#93C5FD' },
-  Viewer: { bg: '#252333', text: '#9490AE' },
+  Owner:  { bg: '#1A0D2E', text: '#C084FC' },
+  Editor: { bg: '#0D2010', text: '#7CFF6B' },
+  Viewer: { bg: '#1B2130', text: '#9AA3B2' },
 };
 
 // ─── Layout ───────────────────────────────────────────────────────────────────
@@ -198,11 +207,8 @@ export default function PortalLayout() {
             )}
           </nav>
 
-          {/* Right side: theme toggle + user + sign out */}
+          {/* Right side: user + sign out */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
-
-            {/* Theme toggle */}
-            <ThemeToggle dark={!!dark} onToggle={toggleTheme} />
 
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: '13px', fontWeight: '700', color: D.text, lineHeight: 1.2 }}>
@@ -262,6 +268,9 @@ export default function PortalLayout() {
       }}>
         <Outlet />
       </main>
+
+      {/* ── Fixed theme toggle — bottom right corner ──────────────── */}
+      <ThemeToggle dark={!!dark} onToggle={toggleTheme} />
     </div>
   );
 }
