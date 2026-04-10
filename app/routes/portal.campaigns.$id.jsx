@@ -1,0 +1,323 @@
+import { useLoaderData, Form, Link, useSearchParams } from 'react-router';
+import prisma from '../db.server';
+import { requirePortalUser } from '../utils/portal-auth.server';
+import { can, requirePermission } from '../utils/portal-permissions';
+import { audit } from '../utils/audit.server.js';
+import { fmtDate, fmtNum } from '../theme';
+
+// ── Design tokens (matches portal dashboard) ──────────────────────────────
+const D = {
+  bg:          '#F7F8FA',
+  surface:     '#FFFFFF',
+  surfaceHigh: '#F3F4F6',
+  border:      '#E8E9EC',
+  borderLight: '#F0F1F3',
+  accent:      '#7C6FF7',
+  accentLight: '#EEF0FE',
+  text:        '#111827',
+  textSub:     '#6B7280',
+  textMuted:   '#9CA3AF',
+  shadow:      '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
+};
+
+const STATUS_META = {
+  Pending:   { bg: '#FFFBEB', text: '#B45309', dot: '#F59E0B' },
+  Ordered:   { bg: '#EFF6FF', text: '#1D4ED8', dot: '#3B82F6' },
+  Shipped:   { bg: '#F0FDF4', text: '#15803D', dot: '#22C55E' },
+  Delivered: { bg: '#F0FDFA', text: '#0F766E', dot: '#14B8A6' },
+  Posted:    { bg: '#FDF4FF', text: '#7E22CE', dot: '#A855F7' },
+};
+
+const STATUSES = ['Pending', 'Ordered', 'Shipped', 'Delivered', 'Posted'];
+
+function StatusPill({ status }) {
+  const m = STATUS_META[status] || { bg: '#F3F4F6', text: '#374151', dot: '#9CA3AF' };
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: '5px',
+      backgroundColor: m.bg, color: m.text,
+      borderRadius: '20px', padding: '3px 10px',
+      fontSize: '11px', fontWeight: '700',
+    }}>
+      <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: m.dot, flexShrink: 0 }} />
+      {status}
+    </span>
+  );
+}
+
+export async function loader({ request, params }) {
+  const { shop, portalUser } = await requirePortalUser(request);
+  requirePermission(portalUser.role, 'viewCampaigns');
+
+  const id = parseInt(params.id);
+  const campaign = await prisma.campaign.findUnique({
+    where: { id },
+    include: {
+      products: true,
+      seedings: {
+        include: { influencer: true, products: true },
+        orderBy: { createdAt: 'desc' },
+      },
+    },
+  });
+  if (!campaign || campaign.shop !== shop) throw new Response('Not Found', { status: 404 });
+  return { campaign, role: portalUser.role };
+}
+
+export async function action({ request, params }) {
+  const { shop, portalUser } = await requirePortalUser(request);
+  requirePermission(portalUser.role, 'updateSeeding');
+
+  const formData = await request.formData();
+  const intent   = formData.get('intent');
+
+  if (intent === 'updateStatus') {
+    const id     = parseInt(formData.get('seedingId'));
+    const status = formData.get('status');
+    if (!STATUSES.includes(status)) return null;
+    await prisma.seeding.update({ where: { id }, data: { status } });
+    await audit({ shop, portalUser, action: 'updated_status', entityType: 'seeding', entityId: id, detail: `Status → ${status}` });
+  }
+
+  if (intent === 'updateTracking') {
+    const id             = parseInt(formData.get('seedingId'));
+    const trackingNumber = String(formData.get('trackingNumber') || '').slice(0, 200).trim() || null;
+    await prisma.seeding.update({ where: { id }, data: { trackingNumber } });
+    await audit({ shop, portalUser, action: 'updated_tracking', entityType: 'seeding', entityId: id, detail: `Tracking → ${trackingNumber ?? 'cleared'}` });
+  }
+
+  if (intent === 'deleteSeeding') {
+    requirePermission(portalUser.role, 'deleteSeeding');
+    const id = parseInt(formData.get('seedingId'));
+    const seeding = await prisma.seeding.findUnique({ where: { id }, include: { influencer: true } });
+    await prisma.seeding.delete({ where: { id } });
+    await audit({ shop, portalUser, action: 'deleted_seeding', entityType: 'seeding', entityId: id, detail: `Deleted seeding for ${seeding?.influencer?.handle ?? id}` });
+  }
+
+  return null;
+}
+
+export default function PortalCampaignDetail() {
+  const { campaign, role } = useLoaderData();
+  const canEdit   = can.updateSeeding(role);
+  const canDelete = can.deleteSeeding(role);
+  const canCreate = can.createSeeding(role);
+
+  const seedings      = campaign.seedings;
+  const totalRetail   = seedings.reduce((sum, s) => sum + s.totalCost, 0);
+  const statusCounts  = STATUSES.reduce((acc, s) => { acc[s] = seedings.filter(sd => sd.status === s).length; return acc; }, {});
+
+  const unitsByProduct = {};
+  for (const cp of campaign.products) unitsByProduct[cp.productId] = { ...cp, count: 0 };
+  for (const s of seedings) for (const sp of s.products) if (unitsByProduct[sp.productId]) unitsByProduct[sp.productId].count++;
+
+  const budgetPct = campaign.budget ? Math.min(100, (totalRetail / campaign.budget) * 100) : null;
+
+  return (
+    <div style={{ display: 'grid', gap: '20px' }}>
+
+      {/* Back */}
+      <Link to="/portal/campaigns" style={{ fontSize: '13px', color: D.textMuted, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+        ← All Campaigns
+      </Link>
+
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div>
+          <h2 style={{ margin: '0 0 6px', fontSize: '22px', fontWeight: '800', color: D.text, letterSpacing: '-0.3px' }}>
+            {campaign.title}
+          </h2>
+          <div style={{ fontSize: '13px', color: D.textSub, display: 'flex', gap: '14px' }}>
+            <span>Created {fmtDate(campaign.createdAt, 'medium')}</span>
+            {campaign.budget != null && <span style={{ fontWeight: '700', color: D.accent }}>Budget: €{fmtNum(campaign.budget)}</span>}
+          </div>
+        </div>
+        {canCreate && (
+          <Link to="/portal/new" style={{
+            padding: '8px 18px',
+            background: 'linear-gradient(135deg, #7C6FF7 0%, #9C8FFF 100%)',
+            color: '#fff', borderRadius: '8px', textDecoration: 'none',
+            fontSize: '13px', fontWeight: '700',
+            boxShadow: '0 2px 6px rgba(124,111,247,0.35)',
+          }}>
+            + Add Seeding
+          </Link>
+        )}
+      </div>
+
+      {/* KPI cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '14px' }}>
+        {[
+          { label: 'Seedings',     value: seedings.length },
+          { label: 'Retail Value', value: `€${totalRetail.toFixed(2)}` },
+          { label: 'Products',     value: campaign.products.length },
+          { label: 'Posted',       value: statusCounts['Posted'] },
+        ].map(stat => (
+          <div key={stat.label} style={{
+            backgroundColor: D.surface, border: `1px solid ${D.border}`,
+            borderRadius: '12px', padding: '18px 20px', boxShadow: D.shadow,
+          }}>
+            <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.8px', color: D.textMuted, marginBottom: '6px' }}>{stat.label}</div>
+            <div style={{ fontSize: '26px', fontWeight: '800', color: D.text, letterSpacing: '-0.5px' }}>{stat.value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Budget bar */}
+      {budgetPct !== null && (
+        <div style={{ backgroundColor: D.surface, border: `1px solid ${D.border}`, borderRadius: '12px', padding: '16px 20px', boxShadow: D.shadow }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: D.textSub, marginBottom: '8px' }}>
+            <span style={{ fontWeight: '600' }}>Budget Used</span>
+            <span style={{ fontWeight: '700', color: D.text }}>€{totalRetail.toFixed(2)} / €{fmtNum(campaign.budget)} ({budgetPct.toFixed(0)}%)</span>
+          </div>
+          <div style={{ height: '6px', backgroundColor: D.surfaceHigh, borderRadius: '99px', overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${budgetPct}%`, backgroundColor: budgetPct >= 90 ? '#EF4444' : budgetPct >= 70 ? '#F59E0B' : D.accent, borderRadius: '99px', transition: 'width 0.3s' }} />
+          </div>
+        </div>
+      )}
+
+      {/* Status pipeline */}
+      <div style={{ backgroundColor: D.surface, border: `1px solid ${D.border}`, borderRadius: '12px', padding: '18px 20px', boxShadow: D.shadow }}>
+        <div style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.8px', color: D.textMuted, marginBottom: '14px' }}>Pipeline</div>
+        {seedings.length > 0 && (
+          <div style={{ display: 'flex', height: '6px', borderRadius: '99px', overflow: 'hidden', marginBottom: '14px', backgroundColor: D.surfaceHigh }}>
+            {[['#F59E0B', statusCounts.Pending], ['#3B82F6', statusCounts.Ordered], ['#22C55E', statusCounts.Shipped], ['#14B8A6', statusCounts.Delivered], ['#A855F7', statusCounts.Posted]].map(([color, count], i) =>
+              count > 0 ? <div key={i} style={{ width: `${(count / seedings.length) * 100}%`, backgroundColor: color }} /> : null
+            )}
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          {STATUSES.map(s => {
+            const m = STATUS_META[s];
+            return (
+              <div key={s} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 12px', backgroundColor: m.bg, borderRadius: '20px' }}>
+                <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: m.dot }} />
+                <span style={{ fontSize: '11px', fontWeight: '700', color: m.text }}>{s}: {statusCounts[s]}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Products */}
+      <div style={{ backgroundColor: D.surface, border: `1px solid ${D.border}`, borderRadius: '12px', boxShadow: D.shadow, overflow: 'hidden' }}>
+        <div style={{ padding: '16px 20px', borderBottom: `1px solid ${D.border}` }}>
+          <span style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.8px', color: D.textMuted }}>
+            Campaign Products ({campaign.products.length})
+          </span>
+        </div>
+        {campaign.products.length === 0 ? (
+          <div style={{ padding: '24px', color: D.textMuted, fontSize: '13px' }}>No products attached to this campaign.</div>
+        ) : (
+          <div style={{ padding: '16px 20px', display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+            {campaign.products.map(cp => {
+              const count = unitsByProduct[cp.productId]?.count ?? 0;
+              const pct   = cp.maxUnits ? Math.min(100, (count / cp.maxUnits) * 100) : null;
+              return (
+                <div key={cp.id} style={{
+                  display: 'flex', alignItems: 'center', gap: '10px',
+                  padding: '10px 14px', border: `1px solid ${D.border}`,
+                  borderRadius: '10px', minWidth: '180px', backgroundColor: D.bg,
+                }}>
+                  {cp.imageUrl && <img src={cp.imageUrl} alt={cp.productName} style={{ width: '36px', height: '36px', objectFit: 'cover', borderRadius: '6px', flexShrink: 0 }} />}
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: '13px', fontWeight: '700', color: D.text, marginBottom: '2px' }}>{cp.productName}</div>
+                    <div style={{ fontSize: '11px', color: D.textSub }}>{count} seeded{cp.maxUnits ? ` / ${cp.maxUnits} max` : ''}</div>
+                    {pct !== null && (
+                      <div style={{ height: '3px', backgroundColor: D.border, borderRadius: '99px', marginTop: '5px', overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${pct}%`, backgroundColor: pct >= 100 ? '#EF4444' : D.accent, borderRadius: '99px' }} />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Seedings table */}
+      <div style={{ backgroundColor: D.surface, border: `1px solid ${D.border}`, borderRadius: '12px', boxShadow: D.shadow, overflow: 'hidden' }}>
+        <div style={{ padding: '16px 20px', borderBottom: `1px solid ${D.border}` }}>
+          <span style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.8px', color: D.textMuted }}>
+            Seedings ({seedings.length})
+          </span>
+        </div>
+
+        {seedings.length === 0 ? (
+          <div style={{ padding: '48px', textAlign: 'center', color: D.textMuted, fontSize: '13px' }}>
+            No seedings yet.{' '}
+            {canCreate && <Link to="/portal/new" style={{ color: D.accent, fontWeight: '700', textDecoration: 'none' }}>Create the first one →</Link>}
+          </div>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+            <thead>
+              <tr style={{ backgroundColor: D.bg }}>
+                {['Influencer', 'Country', 'Products', 'Cost', 'Status', 'Tracking', 'Date', ...(canDelete ? [''] : [])].map(h => (
+                  <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.7px', color: D.textMuted, whiteSpace: 'nowrap' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {seedings.map((s, i) => (
+                <tr key={s.id} style={{ borderTop: `1px solid ${D.borderLight}` }}>
+                  <td style={{ padding: '12px 16px' }}>
+                    <div style={{ fontWeight: '700', color: D.text }}>@{s.influencer.handle}</div>
+                    <div style={{ fontSize: '11px', color: D.textMuted, marginTop: '1px' }}>{s.influencer.name}</div>
+                  </td>
+                  <td style={{ padding: '12px 16px', color: D.textSub }}>{s.influencer.country}</td>
+                  <td style={{ padding: '12px 16px', color: D.textSub, fontSize: '12px', maxWidth: '180px' }}>
+                    {s.products.map(p => p.productName).join(', ')}
+                  </td>
+                  <td style={{ padding: '12px 16px', fontWeight: '700', color: D.text, whiteSpace: 'nowrap' }}>
+                    €{s.totalCost.toFixed(2)}
+                  </td>
+                  <td style={{ padding: '12px 16px' }}>
+                    {canEdit ? (
+                      <Form method="post">
+                        <input type="hidden" name="intent" value="updateStatus" />
+                        <input type="hidden" name="seedingId" value={s.id} />
+                        <select name="status" defaultValue={s.status} onChange={e => e.target.form.requestSubmit()}
+                          style={{ padding: '4px 8px', border: 'none', borderRadius: '12px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', backgroundColor: STATUS_META[s.status]?.bg, color: STATUS_META[s.status]?.text }}>
+                          {STATUSES.map(st => <option key={st} value={st}>{st}</option>)}
+                        </select>
+                      </Form>
+                    ) : (
+                      <StatusPill status={s.status} />
+                    )}
+                  </td>
+                  <td style={{ padding: '12px 16px' }}>
+                    {canEdit ? (
+                      <Form method="post">
+                        <input type="hidden" name="intent" value="updateTracking" />
+                        <input type="hidden" name="seedingId" value={s.id} />
+                        <input type="text" name="trackingNumber" defaultValue={s.trackingNumber || ''} placeholder="Add tracking…"
+                          onBlur={e => e.target.form.requestSubmit()}
+                          style={{ width: '120px', padding: '4px 8px', border: `1px solid ${D.border}`, borderRadius: '6px', fontSize: '12px', color: D.text, backgroundColor: D.bg }} />
+                      </Form>
+                    ) : (
+                      <span style={{ fontSize: '12px', color: D.textSub }}>{s.trackingNumber || '—'}</span>
+                    )}
+                  </td>
+                  <td style={{ padding: '12px 16px', color: D.textMuted, fontSize: '12px', whiteSpace: 'nowrap' }}>
+                    {fmtDate(s.createdAt, 'medium')}
+                  </td>
+                  {canDelete && (
+                    <td style={{ padding: '12px 16px' }}>
+                      <Form method="post" onSubmit={e => { if (!confirm('Delete this seeding?')) e.preventDefault(); }}>
+                        <input type="hidden" name="intent" value="deleteSeeding" />
+                        <input type="hidden" name="seedingId" value={s.id} />
+                        <button type="submit" style={{ background: 'none', border: 'none', color: D.textMuted, cursor: 'pointer', fontSize: '18px', lineHeight: 1 }}>×</button>
+                      </Form>
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+    </div>
+  );
+}
