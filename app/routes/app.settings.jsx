@@ -85,6 +85,18 @@ export async function action({ request }) {
     return { inviteUrl, invitedEmail: email };
   }
 
+  if (intent === 'updatePortalUserRole') {
+    const id   = parseInt(formData.get('portalUserId'));
+    const role = String(formData.get('role') || '');
+    if (!id || !ROLES.includes(role)) return null;
+    try {
+      await prisma.portalUser.update({ where: { id }, data: { role } });
+    } catch (e) {
+      console.warn('Could not update portal user role:', e.message);
+    }
+    return null;
+  }
+
   if (intent === 'revokePortalUser') {
     const id = parseInt(formData.get('portalUserId'));
     try {
@@ -209,13 +221,10 @@ export default function SettingsPage() {
         ) : (
           <div style={{ display: 'grid', gap: '8px' }}>
             {portalUsers.map(user => (
-              <div key={user.id} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '10px', alignItems: 'center', padding: '10px 12px', border: `1px solid ${C.border}`, borderRadius: '6px' }}>
+              <div key={user.id} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: '10px', alignItems: 'center', padding: '10px 12px', border: `1px solid ${C.border}`, borderRadius: '6px' }}>
                 <div>
                   <div style={{ fontWeight: '700', color: C.text, fontSize: '13px' }}>
                     {user.name}
-                    <span style={{ marginLeft: '6px', fontSize: '10px', backgroundColor: C.surfaceHigh, color: C.textSub, borderRadius: '4px', padding: '1px 6px', fontWeight: '700', textTransform: 'uppercase' }}>
-                      {user.role}
-                    </span>
                     {!user.acceptedAt && (
                       <span style={{ marginLeft: '6px', fontSize: '10px', backgroundColor: '#FEF3C7', color: '#92400E', borderRadius: '4px', padding: '1px 6px', fontWeight: '700' }}>
                         Pending
@@ -224,6 +233,20 @@ export default function SettingsPage() {
                   </div>
                   <div style={{ fontSize: '12px', color: C.textSub, marginTop: '2px' }}>{user.email}</div>
                 </div>
+
+                {/* Role dropdown + save */}
+                <Form method="post" style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                  <input type="hidden" name="intent"       value="updatePortalUserRole" />
+                  <input type="hidden" name="portalUserId" value={user.id} />
+                  <select name="role" defaultValue={user.role}
+                    style={{ ...input.base, fontSize: '12px', padding: '4px 8px' }}>
+                    {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                  <button type="submit" style={{ ...btn.secondary, fontSize: '12px', padding: '4px 10px' }}>
+                    Save
+                  </button>
+                </Form>
+
                 {/* Resend invite if pending */}
                 {!user.acceptedAt && (
                   <Form method="post">
@@ -237,6 +260,8 @@ export default function SettingsPage() {
                     </button>
                   </Form>
                 )}
+
+                {/* Remove */}
                 <Form method="post" onSubmit={e => { if (!confirm(`Remove ${user.name}?`)) e.preventDefault(); }}>
                   <input type="hidden" name="intent"       value="revokePortalUser" />
                   <input type="hidden" name="portalUserId" value={user.id} />
