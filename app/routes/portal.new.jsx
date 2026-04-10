@@ -6,12 +6,15 @@ import { useState, useEffect } from 'react';
 import { useLoaderData, Form, useNavigate, redirect } from 'react-router';
 import prisma from '../db.server';
 import { requirePortalUser } from '../utils/portal-auth.server';
+import { requirePermission } from '../utils/portal-permissions.js';
+import { audit } from '../utils/audit.server.js';
 import { C, btn, input, fmtNum } from '../theme';
 import { guessProductCategory, extractSizeFromVariant } from '../utils/size-helpers';
 
 // ── Loader ────────────────────────────────────────────────────────────────────
 export async function loader({ request }) {
-  const { shop } = await requirePortalUser(request);
+  const { shop, portalUser } = await requirePortalUser(request);
+  requirePermission(portalUser.role, 'createSeeding');
 
   // Fetch Shopify products using stored offline access token
   let products = [];
@@ -103,7 +106,8 @@ export async function loader({ request }) {
 
 // ── Action ────────────────────────────────────────────────────────────────────
 export async function action({ request }) {
-  const { shop } = await requirePortalUser(request);
+  const { shop, portalUser } = await requirePortalUser(request);
+  requirePermission(portalUser.role, 'createSeeding');
 
   const formData       = await request.formData();
   const influencerId   = parseInt(formData.get('influencerId'));
@@ -167,7 +171,7 @@ export async function action({ request }) {
     console.error('Portal: failed to create Shopify draft order:', err.message);
   }
 
-  await prisma.seeding.create({
+  const seeding = await prisma.seeding.create({
     data: {
       shop, influencerId, campaignId, totalCost, notes, status: 'Pending',
       shopifyDraftOrderId, shopifyOrderName, invoiceUrl,
@@ -184,6 +188,14 @@ export async function action({ request }) {
         })),
       },
     },
+  });
+
+  await audit({
+    shop, portalUser,
+    action: 'created_seeding',
+    entityType: 'seeding',
+    entityId: seeding.id,
+    detail: `Created seeding for ${influencer?.handle ?? influencerId} (${productIds.length} product${productIds.length !== 1 ? 's' : ''}, €${totalCost.toFixed(2)})`,
   });
 
   // Save sizes for next time

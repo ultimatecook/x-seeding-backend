@@ -169,6 +169,23 @@ model PortalUser {
   @@index([inviteToken])
 }
 
+model AuditLog {
+  id           Int      @id @default(autoincrement())
+  shop         String
+  portalUserId Int
+  userName     String
+  userEmail    String
+  userRole     AppRole
+  action       String   // e.g. "created_seeding", "deleted_influencer", "updated_status"
+  entityType   String   // "seeding", "influencer", "campaign"
+  entityId     Int?
+  detail       String?  // human-readable description
+  createdAt    DateTime @default(now())
+
+  @@index([shop])
+  @@index([createdAt])
+}
+
 model Campaign {
   id           Int                @id @default(autoincrement())
   shop         String

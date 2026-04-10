@@ -1,10 +1,12 @@
 import { useLoaderData, Link } from 'react-router';
 import prisma from '../db.server';
 import { requirePortalUser } from '../utils/portal-auth.server';
+import { requirePermission } from '../utils/portal-permissions';
 import { C, card, fmtDate } from '../theme';
 
 export async function loader({ request }) {
-  const { shop } = await requirePortalUser(request);
+  const { shop, portalUser } = await requirePortalUser(request);
+  requirePermission(portalUser.role, 'viewCampaigns');
   const campaigns = await prisma.campaign.findMany({
     where:   { shop },
     include: { products: true, _count: { select: { seedings: true } } },

@@ -1,15 +1,11 @@
 import { Outlet, NavLink, useLoaderData, redirect, Form } from 'react-router';
-import prisma from '../db.server';
 import { requirePortalUser, destroyPortalSession, getPortalSession } from '../utils/portal-auth.server';
+import { can } from '../utils/portal-permissions';
 import { C } from '../theme';
 
 export async function loader({ request }) {
-  const { userId, shop } = await requirePortalUser(request);
-
-  const portalUser = await prisma.portalUser.findUnique({ where: { id: userId } });
-  if (!portalUser) throw redirect('/portal-login');
-
-  return { portalUser, shop };
+  const { portalUser, shop } = await requirePortalUser(request);
+  return { portalUser, shop, role: portalUser.role };
 }
 
 export async function action({ request }) {
@@ -36,7 +32,7 @@ const navLinkStyle = ({ isActive }) => ({
 });
 
 export default function PortalLayout() {
-  const { portalUser } = useLoaderData();
+  const { portalUser, role } = useLoaderData();
 
   return (
     <div style={{
@@ -66,12 +62,14 @@ export default function PortalLayout() {
           <NavLink to="/portal/seedings" style={navLinkStyle}>Seedings</NavLink>
           <NavLink to="/portal/influencers" style={navLinkStyle}>Influencers</NavLink>
           <NavLink to="/portal/campaigns" style={navLinkStyle}>Campaigns</NavLink>
-          <NavLink to="/portal/new" style={({ isActive }) => ({
-            ...navLinkStyle({ isActive }),
-            backgroundColor: C.accent,
-            color: '#fff',
-            border: `1px solid ${C.accent}`,
-          })}>+ New Seeding</NavLink>
+          {can.createSeeding(role) && (
+            <NavLink to="/portal/new" style={({ isActive }) => ({
+              ...navLinkStyle({ isActive }),
+              backgroundColor: C.accent,
+              color: '#fff',
+              border: `1px solid ${C.accent}`,
+            })}>+ New Seeding</NavLink>
+          )}
 
           <div style={{ marginLeft: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{ fontSize: '12px', color: C.textSub, fontWeight: '600' }}>
