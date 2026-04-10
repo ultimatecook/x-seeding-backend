@@ -219,17 +219,25 @@ export default function PortalLayout() {
               </div>
             </div>
 
-            {/* Avatar */}
-            <div style={{
-              width: '32px', height: '32px',
-              borderRadius: '50%',
-              background: 'linear-gradient(135deg, #7C6FF7 0%, #A78BFA 100%)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: '12px', fontWeight: '800', color: '#FFF',
-              flexShrink: 0,
-            }}>
+            {/* Avatar — links to profile */}
+            <NavLink
+              to="/portal/profile"
+              title="Edit profile"
+              style={({ isActive }) => ({
+                width: '32px', height: '32px',
+                borderRadius: '50%',
+                background: `linear-gradient(135deg, ${D.accent} 0%, ${D.purple} 100%)`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '12px', fontWeight: '800', color: '#0D0F14',
+                flexShrink: 0,
+                textDecoration: 'none',
+                outline: isActive ? `2px solid ${D.accent}` : 'none',
+                outlineOffset: '2px',
+                transition: 'outline 0.1s',
+              })}
+            >
               {portalUser.name?.charAt(0).toUpperCase() || '?'}
-            </div>
+            </NavLink>
 
             {/* Role badge */}
             <span style={{
