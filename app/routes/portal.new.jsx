@@ -17,27 +17,44 @@ export async function loader({ request }) {
   const { shop, portalUser } = await requirePortalUser(request);
   requirePermission(portalUser.role, 'createSeeding');
 
-  // Fetch Shopify products using stored offline access token
+  // Fetch Shopify products using stored offline access token.
+  // Offline tokens have expires = null; we prefer those. Online tokens expire and are useless here.
   let products = [];
+  let productsError = null;
   try {
-    const session = await prisma.session.findFirst({
-      where:   { shop, isOnline: false },
-      orderBy: { expires: 'desc' },
+    // First try: session with no expiry = permanent offline token
+    let session = await prisma.session.findFirst({
+      where: { shop, isOnline: false, expires: null },
     });
-    if (session?.accessToken) {
+    // Fallback: any offline-flagged session, latest expiry first
+    if (!session) {
+      session = await prisma.session.findFirst({
+        where:   { shop, isOnline: false },
+        orderBy: { expires: 'desc' },
+      });
+    }
+    // Last resort: any session for this shop (some setups don't set isOnline correctly)
+    if (!session) {
+      session = await prisma.session.findFirst({
+        where:   { shop },
+        orderBy: { expires: 'desc' },
+      });
+    }
+    if (!session?.accessToken) {
+      productsError = 'No Shopify session found. Please open the app in Shopify admin once to authorize it.';
+    } else {
       const res  = await fetch(`https://${shop}/admin/api/2025-10/graphql.json`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': session.accessToken },
         body: JSON.stringify({
           query: `query GetProducts {
-            products(first: 100) {
+            products(first: 100, sortKey: TITLE) {
               edges { node {
-                id title totalInventory
+                id title
                 featuredImage { url }
                 collections(first: 5) { edges { node { title } } }
                 variants(first: 30) { edges { node {
                   id title price availableForSale
-                  inventoryItem { unitCost { amount } }
                 } } }
               } }
             }
@@ -45,26 +62,39 @@ export async function loader({ request }) {
         }),
       });
       const body = await res.json();
-      products = (body?.data?.products?.edges ?? []).map(edge => ({
-        id:          edge.node.id,
-        name:        edge.node.title,
-        image:       edge.node.featuredImage?.url ?? null,
-        stock:       edge.node.totalInventory ?? 0,
-        collections: edge.node.collections.edges.map(c => c.node.title),
-        variants:    edge.node.variants.edges.map(v => ({
-          id:        v.node.id,
-          title:     v.node.title,
-          price:     parseFloat(v.node.price || 0),
-          cost:      parseFloat(v.node.inventoryItem?.unitCost?.amount || 0) || null,
-          available: v.node.availableForSale,
-        })),
-        price:     parseFloat(edge.node.variants.edges[0]?.node?.price || 0),
-        cost:      parseFloat(edge.node.variants.edges[0]?.node?.inventoryItem?.unitCost?.amount || 0) || null,
-        variantId: edge.node.variants.edges[0]?.node?.id ?? null,
-      }));
+      if (body?.errors) {
+        console.error('Portal: Shopify GraphQL errors:', JSON.stringify(body.errors));
+        productsError = `Shopify API error: ${body.errors[0]?.message ?? 'unknown'}`;
+      } else {
+        products = (body?.data?.products?.edges ?? []).map(edge => {
+          const vars = edge.node.variants.edges;
+          const hasStock = vars.some(v => v.node.availableForSale);
+          return {
+            id:          edge.node.id,
+            name:        edge.node.title,
+            image:       edge.node.featuredImage?.url ?? null,
+            stock:       hasStock ? 1 : 0,  // 0 = treat as out of stock
+            collections: edge.node.collections.edges.map(c => c.node.title),
+            variants:    vars.map(v => ({
+              id:        v.node.id,
+              title:     v.node.title,
+              price:     parseFloat(v.node.price || 0),
+              cost:      null,
+              available: v.node.availableForSale,
+            })),
+            price:     parseFloat(vars[0]?.node?.price || 0),
+            cost:      null,
+            variantId: vars[0]?.node?.id ?? null,
+          };
+        });
+        if (products.length === 0) {
+          console.warn('Portal: Shopify returned 0 products for shop', shop);
+        }
+      }
     }
   } catch (e) {
     console.error('Portal: failed to fetch Shopify products:', e.message);
+    productsError = `Failed to load products: ${e.message}`;
   }
 
   const influencers = await prisma.influencer.findMany({
@@ -102,7 +132,7 @@ export async function loader({ request }) {
     console.warn('influencerSavedSize table not ready:', e.message);
   }
 
-  return { products, influencers, campaigns, recentlySeededMap, allSavedSizes, shop };
+  return { products, productsError, influencers, campaigns, recentlySeededMap, allSavedSizes, shop };
 }
 
 // ── Action ────────────────────────────────────────────────────────────────────
@@ -222,7 +252,7 @@ export async function action({ request }) {
 // ── Component ─────────────────────────────────────────────────────────────────
 // Reuse the same UI logic as app.new.jsx but pointing to portal routes
 export default function PortalNewSeeding() {
-  const { products, influencers, campaigns, recentlySeededMap, allSavedSizes, shop } = useLoaderData();
+  const { products, productsError, influencers, campaigns, recentlySeededMap, allSavedSizes, shop } = useLoaderData();
   const navigate = useNavigate();
 
   const [selectedInfluencer, setSelectedInfluencer] = useState(null);
@@ -409,7 +439,17 @@ export default function PortalNewSeeding() {
             <div style={{ backgroundColor: D.surface, border: `1px solid ${D.border}`, borderRadius: '10px', padding: '16px' }}>
               <input type="text" placeholder="🔍 Search products…" value={search} onChange={e => setSearch(e.target.value)}
                 style={{ ...input.base, width: '100%', marginBottom: '12px', boxSizing: 'border-box' }} />
+              {productsError && (
+                <div style={{ padding: '12px 14px', backgroundColor: D.warningBg, color: D.warningText, borderRadius: '8px', fontSize: '13px', marginBottom: '12px' }}>
+                  ⚠️ {productsError}
+                </div>
+              )}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '10px', maxHeight: '340px', overflowY: 'auto' }}>
+                {!productsError && filteredProducts.length === 0 && (
+                  <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '32px 16px', color: D.textMuted, fontSize: '13px' }}>
+                    {products.length === 0 ? 'No products found in your Shopify store.' : 'No products match your search.'}
+                  </div>
+                )}
                 {filteredProducts.map(prod => {
                   const outOfStock    = prod.stock === 0;
                   const recentlySent  = !!(selectedInfluencer && recentlySeedMapForInfluencer[prod.id]);
