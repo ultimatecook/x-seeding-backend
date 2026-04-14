@@ -13,7 +13,13 @@ export default async function handleRequest(
   responseHeaders,
   reactRouterContext,
 ) {
-  addDocumentResponseHeaders(request, responseHeaders);
+  // Portal routes are standalone (not embedded in Shopify iframe) — skip Shopify's
+  // frame-ancestors CSP header which would block them from loading in a regular browser tab.
+  const url = new URL(request.url);
+  const isPortalRoute = url.pathname.startsWith('/portal');
+  if (!isPortalRoute) {
+    addDocumentResponseHeaders(request, responseHeaders);
+  }
   const userAgent = request.headers.get("user-agent");
   const callbackName = isbot(userAgent ?? "") ? "onAllReady" : "onShellReady";
 
