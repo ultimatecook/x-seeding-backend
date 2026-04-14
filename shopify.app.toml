@@ -1,6 +1,6 @@
 client_id = "d990d6810f5063a9cecfde2b5a578f0c"
 name = "x-seeding"
-application_url = "https://x-seeding-backend.vercel.app"
+application_url = "https://zeedy.xyz"
 embedded = true
 
 [build]
@@ -18,4 +18,4 @@ api_version = "2026-07"
 scopes = "read_inventory,read_products,write_draft_orders,read_draft_orders,read_fulfillments"
 
 [auth]
-redirect_urls = [ "https://x-seeding-backend.vercel.app/auth/callback" ]
+redirect_urls = [ "https://zeedy.xyz/auth/callback" ]
