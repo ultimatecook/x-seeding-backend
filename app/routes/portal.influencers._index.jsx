@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useLoaderData, useActionData, Form, useNavigation, Link, useNavigate, useSearchParams } from 'react-router';
 import prisma from '../db.server';
 import { requirePortalUser } from '../utils/portal-auth.server';
@@ -200,10 +200,12 @@ export default function PortalInfluencers() {
   const [localQ,       setLocalQ]       = useState(initQ);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  // Close form on success
-  if (actionData?.created    && showForm)    { setShowForm(false);    setTierPick(null); }
-  if (actionData?.imported   && showImport)  { setShowImport(false);  }
-  if (actionData?.bulkDeleted != null)       { setSelected(new Set()); setConfirmDelete(false); }
+  // Close forms / reset state after successful actions
+  useEffect(() => {
+    if (actionData?.created)              { setShowForm(false); setTierPick(null); }
+    if (actionData?.imported)             { setShowImport(false); }
+    if (actionData?.bulkDeleted != null)  { setSelected(new Set()); setConfirmDelete(false); }
+  }, [actionData]);
 
   const totalPages = Math.ceil(total / 40);
 
