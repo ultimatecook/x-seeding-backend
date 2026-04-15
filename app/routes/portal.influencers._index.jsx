@@ -5,7 +5,7 @@ import { requirePortalUser } from '../utils/portal-auth.server';
 import { can, requirePermission } from '../utils/portal-permissions';
 import { audit } from '../utils/audit.server.js';
 import { fmtNum } from '../theme';
-import { D } from '../utils/portal-theme';
+import { D, InstagramAvatar, FlagImg } from '../utils/portal-theme';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 
@@ -456,18 +456,7 @@ export default function PortalInfluencers() {
                   )}
                   <td style={{ padding: '12px 16px', fontWeight: '700' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <div style={{ width: '32px', height: '32px', borderRadius: '50%', overflow: 'hidden', flexShrink: 0, backgroundColor: D.accentLight, border: `1.5px solid ${D.accent}`, position: 'relative' }}>
-                        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: '800', color: D.accent }}>
-                          {(inf.handle || '@').replace(/^@/, '').slice(0, 1).toUpperCase()}
-                        </div>
-                        <img
-                          src={`https://unavatar.io/instagram/${inf.handle.replace(/^@/, '')}`}
-                          alt=""
-                          onLoad={e => { e.currentTarget.style.opacity = '1'; }}
-                          onError={e => { e.currentTarget.style.display = 'none'; }}
-                          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', position: 'relative', opacity: 0, transition: 'opacity 0.2s' }}
-                        />
-                      </div>
+                      <InstagramAvatar handle={inf.handle} size={32} />
                       <Link to={`/portal/influencers/${inf.id}`} style={{ color: D.accent, textDecoration: 'none', fontWeight: '700' }}>@{inf.handle.replace(/^@/, '')}</Link>
                     </div>
                   </td>

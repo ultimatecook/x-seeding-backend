@@ -8,8 +8,8 @@ import prisma from '../db.server';
 import { requirePortalUser } from '../utils/portal-auth.server';
 import { requirePermission } from '../utils/portal-permissions.js';
 import { audit } from '../utils/audit.server.js';
-import { btn, input, fmtNum } from '../theme';
-import { D } from '../utils/portal-theme';
+import { fmtNum } from '../theme';
+import { D, Pbtn as btn, Pinput as input } from '../utils/portal-theme';
 import { guessProductCategory, extractSizeFromVariant } from '../utils/size-helpers';
 
 // ── Loader ────────────────────────────────────────────────────────────────────

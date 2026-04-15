@@ -5,7 +5,7 @@ import { requirePortalUser } from '../utils/portal-auth.server';
 import { can, requirePermission } from '../utils/portal-permissions';
 import { audit } from '../utils/audit.server.js';
 import { fmtNum, fmtDate } from '../theme';
-import { D } from '../utils/portal-theme';
+import { D, InstagramAvatar } from '../utils/portal-theme';
 
 // ─── Design tokens (portal purple palette) ───────────────────────────────────
 
@@ -174,19 +174,7 @@ export default function PortalInfluencerDetail() {
       {/* Profile header */}
       <div style={{ ...card(), display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px', flexWrap: 'wrap', gap: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          {/* Avatar — show initials by default, swap to photo on successful load */}
-          <div style={{ width: '56px', height: '56px', borderRadius: '50%', overflow: 'hidden', flexShrink: 0, backgroundColor: D.accentLight, border: `2px solid ${D.accent}`, position: 'relative' }}>
-            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: '900', color: D.accent }}>
-              {initials}
-            </div>
-            <img
-              src={`https://unavatar.io/instagram/${handle}`}
-              alt=""
-              onLoad={e => { e.currentTarget.style.opacity = '1'; }}
-              onError={e => { e.currentTarget.style.display = 'none'; }}
-              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', position: 'relative', opacity: 0, transition: 'opacity 0.2s' }}
-            />
-          </div>
+          <InstagramAvatar handle={handle} size={56} />
           {/* Info */}
           <div>
             <div style={{ fontSize: '20px', fontWeight: '900', color: D.text, marginBottom: '2px' }}>@{handle}</div>

@@ -2,7 +2,7 @@ import { useLoaderData, Link } from 'react-router';
 import prisma from '../db.server';
 import { requirePortalUser } from '../utils/portal-auth.server';
 import { fmtDate, fmtNum } from '../theme';
-import { D } from '../utils/portal-theme';
+import { D, FlagImg } from '../utils/portal-theme';
 
 // ── Loader ────────────────────────────────────────────────────────────────────
 export async function loader({ request }) {
@@ -141,38 +141,6 @@ function fmtWeekLabel(d) {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-const COUNTRY_CODES = {
-  'Afghanistan':'AF','Albania':'AL','Algeria':'DZ','Angola':'AO','Argentina':'AR',
-  'Armenia':'AM','Australia':'AU','Austria':'AT','Azerbaijan':'AZ','Bahrain':'BH',
-  'Bangladesh':'BD','Belarus':'BY','Belgium':'BE','Bolivia':'BO','Bosnia and Herzegovina':'BA',
-  'Brazil':'BR','Bulgaria':'BG','Cambodia':'KH','Cameroon':'CM','Canada':'CA',
-  'Chile':'CL','China':'CN','Colombia':'CO','Costa Rica':'CR','Croatia':'HR',
-  'Cuba':'CU','Cyprus':'CY','Czech Republic':'CZ','Denmark':'DK','Dominican Republic':'DO',
-  'Ecuador':'EC','Egypt':'EG','El Salvador':'SV','Estonia':'EE','Ethiopia':'ET',
-  'Finland':'FI','France':'FR','Georgia':'GE','Germany':'DE','Ghana':'GH',
-  'Greece':'GR','Guatemala':'GT','Honduras':'HN','Hungary':'HU','Iceland':'IS',
-  'India':'IN','Indonesia':'ID','Iran':'IR','Iraq':'IQ','Ireland':'IE',
-  'Israel':'IL','Italy':'IT','Jamaica':'JM','Japan':'JP','Jordan':'JO',
-  'Kazakhstan':'KZ','Kenya':'KE','Kuwait':'KW','Latvia':'LV','Lebanon':'LB',
-  'Lithuania':'LT','Luxembourg':'LU','Malaysia':'MY','Mexico':'MX','Moldova':'MD',
-  'Morocco':'MA','Myanmar':'MM','Nepal':'NP','Netherlands':'NL','New Zealand':'NZ',
-  'Nigeria':'NG','North Macedonia':'MK','Norway':'NO','Pakistan':'PK','Panama':'PA',
-  'Paraguay':'PY','Peru':'PE','Philippines':'PH','Poland':'PL','Portugal':'PT',
-  'Qatar':'QA','Romania':'RO','Russia':'RU','Saudi Arabia':'SA','Serbia':'RS',
-  'Singapore':'SG','Slovakia':'SK','Slovenia':'SI','South Africa':'ZA',
-  'South Korea':'KR','Spain':'ES','Sri Lanka':'LK','Sweden':'SE','Switzerland':'CH',
-  'Taiwan':'TW','Thailand':'TH','Tunisia':'TN','Turkey':'TR','Ukraine':'UA',
-  'United Arab Emirates':'AE','United Kingdom':'GB','United States':'US',
-  'Uruguay':'UY','Uzbekistan':'UZ','Venezuela':'VE','Vietnam':'VN',
-  'Yemen':'YE','Zimbabwe':'ZW',
-};
-
-function getFlag(name) {
-  const code = COUNTRY_CODES[name];
-  if (!code) return '🌍';
-  return [...code].map(c => String.fromCodePoint(0x1F1E0 + c.charCodeAt(0) - 65)).join('');
-}
 
 function fmtFollowers(n) {
   if (!n) return '—';
@@ -442,7 +410,7 @@ export default function PortalDashboard() {
                   </td>
                   <td style={{ padding: '13px 20px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
-                      <span style={{ fontSize: '16px', lineHeight: 1, width: '22px', textAlign: 'center', flexShrink: 0 }}>{getFlag(inf.country)}</span>
+                      <FlagImg country={inf.country} size={18} />
                       <span style={{ fontSize: '12px', color: D.textSub, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{inf.country || '—'}</span>
                     </div>
                   </td>
@@ -503,7 +471,7 @@ export default function PortalDashboard() {
                   <tr key={d.country} style={{ borderTop: `1px solid ${D.borderLight}` }}>
                     <td style={{ padding: '12px 24px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <span style={{ fontSize: '18px', lineHeight: 1, width: '24px', textAlign: 'center', flexShrink: 0 }}>{getFlag(d.country)}</span>
+                        <FlagImg country={d.country} size={20} />
                         <span style={{ fontWeight: '700', color: D.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.country}</span>
                       </div>
                     </td>
@@ -552,7 +520,7 @@ export default function PortalDashboard() {
                   <td style={{ padding: '12px 24px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <span style={{ fontSize: '16px', lineHeight: 1, width: '22px', textAlign: 'center', flexShrink: 0 }}>
-                        {s.influencer?.country ? getFlag(s.influencer.country) : ''}
+                        {s.influencer?.country ? <FlagImg country={s.influencer.country} size={16} /> : null}
                       </span>
                       <div>
                         <div style={{ fontWeight: '700', color: D.text }}>{s.influencer?.name || `@${s.influencer?.handle}`}</div>

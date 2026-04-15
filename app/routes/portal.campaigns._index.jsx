@@ -5,8 +5,7 @@ import { requirePortalUser } from '../utils/portal-auth.server';
 import { can, requirePermission } from '../utils/portal-permissions';
 import { audit } from '../utils/audit.server.js';
 import { fmtDate, fmtNum } from '../theme';
-import { D } from '../utils/portal-theme';
-import { btn, input } from '../theme';
+import { D, Pbtn as btn, Pinput as input, FlagImg } from '../utils/portal-theme';
 
 // ── Loader ────────────────────────────────────────────────────────────────────
 export async function loader({ request }) {
