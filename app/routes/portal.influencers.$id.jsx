@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useLoaderData, Form, useNavigation } from 'react-router';
+import { Link, useLoaderData, Form, useNavigation, redirect } from 'react-router';
 import prisma from '../db.server';
 import { requirePortalUser } from '../utils/portal-auth.server';
 import { can, requirePermission } from '../utils/portal-permissions';
@@ -55,6 +55,21 @@ export async function action({ request, params }) {
     requirePermission(portalUser.role, 'editInfluencer');
     await prisma.influencer.update({ where: { id }, data: { archived: false } });
     await audit({ shop, portalUser, action: 'unarchived_influencer', entityType: 'influencer', entityId: id, detail: 'Unarchived influencer' });
+  }
+
+  if (intent === 'delete') {
+    requirePermission(portalUser.role, 'deleteInfluencer');
+    const inf = await prisma.influencer.findUnique({ where: { id }, select: { handle: true } });
+    // Delete all related seeding products, then seedings, then the influencer
+    const seedingIds = (await prisma.seeding.findMany({ where: { influencerId: id }, select: { id: true } })).map(s => s.id);
+    if (seedingIds.length > 0) {
+      await prisma.seedingProduct.deleteMany({ where: { seedingId: { in: seedingIds } } });
+      await prisma.seeding.deleteMany({ where: { id: { in: seedingIds } } });
+    }
+    await prisma.influencerSavedSize.deleteMany({ where: { influencerId: id } }).catch(() => {});
+    await prisma.influencer.delete({ where: { id } });
+    await audit({ shop, portalUser, action: 'deleted_influencer', entityType: 'influencer', entityId: id, detail: `Deleted influencer @${inf?.handle}` });
+    throw redirect('/portal/influencers');
   }
 
   return null;
@@ -113,8 +128,9 @@ export default function PortalInfluencerDetail() {
   const isSubmitting = navigation.state === 'submitting';
   const seedings     = influencer.seedings;
 
-  const [editProfile, setEditProfile] = useState(false);
-  const [editNotes,   setEditNotes]   = useState(false);
+  const [editProfile,    setEditProfile]    = useState(false);
+  const [editNotes,      setEditNotes]      = useState(false);
+  const [confirmDelete,  setConfirmDelete]  = useState(false);
 
   // KPIs
   const totalCost  = seedings.reduce((s, sd) => s + (sd.totalCost ?? 0), 0);
@@ -158,17 +174,18 @@ export default function PortalInfluencerDetail() {
       {/* Profile header */}
       <div style={{ ...card(), display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px', flexWrap: 'wrap', gap: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          {/* Avatar */}
+          {/* Avatar — show initials by default, swap to photo on successful load */}
           <div style={{ width: '56px', height: '56px', borderRadius: '50%', overflow: 'hidden', flexShrink: 0, backgroundColor: D.accentLight, border: `2px solid ${D.accent}`, position: 'relative' }}>
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: '900', color: D.accent }}>
+              {initials}
+            </div>
             <img
               src={`https://unavatar.io/instagram/${handle}`}
               alt=""
-              onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'flex'; }}
-              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+              onLoad={e => { e.currentTarget.style.opacity = '1'; }}
+              onError={e => { e.currentTarget.style.display = 'none'; }}
+              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', position: 'relative', opacity: 0, transition: 'opacity 0.2s' }}
             />
-            <div style={{ display: 'none', position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: '900', color: D.accent }}>
-              {initials}
-            </div>
           </div>
           {/* Info */}
           <div>
@@ -334,7 +351,7 @@ export default function PortalInfluencerDetail() {
           )}
         </div>
 
-        {/* Archive */}
+        {/* Archive + Delete */}
         {canEdit && (
           <div style={card()}>
             <div style={{ fontSize: '12px', fontWeight: '800', color: D.text, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '10px' }}>⚙️ Status</div>
@@ -343,13 +360,40 @@ export default function PortalInfluencerDetail() {
                 ? 'This influencer is archived and hidden from the active list.'
                 : 'Archive to hide from active lists without deleting.'}
             </p>
-            <Form method="post">
+            <Form method="post" style={{ marginBottom: '8px' }}>
               <input type="hidden" name="intent" value={influencer.archived ? 'unarchive' : 'archive'} />
               <button type="submit" disabled={isSubmitting}
                 style={{ width: '100%', padding: '9px 16px', borderRadius: '8px', border: `1px solid ${influencer.archived ? D.accent : D.warningText}`, cursor: 'pointer', fontSize: '13px', fontWeight: '700', backgroundColor: influencer.archived ? D.accentLight : D.warningBg, color: influencer.archived ? D.accent : D.warningText }}>
                 {influencer.archived ? '↩ Unarchive' : '📦 Archive'}
               </button>
             </Form>
+
+            {/* Delete — requires confirmation */}
+            {!confirmDelete ? (
+              <button type="button" onClick={() => setConfirmDelete(true)}
+                style={{ width: '100%', padding: '9px 16px', borderRadius: '8px', border: `1px solid ${D.errorText}`, cursor: 'pointer', fontSize: '13px', fontWeight: '700', backgroundColor: 'transparent', color: D.errorText }}>
+                🗑 Delete Influencer
+              </button>
+            ) : (
+              <div style={{ padding: '12px', borderRadius: '8px', border: `1px solid ${D.errorText}`, backgroundColor: D.errorBg }}>
+                <p style={{ margin: '0 0 10px', fontSize: '13px', color: D.errorText, fontWeight: '600' }}>
+                  This will permanently delete @{handle} and all their seedings. Are you sure?
+                </p>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <Form method="post" style={{ flex: 1 }}>
+                    <input type="hidden" name="intent" value="delete" />
+                    <button type="submit" disabled={isSubmitting}
+                      style={{ width: '100%', padding: '8px', borderRadius: '7px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: '700', backgroundColor: D.errorText, color: '#fff' }}>
+                      {isSubmitting ? 'Deleting…' : 'Yes, Delete'}
+                    </button>
+                  </Form>
+                  <button type="button" onClick={() => setConfirmDelete(false)}
+                    style={{ padding: '8px 14px', borderRadius: '7px', border: `1px solid ${D.border}`, cursor: 'pointer', fontSize: '13px', fontWeight: '600', backgroundColor: 'transparent', color: D.textSub }}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

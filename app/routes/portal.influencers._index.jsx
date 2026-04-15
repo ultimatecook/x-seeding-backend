@@ -457,15 +457,16 @@ export default function PortalInfluencers() {
                   <td style={{ padding: '12px 16px', fontWeight: '700' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                       <div style={{ width: '32px', height: '32px', borderRadius: '50%', overflow: 'hidden', flexShrink: 0, backgroundColor: D.accentLight, border: `1.5px solid ${D.accent}`, position: 'relative' }}>
+                        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: '800', color: D.accent }}>
+                          {(inf.handle || '@').replace(/^@/, '').slice(0, 1).toUpperCase()}
+                        </div>
                         <img
                           src={`https://unavatar.io/instagram/${inf.handle.replace(/^@/, '')}`}
                           alt=""
-                          onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'flex'; }}
-                          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                          onLoad={e => { e.currentTarget.style.opacity = '1'; }}
+                          onError={e => { e.currentTarget.style.display = 'none'; }}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', position: 'relative', opacity: 0, transition: 'opacity 0.2s' }}
                         />
-                        <div style={{ display: 'none', position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: '800', color: D.accent }}>
-                          {(inf.handle || '@').slice(1, 2).toUpperCase()}
-                        </div>
                       </div>
                       <Link to={`/portal/influencers/${inf.id}`} style={{ color: D.accent, textDecoration: 'none', fontWeight: '700' }}>@{inf.handle.replace(/^@/, '')}</Link>
                     </div>

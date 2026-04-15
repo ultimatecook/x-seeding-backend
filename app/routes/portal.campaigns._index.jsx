@@ -1,10 +1,12 @@
-import { useLoaderData, Link } from 'react-router';
+import { useState } from 'react';
+import { useLoaderData, Link, Form, redirect } from 'react-router';
 import prisma from '../db.server';
 import { requirePortalUser } from '../utils/portal-auth.server';
-import { requirePermission } from '../utils/portal-permissions';
+import { can, requirePermission } from '../utils/portal-permissions';
+import { audit } from '../utils/audit.server.js';
 import { fmtDate, fmtNum } from '../theme';
 import { D } from '../utils/portal-theme';
-
+import { btn, input } from '../theme';
 
 export async function loader({ request }) {
   const { shop, portalUser } = await requirePortalUser(request);
@@ -14,11 +16,25 @@ export async function loader({ request }) {
     include: { products: true, _count: { select: { seedings: true } } },
     orderBy: { createdAt: 'desc' },
   });
-  return { campaigns };
+  return { campaigns, canCreate: can.createCampaign(portalUser.role) };
+}
+
+export async function action({ request }) {
+  const { shop, portalUser } = await requirePortalUser(request);
+  requirePermission(portalUser.role, 'createCampaign');
+  const formData = await request.formData();
+  const title    = String(formData.get('title') || '').trim();
+  const budgetRaw = formData.get('budget');
+  const budget   = budgetRaw ? parseFloat(budgetRaw) : null;
+  if (!title) return { error: 'Campaign title is required.' };
+  const campaign = await prisma.campaign.create({ data: { shop, title, budget } });
+  await audit({ shop, portalUser, action: 'created_campaign', entityType: 'campaign', entityId: campaign.id, detail: `Created campaign "${title}"` });
+  throw redirect(`/portal/campaigns/${campaign.id}`);
 }
 
 export default function PortalCampaigns() {
-  const { campaigns } = useLoaderData();
+  const { campaigns, canCreate } = useLoaderData();
+  const [showForm, setShowForm] = useState(false);
 
   return (
     <div style={{ display: 'grid', gap: '20px' }}>
@@ -33,7 +49,41 @@ export default function PortalCampaigns() {
             {campaigns.length} campaign{campaigns.length !== 1 ? 's' : ''}
           </p>
         </div>
+        {canCreate && (
+          <button type="button" onClick={() => setShowForm(v => !v)}
+            style={{ ...btn.primary, padding: '9px 18px', fontSize: '13px' }}>
+            {showForm ? 'Cancel' : '+ New Campaign'}
+          </button>
+        )}
       </div>
+
+      {/* Create form */}
+      {showForm && canCreate && (
+        <div style={{ backgroundColor: D.surface, border: `1px solid ${D.border}`, borderRadius: '12px', padding: '20px 24px', boxShadow: D.shadow }}>
+          <div style={{ fontSize: '13px', fontWeight: '800', color: D.text, marginBottom: '14px' }}>New Campaign</div>
+          <Form method="post" onSubmit={() => setShowForm(false)}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 160px auto', gap: '10px', alignItems: 'end' }}>
+              <div>
+                <label style={{ fontSize: '11px', fontWeight: '700', color: D.textMuted, textTransform: 'uppercase', letterSpacing: '0.6px', display: 'block', marginBottom: '5px' }}>
+                  Campaign Name *
+                </label>
+                <input name="title" required placeholder="e.g. Summer Drop 2025" autoFocus
+                  style={{ ...input.base, width: '100%', boxSizing: 'border-box' }} />
+              </div>
+              <div>
+                <label style={{ fontSize: '11px', fontWeight: '700', color: D.textMuted, textTransform: 'uppercase', letterSpacing: '0.6px', display: 'block', marginBottom: '5px' }}>
+                  Budget (€)
+                </label>
+                <input name="budget" type="number" min="0" step="0.01" placeholder="Optional"
+                  style={{ ...input.base, width: '100%', boxSizing: 'border-box' }} />
+              </div>
+              <button type="submit" style={{ ...btn.primary, padding: '9px 20px', whiteSpace: 'nowrap' }}>
+                Create
+              </button>
+            </div>
+          </Form>
+        </div>
+      )}
 
       {campaigns.length === 0 ? (
         <div style={{
@@ -41,7 +91,7 @@ export default function PortalCampaigns() {
           border: `2px dashed ${D.border}`, borderRadius: '12px', color: D.textMuted,
         }}>
           <p style={{ margin: 0, fontSize: '15px', color: D.textSub }}>No campaigns yet.</p>
-          <p style={{ margin: '6px 0 0', fontSize: '13px' }}>Campaigns are created in the Shopify admin app.</p>
+          {canCreate && <p style={{ margin: '6px 0 0', fontSize: '13px' }}>Click "+ New Campaign" to create one.</p>}
         </div>
       ) : (
         <div style={{ display: 'grid', gap: '12px' }}>
