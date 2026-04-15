@@ -155,6 +155,21 @@ export async function action({ request }) {
     return { bulkDone: ids.length };
   }
 
+  if (intent === 'bulkDelete') {
+    requirePermission(portalUser.role, 'editInfluencer');
+    const ids = formData.getAll('ids').map(Number);
+    // Cascade: delete child records first
+    const seedingIds = (await prisma.seeding.findMany({ where: { influencerId: { in: ids } }, select: { id: true } })).map(s => s.id);
+    if (seedingIds.length > 0) {
+      await prisma.seedingProduct.deleteMany({ where: { seedingId: { in: seedingIds } } });
+      await prisma.seeding.deleteMany({ where: { id: { in: seedingIds } } });
+    }
+    await prisma.influencerSavedSize.deleteMany({ where: { influencerId: { in: ids } } });
+    await prisma.influencer.deleteMany({ where: { id: { in: ids } } });
+    await audit({ shop, portalUser, action: 'bulk_deleted', entityType: 'influencer', detail: `Permanently deleted ${ids.length} influencer(s)` });
+    return { bulkDeleted: ids.length };
+  }
+
   return null;
 }
 
@@ -178,15 +193,17 @@ export default function PortalInfluencers() {
   const canCreate = can.createInfluencer(role);
   const canEdit   = can.editInfluencer(role);
 
-  const [showForm,   setShowForm]   = useState(false);
-  const [showImport, setShowImport] = useState(false);
-  const [selected,   setSelected]   = useState(new Set());
-  const [tierPick,   setTierPick]   = useState(null);
-  const [localQ,     setLocalQ]     = useState(initQ);
+  const [showForm,     setShowForm]     = useState(false);
+  const [showImport,   setShowImport]   = useState(false);
+  const [selected,     setSelected]     = useState(new Set());
+  const [tierPick,     setTierPick]     = useState(null);
+  const [localQ,       setLocalQ]       = useState(initQ);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   // Close form on success
-  if (actionData?.created  && showForm)   { setShowForm(false);   setTierPick(null); }
-  if (actionData?.imported && showImport) { setShowImport(false); }
+  if (actionData?.created    && showForm)    { setShowForm(false);    setTierPick(null); }
+  if (actionData?.imported   && showImport)  { setShowImport(false);  }
+  if (actionData?.bulkDeleted != null)       { setSelected(new Set()); setConfirmDelete(false); }
 
   const totalPages = Math.ceil(total / 40);
 
@@ -255,8 +272,13 @@ export default function PortalInfluencers() {
         </div>
       )}
       {actionData?.bulkDone != null && (
-        <div style={{ padding: '12px 16px', backgroundColor: D.successBg, color: D.successText, borderRadius: '8px', fontWeight: '600', fontSize: '13px' }}>
+        <div style={{ padding: '12px 16px', backgroundColor: D.accentLight, color: D.accent, borderRadius: '8px', fontWeight: '600', fontSize: '13px', border: `1px solid ${D.accent}` }}>
           ✓ Updated {actionData.bulkDone} influencer{actionData.bulkDone !== 1 ? 's' : ''}.
+        </div>
+      )}
+      {actionData?.bulkDeleted != null && (
+        <div style={{ padding: '12px 16px', backgroundColor: D.errorBg, color: D.errorText, borderRadius: '8px', fontWeight: '600', fontSize: '13px', border: `1px solid ${D.errorText}` }}>
+          ✓ Permanently deleted {actionData.bulkDeleted} influencer{actionData.bulkDeleted !== 1 ? 's' : ''}.
         </div>
       )}
       {actionData?.error && (
@@ -404,6 +426,8 @@ export default function PortalInfluencers() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 16px', backgroundColor: D.accentLight, border: `1px solid ${D.accent}`, borderRadius: '8px', flexWrap: 'wrap' }}>
           <span style={{ fontSize: '13px', fontWeight: '700', color: D.accent }}>{selectedInView.length} selected</span>
           <div style={{ flex: 1 }} />
+
+          {/* Archive / Unarchive */}
           {view !== 'archived' ? (
             <Form method="post" style={{ display: 'inline' }} onSubmit={clearSel}>
               <input type="hidden" name="intent" value="bulkArchive" />
@@ -417,7 +441,32 @@ export default function PortalInfluencers() {
               <button type="submit" disabled={isSubmitting} style={{ ...btnBase, color: D.text }}>Unarchive selected</button>
             </Form>
           )}
-          <button type="button" onClick={clearSel} style={{ ...btnBase }}>Clear</button>
+
+          {/* Delete — two-step confirmation */}
+          {!confirmDelete ? (
+            <button type="button" onClick={() => setConfirmDelete(true)}
+              style={{ ...btnBase, color: D.errorText, borderColor: D.errorText }}>
+              Delete selected
+            </button>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 12px', backgroundColor: D.errorBg, border: `1px solid ${D.errorText}`, borderRadius: '8px' }}>
+              <span style={{ fontSize: '12px', fontWeight: '700', color: D.errorText }}>
+                Permanently delete {selectedInView.length} influencer{selectedInView.length !== 1 ? 's' : ''}?
+              </span>
+              <Form method="post" style={{ display: 'inline' }}>
+                <input type="hidden" name="intent" value="bulkDelete" />
+                {selectedInView.map(id => <input key={id} type="hidden" name="ids" value={id} />)}
+                <button type="submit" disabled={isSubmitting}
+                  style={{ padding: '5px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: '700', cursor: 'pointer', border: 'none', backgroundColor: D.errorText, color: '#fff' }}>
+                  {isSubmitting ? 'Deleting…' : 'Yes, delete'}
+                </button>
+              </Form>
+              <button type="button" onClick={() => setConfirmDelete(false)}
+                style={{ ...btnBase, padding: '5px 10px', fontSize: '11px' }}>Cancel</button>
+            </div>
+          )}
+
+          <button type="button" onClick={() => { clearSel(); setConfirmDelete(false); }} style={{ ...btnBase }}>Clear</button>
         </div>
       )}
 
