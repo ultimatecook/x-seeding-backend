@@ -51,19 +51,27 @@ export async function loader({ request }) {
       where:  { shop, createdAt: { gte: start12Weeks } },
       select: { createdAt: true, totalCost: true },
     }),
-    // This month total spend
+    // This month total (retail)
     prisma.seeding.aggregate({
       where:  { shop, createdAt: { gte: startOfThisMonth } },
       _sum:   { totalCost: true },
       _count: { _all: true },
     }),
-    // Last month total spend
+    // Last month total (retail)
     prisma.seeding.aggregate({
       where:  { shop, createdAt: { gte: startOfLastMonth, lt: startOfThisMonth } },
       _sum:   { totalCost: true },
       _count: { _all: true },
     }),
   ]);
+
+  // Total actual cost (COGS) from SeedingProduct.cost
+  const allProductCosts = await prisma.seedingProduct.findMany({
+    where:  { seeding: { shop } },
+    select: { cost: true },
+  });
+  const totalCostValue = allProductCosts.reduce((s, p) => s + (p.cost ?? 0), 0);
+  const hasCostData    = allProductCosts.some(p => p.cost != null);
 
   // Status map
   const countMap         = Object.fromEntries(statusCounts.map(r => [r.status, r._count._all]));
@@ -121,7 +129,8 @@ export async function loader({ request }) {
     shippedSeedings, deliveredSeedings, postedSeedings,
     totalInfluencers, recentSeedings, countryData,
     topInfluencers: topInfluencersWithSpend,
-    totalSpend, thisMonthTotal, lastMonthTotal, spendDelta,
+    totalSpend, totalCostValue, hasCostData,
+    thisMonthTotal, lastMonthTotal, spendDelta,
     thisMonthCount: thisMonthSpend._count._all,
     weeks: weeks.map(w => ({ label: fmtWeekLabel(w.weekStart), seedings: w.seedings, spend: w.spend })),
   };
@@ -230,8 +239,8 @@ export default function PortalDashboard() {
     totalSeedings, pendingSeedings, orderedSeedings,
     shippedSeedings, deliveredSeedings, postedSeedings,
     totalInfluencers, recentSeedings, countryData,
-    topInfluencers, totalSpend, thisMonthTotal, lastMonthTotal,
-    spendDelta, thisMonthCount, weeks,
+    topInfluencers, totalSpend, totalCostValue, hasCostData,
+    thisMonthTotal, lastMonthTotal, spendDelta, thisMonthCount, weeks,
   } = useLoaderData();
 
   const totalCountrySpend = countryData.reduce((s, d) => s + d.spend, 0);
@@ -251,44 +260,37 @@ export default function PortalDashboard() {
       {/* ── Row 1: Hero spend + month + activity + influencers ── */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 160px 160px', gap: '14px' }}>
 
-        {/* Total spend — hero */}
+        {/* Retail value seeded — hero */}
         <div style={{
           backgroundColor: D.surface, border: `1px solid ${D.border}`,
           borderRadius: '12px', padding: '22px 24px', boxShadow: D.shadow,
         }}>
           <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.8px', color: D.textMuted, marginBottom: '10px' }}>
-            Total Value Seeded
+            Retail Value Seeded
           </div>
           <div style={{ fontSize: '38px', fontWeight: '800', color: D.text, letterSpacing: '-1.5px', lineHeight: 1 }}>
             €{fmtNum(totalSpend)}
           </div>
           <div style={{ fontSize: '12px', color: D.textSub, marginTop: '6px' }}>
-            Retail value across {totalSeedings} seeding{totalSeedings !== 1 ? 's' : ''}
+            Across {totalSeedings} seeding{totalSeedings !== 1 ? 's' : ''} · public price
           </div>
         </div>
 
-        {/* This month */}
+        {/* Actual cost (COGS) */}
         <div style={{
           backgroundColor: D.surface, border: `1px solid ${D.border}`,
           borderRadius: '12px', padding: '22px 24px', boxShadow: D.shadow,
         }}>
           <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.8px', color: D.textMuted, marginBottom: '10px' }}>
-            This Month
+            Actual Cost
           </div>
           <div style={{ fontSize: '38px', fontWeight: '800', color: D.text, letterSpacing: '-1.5px', lineHeight: 1 }}>
-            €{fmtNum(thisMonthTotal)}
+            {hasCostData ? `€${fmtNum(totalCostValue)}` : '—'}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
-            <span style={{ fontSize: '12px', color: D.textSub }}>{thisMonthCount} seedings</span>
-            {spendDelta !== null && (
-              <span style={{
-                fontSize: '11px', fontWeight: '700', padding: '2px 7px', borderRadius: '20px',
-                backgroundColor: spendDelta >= 0 ? D.statusDelivered.bg : D.statusPending.bg,
-                color:           spendDelta >= 0 ? D.statusDelivered.color : D.statusPending.color,
-              }}>
-                {spendDelta >= 0 ? '↑' : '↓'} {Math.abs(spendDelta)}% vs last month
-              </span>
-            )}
+          <div style={{ fontSize: '12px', color: D.textSub, marginTop: '6px' }}>
+            {hasCostData
+              ? `Your cost · ${totalSpend > 0 ? Math.round((totalCostValue / totalSpend) * 100) : 0}% of retail`
+              : 'Cost data unavailable — needs inventory scope'}
           </div>
         </div>
 
