@@ -4,65 +4,101 @@ import { requirePortalUser } from '../utils/portal-auth.server';
 import { fmtDate, fmtNum } from '../theme';
 import { D } from '../utils/portal-theme';
 
+// ── Loader ────────────────────────────────────────────────────────────────────
 export async function loader({ request }) {
   const { shop } = await requirePortalUser(request);
 
-  // Run all queries in parallel — 4 round-trips instead of 10
+  const now       = new Date();
+  const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const start12Weeks     = new Date(now); start12Weeks.setDate(now.getDate() - 83); // 12 weeks back
+
   const [
     statusCounts,
     totalInfluencers,
     recentSeedings,
     topInfluencers,
-    countryRaw,
+    allSeedingsForCountry,
+    weeklyRaw,
+    thisMonthSpend,
+    lastMonthSpend,
   ] = await Promise.all([
-    // Single groupBy replaces 6 separate count() calls
-    prisma.seeding.groupBy({
-      by:    ['status'],
-      where: { shop },
-      _count: { _all: true },
-    }),
+    prisma.seeding.groupBy({ by: ['status'], where: { shop }, _count: { _all: true } }),
     prisma.influencer.count({ where: { archived: false } }),
-    // Recent seedings — select only columns we render
     prisma.seeding.findMany({
       where:   { shop },
-      select: {
-        id: true, status: true, totalCost: true, createdAt: true,
-        influencer: { select: { id: true, handle: true, name: true } },
-        campaign:   { select: { id: true, title: true } },
-      },
+      select:  { id: true, status: true, totalCost: true, createdAt: true,
+                 influencer: { select: { id: true, handle: true, name: true, country: true } },
+                 campaign:   { select: { id: true, title: true } } },
       orderBy: { createdAt: 'desc' },
       take:    8,
     }),
-    // Top influencers — no need for full row
     prisma.influencer.findMany({
       where:   { archived: false },
       orderBy: { seedings: { _count: 'desc' } },
-      take:    5,
-      select: {
-        id: true, handle: true, name: true, followers: true, country: true,
-        _count: { select: { seedings: true } },
-      },
+      take:    8,
+      select:  { id: true, handle: true, name: true, followers: true, country: true,
+                 _count:    { select: { seedings: true } },
+                 seedings:  { select: { totalCost: true } } },
     }),
-    // Country stats — only the 3 fields we need, capped at 500 rows
     prisma.seeding.findMany({
       where:  { shop },
       select: { influencerId: true, totalCost: true, influencer: { select: { country: true } } },
-      take:   500,
+      take:   2000,
+    }),
+    // All seedings in last 12 weeks for the bar chart
+    prisma.seeding.findMany({
+      where:  { shop, createdAt: { gte: start12Weeks } },
+      select: { createdAt: true, totalCost: true },
+    }),
+    // This month total spend
+    prisma.seeding.aggregate({
+      where:  { shop, createdAt: { gte: startOfThisMonth } },
+      _sum:   { totalCost: true },
+      _count: { _all: true },
+    }),
+    // Last month total spend
+    prisma.seeding.aggregate({
+      where:  { shop, createdAt: { gte: startOfLastMonth, lt: startOfThisMonth } },
+      _sum:   { totalCost: true },
+      _count: { _all: true },
     }),
   ]);
 
-  // Derive counts from groupBy result
-  const countMap = Object.fromEntries(statusCounts.map(r => [r.status, r._count._all]));
+  // Status map
+  const countMap         = Object.fromEntries(statusCounts.map(r => [r.status, r._count._all]));
   const totalSeedings    = statusCounts.reduce((s, r) => s + r._count._all, 0);
-  const pendingSeedings  = countMap['Pending']  ?? 0;
-  const orderedSeedings  = countMap['Ordered']  ?? 0;
-  const shippedSeedings  = countMap['Shipped']  ?? 0;
-  const deliveredSeedings= countMap['Delivered']?? 0;
-  const postedSeedings   = countMap['Posted']   ?? 0;
+  const pendingSeedings  = countMap['Pending']   ?? 0;
+  const orderedSeedings  = countMap['Ordered']   ?? 0;
+  const shippedSeedings  = countMap['Shipped']   ?? 0;
+  const deliveredSeedings= countMap['Delivered'] ?? 0;
+  const postedSeedings   = countMap['Posted']    ?? 0;
 
-  // Build country stats in JS
+  // Total spend all time
+  const totalSpend     = allSeedingsForCountry.reduce((s, x) => s + (x.totalCost ?? 0), 0);
+  const thisMonthTotal = thisMonthSpend._sum.totalCost ?? 0;
+  const lastMonthTotal = lastMonthSpend._sum.totalCost ?? 0;
+  const spendDelta     = lastMonthTotal > 0
+    ? Math.round(((thisMonthTotal - lastMonthTotal) / lastMonthTotal) * 100)
+    : null;
+
+  // Weekly bar chart — bucket into 12 weeks
+  const weeks = Array.from({ length: 12 }, (_, i) => {
+    const d = new Date(start12Weeks);
+    d.setDate(d.getDate() + i * 7);
+    return { weekStart: new Date(d), seedings: 0, spend: 0 };
+  });
+  for (const s of weeklyRaw) {
+    const age = Math.floor((new Date(s.createdAt) - start12Weeks) / (7 * 24 * 60 * 60 * 1000));
+    if (age >= 0 && age < 12) {
+      weeks[age].seedings++;
+      weeks[age].spend += s.totalCost ?? 0;
+    }
+  }
+
+  // Country stats
   const countryMap = {};
-  for (const s of countryRaw) {
+  for (const s of allSeedingsForCountry) {
     const c = s.influencer?.country || 'Unknown';
     if (!countryMap[c]) countryMap[c] = { seedings: 0, spend: 0, influencers: new Set() };
     countryMap[c].seedings++;
@@ -71,28 +107,32 @@ export async function loader({ request }) {
   }
   const countryData = Object.entries(countryMap)
     .map(([country, d]) => ({ country, seedings: d.seedings, spend: d.spend, influencers: d.influencers.size }))
-    .sort((a, b) => b.seedings - a.seedings)
+    .sort((a, b) => b.spend - a.spend)
     .slice(0, 10);
+
+  // Top influencers with total spend
+  const topInfluencersWithSpend = topInfluencers.map(inf => ({
+    ...inf,
+    totalSpend: inf.seedings.reduce((s, x) => s + (x.totalCost ?? 0), 0),
+  }));
 
   return {
     totalSeedings, pendingSeedings, orderedSeedings,
     shippedSeedings, deliveredSeedings, postedSeedings,
-    totalInfluencers, recentSeedings, topInfluencers, countryData,
+    totalInfluencers, recentSeedings, countryData,
+    topInfluencers: topInfluencersWithSpend,
+    totalSpend, thisMonthTotal, lastMonthTotal, spendDelta,
+    thisMonthCount: thisMonthSpend._count._all,
+    weeks: weeks.map(w => ({ label: fmtWeekLabel(w.weekStart), seedings: w.seedings, spend: w.spend })),
   };
 }
 
-// ── Design tokens ─────────────────────────────────────────────────────────────
+function fmtWeekLabel(d) {
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+}
 
-const STATUS_META = {
-  Pending:   { bg: D.statusPending.bg,   text: D.statusPending.color,   dot: D.statusPending.dot   },
-  Ordered:   { bg: D.statusOrdered.bg,   text: D.statusOrdered.color,   dot: D.statusOrdered.dot   },
-  Shipped:   { bg: D.statusShipped.bg,   text: D.statusShipped.color,   dot: D.statusShipped.dot   },
-  Delivered: { bg: D.statusDelivered.bg, text: D.statusDelivered.color, dot: D.statusDelivered.dot },
-  Posted:    { bg: D.statusPosted.bg,    text: D.statusPosted.color,    dot: D.statusPosted.dot    },
-};
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-
-// Country ISO codes → emoji flag
 const COUNTRY_CODES = {
   'Afghanistan':'AF','Albania':'AL','Algeria':'DZ','Angola':'AO','Argentina':'AR',
   'Armenia':'AM','Australia':'AU','Austria':'AT','Azerbaijan':'AZ','Bahrain':'BH',
@@ -125,22 +165,20 @@ function getFlag(name) {
   return [...code].map(c => String.fromCodePoint(0x1F1E0 + c.charCodeAt(0) - 65)).join('');
 }
 
-function KpiCard({ label, value, sub }) {
-  return (
-    <div style={{
-      backgroundColor: D.surface, border: `1px solid ${D.border}`,
-      borderRadius: '12px', padding: '20px 22px', boxShadow: D.shadow,
-    }}>
-      <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.8px', color: D.textMuted, marginBottom: '8px' }}>
-        {label}
-      </div>
-      <div style={{ fontSize: '30px', fontWeight: '800', color: D.text, letterSpacing: '-1px', lineHeight: 1.1 }}>
-        {value}
-      </div>
-      {sub && <div style={{ fontSize: '12px', color: D.textSub, marginTop: '5px', fontWeight: '500' }}>{sub}</div>}
-    </div>
-  );
+function fmtFollowers(n) {
+  if (!n) return '—';
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000)     return `${(n / 1_000).toFixed(0)}K`;
+  return String(n);
 }
+
+const STATUS_META = {
+  Pending:   { bg: D.statusPending.bg,   text: D.statusPending.color,   dot: D.statusPending.dot   },
+  Ordered:   { bg: D.statusOrdered.bg,   text: D.statusOrdered.color,   dot: D.statusOrdered.dot   },
+  Shipped:   { bg: D.statusShipped.bg,   text: D.statusShipped.color,   dot: D.statusShipped.dot   },
+  Delivered: { bg: D.statusDelivered.bg, text: D.statusDelivered.color, dot: D.statusDelivered.dot },
+  Posted:    { bg: D.statusPosted.bg,    text: D.statusPosted.color,    dot: D.statusPosted.dot    },
+};
 
 function StatusPill({ status }) {
   const m = STATUS_META[status] || { bg: D.surfaceHigh, text: D.textSub, dot: D.textMuted };
@@ -157,225 +195,328 @@ function StatusPill({ status }) {
   );
 }
 
+// ── Mini bar chart (pure CSS/SVG-free) ────────────────────────────────────────
+function BarChart({ weeks }) {
+  const maxVal = Math.max(...weeks.map(w => w.seedings), 1);
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-end', gap: '5px', height: '80px' }}>
+      {weeks.map((w, i) => {
+        const pct = (w.seedings / maxVal) * 100;
+        const isLast = i === weeks.length - 1;
+        return (
+          <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', height: '100%', justifyContent: 'flex-end', position: 'relative', group: 'true' }}>
+            <div
+              title={`${w.label}: ${w.seedings} seedings`}
+              style={{
+                width: '100%',
+                height: `${Math.max(pct, 4)}%`,
+                borderRadius: '3px 3px 0 0',
+                backgroundColor: isLast ? 'var(--pt-accent)' : 'var(--pt-surface-high)',
+                border: isLast ? 'none' : `1px solid var(--pt-border)`,
+                cursor: 'default',
+                transition: 'background-color 0.15s',
+              }}
+            />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
 export default function PortalDashboard() {
   const {
     totalSeedings, pendingSeedings, orderedSeedings,
     shippedSeedings, deliveredSeedings, postedSeedings,
-    totalInfluencers, recentSeedings, topInfluencers, countryData,
+    totalInfluencers, recentSeedings, countryData,
+    topInfluencers, totalSpend, thisMonthTotal, lastMonthTotal,
+    spendDelta, thisMonthCount, weeks,
   } = useLoaderData();
 
+  const totalCountrySpend = countryData.reduce((s, d) => s + d.spend, 0);
   const activeSeedings    = orderedSeedings + shippedSeedings;
-  const completedSeedings = deliveredSeedings + postedSeedings;
-  const maxCountrySeedings = countryData[0]?.seedings || 1;
-  const totalCountrySeedings = countryData.reduce((s, d) => s + d.seedings, 0);
 
-  const statusBreakdown = [
+  const statusPipeline = [
     { label: 'Pending',   count: pendingSeedings,   color: D.statusPending.dot },
     { label: 'Ordered',   count: orderedSeedings,   color: D.statusOrdered.dot },
-    { label: 'Shipped',   count: shippedSeedings,   color: D.statusDelivered.dot },
+    { label: 'Shipped',   count: shippedSeedings,   color: D.statusShipped.dot },
     { label: 'Delivered', count: deliveredSeedings, color: D.statusDelivered.dot },
     { label: 'Posted',    count: postedSeedings,    color: D.purple },
-  ].filter(s => s.count > 0);
+  ];
 
   return (
-    <div style={{ display: 'grid', gap: '20px' }}>
+    <div style={{ display: 'grid', gap: '18px' }}>
 
-      {/* ── KPI Row ───────────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '14px' }}>
-        <KpiCard label="Total Seedings"  value={totalSeedings}    sub="All time" />
-        <KpiCard label="Pending"         value={pendingSeedings}  sub="Awaiting order" />
-        <KpiCard label="In Transit"      value={activeSeedings}   sub="Ordered + Shipped" />
-        <KpiCard label="Influencers"     value={totalInfluencers} sub="Active roster" />
+      {/* ── Row 1: Hero spend + month + activity + influencers ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 160px 160px', gap: '14px' }}>
+
+        {/* Total spend — hero */}
+        <div style={{
+          backgroundColor: D.surface, border: `1px solid ${D.border}`,
+          borderRadius: '12px', padding: '22px 24px', boxShadow: D.shadow,
+        }}>
+          <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.8px', color: D.textMuted, marginBottom: '10px' }}>
+            Total Value Seeded
+          </div>
+          <div style={{ fontSize: '38px', fontWeight: '800', color: D.text, letterSpacing: '-1.5px', lineHeight: 1 }}>
+            €{fmtNum(totalSpend)}
+          </div>
+          <div style={{ fontSize: '12px', color: D.textSub, marginTop: '6px' }}>
+            Retail value across {totalSeedings} seeding{totalSeedings !== 1 ? 's' : ''}
+          </div>
+        </div>
+
+        {/* This month */}
+        <div style={{
+          backgroundColor: D.surface, border: `1px solid ${D.border}`,
+          borderRadius: '12px', padding: '22px 24px', boxShadow: D.shadow,
+        }}>
+          <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.8px', color: D.textMuted, marginBottom: '10px' }}>
+            This Month
+          </div>
+          <div style={{ fontSize: '38px', fontWeight: '800', color: D.text, letterSpacing: '-1.5px', lineHeight: 1 }}>
+            €{fmtNum(thisMonthTotal)}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
+            <span style={{ fontSize: '12px', color: D.textSub }}>{thisMonthCount} seedings</span>
+            {spendDelta !== null && (
+              <span style={{
+                fontSize: '11px', fontWeight: '700', padding: '2px 7px', borderRadius: '20px',
+                backgroundColor: spendDelta >= 0 ? D.statusDelivered.bg : D.statusPending.bg,
+                color:           spendDelta >= 0 ? D.statusDelivered.color : D.statusPending.color,
+              }}>
+                {spendDelta >= 0 ? '↑' : '↓'} {Math.abs(spendDelta)}% vs last month
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Active */}
+        <div style={{
+          backgroundColor: D.surface, border: `1px solid ${D.border}`,
+          borderRadius: '12px', padding: '22px 20px', boxShadow: D.shadow,
+        }}>
+          <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.8px', color: D.textMuted, marginBottom: '10px' }}>
+            In Transit
+          </div>
+          <div style={{ fontSize: '38px', fontWeight: '800', color: D.accent, letterSpacing: '-1.5px', lineHeight: 1 }}>
+            {activeSeedings}
+          </div>
+          <div style={{ fontSize: '12px', color: D.textSub, marginTop: '6px' }}>Ordered + Shipped</div>
+        </div>
+
+        {/* Influencers */}
+        <div style={{
+          backgroundColor: D.surface, border: `1px solid ${D.border}`,
+          borderRadius: '12px', padding: '22px 20px', boxShadow: D.shadow,
+        }}>
+          <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.8px', color: D.textMuted, marginBottom: '10px' }}>
+            Influencers
+          </div>
+          <div style={{ fontSize: '38px', fontWeight: '800', color: D.purple, letterSpacing: '-1.5px', lineHeight: 1 }}>
+            {totalInfluencers}
+          </div>
+          <div style={{ fontSize: '12px', color: D.textSub, marginTop: '6px' }}>Active roster</div>
+        </div>
       </div>
 
-      {/* ── Middle row: Pipeline + Top Influencers ────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '14px' }}>
+      {/* ── Row 2: Bar chart + Pipeline ─────────────────────────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '14px' }}>
 
-        {/* Pipeline */}
-        <div style={{ backgroundColor: D.surface, border: `1px solid ${D.border}`, borderRadius: '12px', padding: '22px 24px', boxShadow: D.shadow }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <h3 style={{ margin: 0, fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.8px', color: D.textMuted }}>Seeding Pipeline</h3>
-            <span style={{ fontSize: '11px', color: D.textMuted, fontWeight: '600' }}>{totalSeedings} total</span>
+        {/* Bar chart */}
+        <div style={{
+          backgroundColor: D.surface, border: `1px solid ${D.border}`,
+          borderRadius: '12px', padding: '22px 24px', boxShadow: D.shadow,
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+            <div>
+              <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.8px', color: D.textMuted, marginBottom: '4px' }}>
+                Seedings — Last 12 Weeks
+              </div>
+              <div style={{ fontSize: '22px', fontWeight: '800', color: D.text, letterSpacing: '-0.5px' }}>
+                {weeks.reduce((s, w) => s + w.seedings, 0)} seedings
+              </div>
+            </div>
+            <div style={{ fontSize: '12px', color: D.textMuted, textAlign: 'right' }}>
+              €{fmtNum(weeks.reduce((s, w) => s + w.spend, 0))} value
+            </div>
+          </div>
+          <BarChart weeks={weeks} />
+          {/* X-axis labels — show every 3rd */}
+          <div style={{ display: 'flex', gap: '5px', marginTop: '6px' }}>
+            {weeks.map((w, i) => (
+              <div key={i} style={{ flex: 1, textAlign: 'center', fontSize: '9px', color: D.textMuted, overflow: 'hidden' }}>
+                {i % 3 === 0 ? w.label : ''}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Pipeline funnel */}
+        <div style={{
+          backgroundColor: D.surface, border: `1px solid ${D.border}`,
+          borderRadius: '12px', padding: '22px 24px', boxShadow: D.shadow,
+        }}>
+          <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.8px', color: D.textMuted, marginBottom: '16px' }}>
+            Pipeline
           </div>
           {totalSeedings === 0 ? (
             <p style={{ margin: 0, color: D.textMuted, fontSize: '13px' }}>No seedings yet.</p>
           ) : (
             <>
-              <div style={{ display: 'flex', height: '8px', borderRadius: '99px', overflow: 'hidden', marginBottom: '20px', backgroundColor: D.surfaceHigh }}>
-                {statusBreakdown.map(s => (
+              {/* Stacked bar */}
+              <div style={{ display: 'flex', height: '6px', borderRadius: '99px', overflow: 'hidden', backgroundColor: D.surfaceHigh, marginBottom: '20px' }}>
+                {statusPipeline.filter(s => s.count > 0).map(s => (
                   <div key={s.label} style={{ width: `${(s.count / totalSeedings) * 100}%`, backgroundColor: s.color }} />
                 ))}
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px' }}>
-                {[
-                  { label: 'Pending',   count: pendingSeedings,   color: D.statusPending.dot },
-                  { label: 'Ordered',   count: orderedSeedings,   color: D.statusOrdered.dot },
-                  { label: 'Shipped',   count: shippedSeedings,   color: D.statusDelivered.dot },
-                  { label: 'Delivered', count: deliveredSeedings, color: D.statusDelivered.dot },
-                  { label: 'Posted',    count: postedSeedings,    color: D.purple },
-                ].map(s => (
-                  <div key={s.label} style={{ padding: '10px 12px', borderRadius: '8px', backgroundColor: D.surfaceHigh }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '6px' }}>
+              {/* Status rows */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {statusPipeline.map(s => (
+                  <div key={s.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: s.color, flexShrink: 0 }} />
-                      <span style={{ fontSize: '10px', fontWeight: '700', color: D.textMuted, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{s.label}</span>
+                      <span style={{ fontSize: '13px', color: D.textSub }}>{s.label}</span>
                     </div>
-                    <span style={{ fontSize: '22px', fontWeight: '800', color: D.text, letterSpacing: '-0.5px' }}>{s.count}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{ width: '80px', height: '4px', backgroundColor: D.surfaceHigh, borderRadius: '99px', overflow: 'hidden' }}>
+                        <div style={{ width: `${(s.count / totalSeedings) * 100}%`, height: '100%', backgroundColor: s.color, borderRadius: '99px' }} />
+                      </div>
+                      <span style={{ fontSize: '14px', fontWeight: '800', color: D.text, minWidth: '24px', textAlign: 'right' }}>{s.count}</span>
+                    </div>
                   </div>
                 ))}
+              </div>
+              <div style={{ marginTop: '16px', paddingTop: '14px', borderTop: `1px solid ${D.border}`, fontSize: '12px', color: D.textMuted }}>
+                {Math.round(((deliveredSeedings + postedSeedings) / totalSeedings) * 100)}% completion rate
               </div>
             </>
           )}
         </div>
-
-        {/* Top Influencers */}
-        <div style={{ backgroundColor: D.surface, border: `1px solid ${D.border}`, borderRadius: '12px', padding: '22px 24px', boxShadow: D.shadow }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <h3 style={{ margin: 0, fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.8px', color: D.textMuted }}>Top Influencers</h3>
-            <Link to="/portal/influencers" style={{ fontSize: '11px', color: D.accent, fontWeight: '700', textDecoration: 'none' }}>View all →</Link>
-          </div>
-          {topInfluencers.length === 0 ? (
-            <p style={{ margin: 0, color: D.textMuted, fontSize: '13px' }}>No influencers yet.</p>
-          ) : (
-            <div style={{ display: 'grid', gap: '2px' }}>
-              {topInfluencers.map((inf, i) => {
-                const maxCount = topInfluencers[0]._count.seedings || 1;
-                const pct = (inf._count.seedings / maxCount) * 100;
-                return (
-                  <div key={inf.id} style={{ display: 'grid', gridTemplateColumns: '20px 1fr auto', alignItems: 'center', gap: '10px', padding: '9px 0', borderBottom: i < topInfluencers.length - 1 ? `1px solid ${D.borderLight}` : 'none' }}>
-                    <span style={{ fontSize: '11px', fontWeight: '700', color: D.textMuted }}>{i + 1}</span>
-                    <div>
-                      <div style={{ fontSize: '13px', fontWeight: '700', color: D.text, marginBottom: '4px' }}>{inf.name || `@${inf.handle}`}</div>
-                      <div style={{ height: '4px', borderRadius: '99px', backgroundColor: D.surfaceHigh }}>
-                        <div style={{ width: `${pct}%`, height: '100%', backgroundColor: D.accent, borderRadius: '99px' }} />
-                      </div>
-                    </div>
-                    <span style={{ fontSize: '13px', fontWeight: '700', color: D.text }}>{inf._count.seedings}</span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
       </div>
 
-      {/* ── Country breakdown (Stripe-style) ──────────────────── */}
+      {/* ── Row 3: Top Influencers ───────────────────────────────── */}
+      <div style={{
+        backgroundColor: D.surface, border: `1px solid ${D.border}`,
+        borderRadius: '12px', boxShadow: D.shadow, overflow: 'hidden',
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px', borderBottom: `1px solid ${D.border}` }}>
+          <div style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.8px', color: D.textMuted }}>
+            Top Influencers
+          </div>
+          <Link to="/portal/influencers" style={{ fontSize: '11px', color: D.accent, fontWeight: '700', textDecoration: 'none' }}>View all →</Link>
+        </div>
+        {topInfluencers.length === 0 ? (
+          <div style={{ padding: '32px 24px', textAlign: 'center', color: D.textMuted, fontSize: '13px' }}>No influencers yet.</div>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+            <thead>
+              <tr style={{ backgroundColor: D.bg }}>
+                {['#', 'Influencer', 'Country', 'Followers', 'Seedings', 'Value Seeded'].map(h => (
+                  <th key={h} style={{ textAlign: h === '#' ? 'center' : 'left', padding: '9px 20px', color: D.textMuted, fontWeight: '700', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px', whiteSpace: 'nowrap' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {topInfluencers.map((inf, i) => (
+                <tr key={inf.id} style={{ borderTop: `1px solid ${D.borderLight}` }}>
+                  <td style={{ padding: '13px 20px', textAlign: 'center', color: D.textMuted, fontSize: '12px', fontWeight: '700', width: '40px' }}>
+                    {i + 1}
+                  </td>
+                  <td style={{ padding: '13px 20px' }}>
+                    <Link to={`/portal/influencers/${inf.id}`} style={{ textDecoration: 'none' }}>
+                      <div style={{ fontWeight: '700', color: D.text }}>{inf.name || `@${inf.handle}`}</div>
+                      {inf.name && <div style={{ fontSize: '11px', color: D.textMuted, marginTop: '1px' }}>@{inf.handle}</div>}
+                    </Link>
+                  </td>
+                  <td style={{ padding: '13px 20px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+                      <span style={{ fontSize: '18px', lineHeight: 1 }}>{getFlag(inf.country)}</span>
+                      <span style={{ fontSize: '12px', color: D.textSub }}>{inf.country || '—'}</span>
+                    </div>
+                  </td>
+                  <td style={{ padding: '13px 20px', color: D.textSub, fontSize: '12px', fontWeight: '600' }}>
+                    {fmtFollowers(inf.followers)}
+                  </td>
+                  <td style={{ padding: '13px 20px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ width: '60px', height: '4px', backgroundColor: D.surfaceHigh, borderRadius: '99px', overflow: 'hidden' }}>
+                        <div style={{ width: `${(inf._count.seedings / (topInfluencers[0]._count.seedings || 1)) * 100}%`, height: '100%', backgroundColor: D.accent, borderRadius: '99px' }} />
+                      </div>
+                      <span style={{ fontSize: '13px', fontWeight: '700', color: D.text }}>{inf._count.seedings}</span>
+                    </div>
+                  </td>
+                  <td style={{ padding: '13px 20px', fontWeight: '800', color: D.accent, fontSize: '13px' }}>
+                    €{fmtNum(inf.totalSpend)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* ── Row 4: Country breakdown ─────────────────────────────── */}
       {countryData.length > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-
-          {/* Left: big number + country rows */}
-          <div style={{
-            backgroundColor: D.surface, border: `1px solid ${D.border}`,
-            borderRadius: '12px', padding: '24px', boxShadow: D.shadow,
-          }}>
-            {/* Header stat — Stripe-style */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
-              <div>
-                <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.8px', color: D.textMuted, marginBottom: '8px' }}>
-                  Reach by Country
-                </div>
-                <div style={{ fontSize: '36px', fontWeight: '800', color: D.text, letterSpacing: '-1.5px', lineHeight: 1 }}>
-                  {countryData.length}
-                </div>
-                <div style={{ fontSize: '13px', color: D.textSub, marginTop: '4px' }}>
-                  {totalCountrySeedings} seedings across {countryData.length} countr{countryData.length !== 1 ? 'ies' : 'y'}
-                </div>
-              </div>
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: '5px',
-                backgroundColor: D.accentLight, borderRadius: '8px',
-                padding: '6px 12px',
-              }}>
-                <span style={{ fontSize: '13px' }}>🌍</span>
-                <span style={{ fontSize: '12px', fontWeight: '700', color: D.accent }}>Global</span>
-              </div>
+        <div style={{
+          backgroundColor: D.surface, border: `1px solid ${D.border}`,
+          borderRadius: '12px', boxShadow: D.shadow, overflow: 'hidden',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px', borderBottom: `1px solid ${D.border}` }}>
+            <div style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.8px', color: D.textMuted }}>
+              Reach by Country
             </div>
-
-            {/* Country rows */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              {countryData.slice(0, 8).map((d, i) => {
-                const pct = Math.round((d.seedings / totalCountrySeedings) * 100);
-                return (
-                  <div key={d.country}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '7px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <span style={{ fontSize: '22px', lineHeight: 1, flexShrink: 0 }}>{getFlag(d.country)}</span>
-                        <div>
-                          <div style={{ fontSize: '13px', fontWeight: '700', color: D.text }}>{d.country}</div>
-                          <div style={{ fontSize: '11px', color: D.textMuted, marginTop: '1px' }}>
-                            {d.seedings} seeding{d.seedings !== 1 ? 's' : ''} · {d.influencers} influencer{d.influencers !== 1 ? 's' : ''}
-                          </div>
-                        </div>
-                      </div>
-                      <span style={{ fontSize: '14px', fontWeight: '800', color: D.text, letterSpacing: '-0.3px' }}>
-                        {pct}%
-                      </span>
-                    </div>
-                    {/* Progress bar */}
-                    <div style={{ height: '6px', backgroundColor: D.surfaceHigh, borderRadius: '99px', overflow: 'hidden' }}>
-                      <div style={{
-                        height: '100%',
-                        width: `${pct}%`,
-                        borderRadius: '99px',
-                        background: `linear-gradient(90deg, ${D.accent} 0%, #9C8FFF 100%)`,
-                        transition: 'width 0.4s ease',
-                      }} />
-                    </div>
-                  </div>
-                );
-              })}
+            <div style={{ fontSize: '12px', color: D.textSub }}>
+              {countryData.length} countr{countryData.length !== 1 ? 'ies' : 'y'} · €{fmtNum(totalCountrySpend)} total
             </div>
           </div>
-
-          {/* Right: spend leaderboard (Stripe-style card) */}
-          <div style={{
-            backgroundColor: D.surface, border: `1px solid ${D.border}`,
-            borderRadius: '12px', padding: '24px', boxShadow: D.shadow,
-            display: 'flex', flexDirection: 'column',
-          }}>
-            <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.8px', color: D.textMuted, marginBottom: '6px' }}>
-              Investment by Country
-            </div>
-            <div style={{ fontSize: '36px', fontWeight: '800', color: D.text, letterSpacing: '-1.5px', lineHeight: 1, marginBottom: '4px' }}>
-              €{fmtNum(countryData.reduce((s, d) => s + d.spend, 0))}
-            </div>
-            <div style={{ fontSize: '13px', color: D.textSub, marginBottom: '24px' }}>
-              Total retail value seeded
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', flex: 1 }}>
-              {countryData.slice(0, 7).map((d, i) => {
-                const totalSpend = countryData.reduce((s, x) => s + x.spend, 0);
-                const pct = totalSpend > 0 ? Math.round((d.spend / totalSpend) * 100) : 0;
-                const COLORS = [D.accent, D.purple, D.statusDelivered.dot, D.statusShipped.dot, D.statusPending.dot, D.statusOrdered.dot, D.purpleLight];
-                const color  = COLORS[i % COLORS.length];
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+            <thead>
+              <tr style={{ backgroundColor: D.bg }}>
+                {['Country', 'Influencers', 'Seedings', 'Value Seeded', 'Share'].map(h => (
+                  <th key={h} style={{ textAlign: 'left', padding: '9px 24px', color: D.textMuted, fontWeight: '700', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {countryData.map((d, i) => {
+                const pct = totalCountrySpend > 0 ? (d.spend / totalCountrySpend) * 100 : 0;
                 return (
-                  <div key={d.country}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                  <tr key={d.country} style={{ borderTop: `1px solid ${D.borderLight}` }}>
+                    <td style={{ padding: '12px 24px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <span style={{ fontSize: '22px', lineHeight: 1 }}>{getFlag(d.country)}</span>
+                        <span style={{ fontWeight: '700', color: D.text }}>{d.country}</span>
+                      </div>
+                    </td>
+                    <td style={{ padding: '12px 24px', color: D.textSub, fontSize: '12px' }}>{d.influencers}</td>
+                    <td style={{ padding: '12px 24px', color: D.textSub, fontSize: '12px' }}>{d.seedings}</td>
+                    <td style={{ padding: '12px 24px', fontWeight: '800', color: D.text, fontSize: '13px' }}>€{fmtNum(d.spend)}</td>
+                    <td style={{ padding: '12px 24px', width: '160px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontSize: '18px', lineHeight: 1 }}>{getFlag(d.country)}</span>
-                        <span style={{ fontSize: '13px', fontWeight: '700', color: D.text }}>{d.country}</span>
+                        <div style={{ flex: 1, height: '5px', backgroundColor: D.surfaceHigh, borderRadius: '99px', overflow: 'hidden' }}>
+                          <div style={{ width: `${pct}%`, height: '100%', backgroundColor: D.accent, borderRadius: '99px' }} />
+                        </div>
+                        <span style={{ fontSize: '11px', fontWeight: '700', color: D.textMuted, minWidth: '32px', textAlign: 'right' }}>{Math.round(pct)}%</span>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <span style={{ fontSize: '13px', fontWeight: '800', color }}> €{fmtNum(d.spend)}</span>
-                        <span style={{ fontSize: '11px', color: D.textMuted, minWidth: '30px', textAlign: 'right' }}>{pct}%</span>
-                      </div>
-                    </div>
-                    <div style={{ height: '5px', backgroundColor: D.surfaceHigh, borderRadius: '99px', overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${pct}%`, backgroundColor: color, borderRadius: '99px', transition: 'width 0.4s ease' }} />
-                    </div>
-                  </div>
+                    </td>
+                  </tr>
                 );
               })}
-            </div>
-          </div>
+            </tbody>
+          </table>
         </div>
       )}
 
-      {/* ── Recent Seedings ────────────────────────────────────── */}
-      <div style={{ backgroundColor: D.surface, border: `1px solid ${D.border}`, borderRadius: '12px', boxShadow: D.shadow, overflow: 'hidden' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '18px 24px', borderBottom: `1px solid ${D.border}` }}>
-          <h3 style={{ margin: 0, fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.8px', color: D.textMuted }}>Recent Seedings</h3>
-          <Link to="/portal/seedings" style={{ fontSize: '12px', color: D.accent, fontWeight: '700', textDecoration: 'none' }}>View all →</Link>
+      {/* ── Row 5: Recent Seedings ───────────────────────────────── */}
+      <div style={{
+        backgroundColor: D.surface, border: `1px solid ${D.border}`,
+        borderRadius: '12px', boxShadow: D.shadow, overflow: 'hidden',
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px', borderBottom: `1px solid ${D.border}` }}>
+          <div style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.8px', color: D.textMuted }}>Recent Seedings</div>
+          <Link to="/portal/seedings" style={{ fontSize: '11px', color: D.accent, fontWeight: '700', textDecoration: 'none' }}>View all →</Link>
         </div>
         {recentSeedings.length === 0 ? (
           <div style={{ padding: '40px 24px', textAlign: 'center', color: D.textMuted, fontSize: '13px' }}>No seedings yet.</div>
@@ -383,27 +524,37 @@ export default function PortalDashboard() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
             <thead>
               <tr style={{ backgroundColor: D.bg }}>
-                {['Influencer', 'Campaign', 'Status', 'Date'].map(h => (
-                  <th key={h} style={{ textAlign: 'left', padding: '10px 24px', color: D.textMuted, fontWeight: '700', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.7px' }}>{h}</th>
+                {['Influencer', 'Campaign', 'Status', 'Value', 'Date'].map(h => (
+                  <th key={h} style={{ textAlign: 'left', padding: '9px 24px', color: D.textMuted, fontWeight: '700', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {recentSeedings.map((s, i) => (
+              {recentSeedings.map(s => (
                 <tr key={s.id} style={{ borderTop: `1px solid ${D.borderLight}` }}>
-                  <td style={{ padding: '13px 24px' }}>
-                    <div style={{ fontWeight: '700', color: D.text }}>{s.influencer?.name || `@${s.influencer?.handle}`}</div>
-                    {s.influencer?.name && s.influencer?.handle && (
-                      <div style={{ fontSize: '11px', color: D.textMuted, marginTop: '1px' }}>@{s.influencer.handle}</div>
-                    )}
+                  <td style={{ padding: '12px 24px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      {s.influencer?.country && (
+                        <span style={{ fontSize: '16px', lineHeight: 1 }}>{getFlag(s.influencer.country)}</span>
+                      )}
+                      <div>
+                        <div style={{ fontWeight: '700', color: D.text }}>{s.influencer?.name || `@${s.influencer?.handle}`}</div>
+                        {s.influencer?.name && s.influencer?.handle && (
+                          <div style={{ fontSize: '11px', color: D.textMuted }}>@{s.influencer.handle}</div>
+                        )}
+                      </div>
+                    </div>
                   </td>
-                  <td style={{ padding: '13px 24px', fontSize: '12px' }}>
-                    {s.campaign ? (
-                      <Link to={`/portal/campaigns/${s.campaign.id}`} style={{ color: D.accent, fontWeight: '600', textDecoration: 'none' }}>{s.campaign.title}</Link>
-                    ) : <span style={{ color: D.textMuted }}>—</span>}
+                  <td style={{ padding: '12px 24px', fontSize: '12px' }}>
+                    {s.campaign
+                      ? <Link to={`/portal/campaigns/${s.campaign.id}`} style={{ color: D.accent, fontWeight: '600', textDecoration: 'none' }}>{s.campaign.title}</Link>
+                      : <span style={{ color: D.textMuted }}>—</span>}
                   </td>
-                  <td style={{ padding: '13px 24px' }}><StatusPill status={s.status} /></td>
-                  <td style={{ padding: '13px 24px', color: D.textSub, fontSize: '12px' }}>{fmtDate(s.createdAt, 'medium')}</td>
+                  <td style={{ padding: '12px 24px' }}><StatusPill status={s.status} /></td>
+                  <td style={{ padding: '12px 24px', fontWeight: '700', color: D.text, fontSize: '13px' }}>
+                    {s.totalCost ? `€${fmtNum(s.totalCost)}` : '—'}
+                  </td>
+                  <td style={{ padding: '12px 24px', color: D.textSub, fontSize: '12px' }}>{fmtDate(s.createdAt, 'medium')}</td>
                 </tr>
               ))}
             </tbody>
