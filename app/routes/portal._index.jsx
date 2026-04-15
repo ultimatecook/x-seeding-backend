@@ -412,7 +412,15 @@ export default function PortalDashboard() {
         {topInfluencers.length === 0 ? (
           <div style={{ padding: '32px 24px', textAlign: 'center', color: D.textMuted, fontSize: '13px' }}>No influencers yet.</div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', tableLayout: 'fixed' }}>
+            <colgroup>
+              <col style={{ width: '44px' }} />
+              <col />
+              <col style={{ width: '160px' }} />
+              <col style={{ width: '100px' }} />
+              <col style={{ width: '140px' }} />
+              <col style={{ width: '130px' }} />
+            </colgroup>
             <thead>
               <tr style={{ backgroundColor: D.bg }}>
                 {['#', 'Influencer', 'Country', 'Followers', 'Seedings', 'Value Seeded'].map(h => (
@@ -423,19 +431,19 @@ export default function PortalDashboard() {
             <tbody>
               {topInfluencers.map((inf, i) => (
                 <tr key={inf.id} style={{ borderTop: `1px solid ${D.borderLight}` }}>
-                  <td style={{ padding: '13px 20px', textAlign: 'center', color: D.textMuted, fontSize: '12px', fontWeight: '700', width: '40px' }}>
+                  <td style={{ padding: '13px 20px', textAlign: 'center', color: D.textMuted, fontSize: '12px', fontWeight: '700' }}>
                     {i + 1}
                   </td>
-                  <td style={{ padding: '13px 20px' }}>
+                  <td style={{ padding: '13px 20px', overflow: 'hidden' }}>
                     <Link to={`/portal/influencers/${inf.id}`} style={{ textDecoration: 'none' }}>
-                      <div style={{ fontWeight: '700', color: D.text }}>{inf.name || `@${inf.handle}`}</div>
-                      {inf.name && <div style={{ fontSize: '11px', color: D.textMuted, marginTop: '1px' }}>@{inf.handle}</div>}
+                      <div style={{ fontWeight: '700', color: D.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{inf.name || `@${inf.handle}`}</div>
+                      {inf.name && <div style={{ fontSize: '11px', color: D.textMuted, marginTop: '1px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>@{inf.handle}</div>}
                     </Link>
                   </td>
                   <td style={{ padding: '13px 20px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
-                      <span style={{ fontSize: '18px', lineHeight: 1 }}>{getFlag(inf.country)}</span>
-                      <span style={{ fontSize: '12px', color: D.textSub }}>{inf.country || '—'}</span>
+                      <span style={{ fontSize: '16px', lineHeight: 1, width: '22px', textAlign: 'center', flexShrink: 0 }}>{getFlag(inf.country)}</span>
+                      <span style={{ fontSize: '12px', color: D.textSub, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{inf.country || '—'}</span>
                     </div>
                   </td>
                   <td style={{ padding: '13px 20px', color: D.textSub, fontSize: '12px', fontWeight: '600' }}>
@@ -473,7 +481,14 @@ export default function PortalDashboard() {
               {countryData.length} countr{countryData.length !== 1 ? 'ies' : 'y'} · €{fmtNum(totalCountrySpend)} total
             </div>
           </div>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', tableLayout: 'fixed' }}>
+            <colgroup>
+              <col />
+              <col style={{ width: '110px' }} />
+              <col style={{ width: '100px' }} />
+              <col style={{ width: '130px' }} />
+              <col style={{ width: '180px' }} />
+            </colgroup>
             <thead>
               <tr style={{ backgroundColor: D.bg }}>
                 {['Country', 'Influencers', 'Seedings', 'Value Seeded', 'Share'].map(h => (
@@ -488,8 +503,8 @@ export default function PortalDashboard() {
                   <tr key={d.country} style={{ borderTop: `1px solid ${D.borderLight}` }}>
                     <td style={{ padding: '12px 24px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <span style={{ fontSize: '22px', lineHeight: 1 }}>{getFlag(d.country)}</span>
-                        <span style={{ fontWeight: '700', color: D.text }}>{d.country}</span>
+                        <span style={{ fontSize: '18px', lineHeight: 1, width: '24px', textAlign: 'center', flexShrink: 0 }}>{getFlag(d.country)}</span>
+                        <span style={{ fontWeight: '700', color: D.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.country}</span>
                       </div>
                     </td>
                     <td style={{ padding: '12px 24px', color: D.textSub, fontSize: '12px' }}>{d.influencers}</td>
@@ -536,9 +551,9 @@ export default function PortalDashboard() {
                 <tr key={s.id} style={{ borderTop: `1px solid ${D.borderLight}` }}>
                   <td style={{ padding: '12px 24px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      {s.influencer?.country && (
-                        <span style={{ fontSize: '16px', lineHeight: 1 }}>{getFlag(s.influencer.country)}</span>
-                      )}
+                      <span style={{ fontSize: '16px', lineHeight: 1, width: '22px', textAlign: 'center', flexShrink: 0 }}>
+                        {s.influencer?.country ? getFlag(s.influencer.country) : ''}
+                      </span>
                       <div>
                         <div style={{ fontWeight: '700', color: D.text }}>{s.influencer?.name || `@${s.influencer?.handle}`}</div>
                         {s.influencer?.name && s.influencer?.handle && (
