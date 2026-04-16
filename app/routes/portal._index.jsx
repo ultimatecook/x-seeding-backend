@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useLoaderData, Link, useNavigate, useSearchParams } from 'react-router';
 import prisma from '../db.server';
 import { requirePortalUser } from '../utils/portal-auth.server';
@@ -313,6 +313,50 @@ function Rule({ my = 40 }) {
   return <div style={{ borderTop: '1px solid var(--pt-border)', margin: `${my}px 0` }} />;
 }
 
+// ── Band / section definitions ────────────────────────────────────────────────
+// Bands are the draggable rows. Sections are the individual hideable pieces.
+const DEFAULT_BAND_ORDER = ['stats', 'midrow', 'botrow'];
+
+const SECTION_DEFS = [
+  { id: 'stats',       label: 'Stats',          band: 'stats'   },
+  { id: 'pipeline',    label: 'Pipeline',        band: 'midrow'  },
+  { id: 'recent',      label: 'Recent Seedings', band: 'midrow'  },
+  { id: 'countries',   label: 'Countries',       band: 'botrow'  },
+  { id: 'influencers', label: 'Top Influencers', band: 'botrow'  },
+];
+
+// ── Draggable band wrapper ────────────────────────────────────────────────────
+function Band({ id, editMode, isDragOver, onDragStart, onDragOver, onDrop, onDragEnd, children }) {
+  return (
+    <div
+      draggable={editMode}
+      onDragStart={editMode ? e => { e.stopPropagation(); onDragStart(e, id); } : undefined}
+      onDragOver={editMode ? e => { e.preventDefault(); onDragOver(e, id); } : undefined}
+      onDrop={editMode ? e => { e.preventDefault(); onDrop(e, id); } : undefined}
+      onDragEnd={editMode ? onDragEnd : undefined}
+      style={{
+        position: 'relative',
+        cursor: editMode ? 'grab' : 'default',
+        borderRadius: '8px',
+        outline: editMode && isDragOver ? '2px solid var(--pt-accent)' : 'none',
+        outlineOffset: '6px',
+        transition: 'outline 0.1s',
+      }}
+    >
+      {editMode && (
+        <div style={{
+          position: 'absolute', top: '-18px', left: '50%', transform: 'translateX(-50%)',
+          fontSize: '13px', color: 'var(--pt-text-muted)', userSelect: 'none',
+          opacity: 0.45, letterSpacing: '4px',
+        }}>
+          · · ·
+        </div>
+      )}
+      {children}
+    </div>
+  );
+}
+
 // TIME_OPTIONS is built dynamically in the component (first pill uses month name from loader)
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
@@ -358,9 +402,66 @@ export default function PortalDashboard() {
     const qs = p.toString();
     return `/portal${qs ? `?${qs}` : ''}`;
   }
-  // val === null means MTD (the default) — clicking it clears the days param
-  const toggleDays = val => navigate(buildUrl(val === activeDays ? null : val, activeCountry));
+  const toggleDays    = val  => navigate(buildUrl(val === activeDays ? null : val, activeCountry));
   const toggleCountry = name => navigate(buildUrl(activeDays, activeCountry === name ? null : name));
+
+  // ── Edit mode: band order + section visibility ──────────────────────────────
+  const [editMode,     setEditMode]     = useState(false);
+  const [bandOrder,    setBandOrder]    = useState(DEFAULT_BAND_ORDER);
+  const [hiddenSet,    setHiddenSet]    = useState(() => new Set());
+
+  useEffect(() => {
+    try {
+      const o = localStorage.getItem('dash-order-v2');
+      const h = localStorage.getItem('dash-hidden-v2');
+      if (o) setBandOrder(JSON.parse(o));
+      if (h) setHiddenSet(new Set(JSON.parse(h)));
+    } catch {}
+  }, []);
+
+  const toggleSection = useCallback((id) => {
+    setHiddenSet(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      localStorage.setItem('dash-hidden-v2', JSON.stringify([...next]));
+      return next;
+    });
+  }, []);
+
+  // ── Drag-and-drop (only active in editMode) ─────────────────────────────────
+  const draggingId = useRef(null);
+  const [dragOver, setDragOver] = useState(null);
+
+  const handleDragStart = useCallback((e, id) => {
+    draggingId.current = id;
+    e.dataTransfer.effectAllowed = 'move';
+  }, []);
+  const handleDragOver = useCallback((e, id) => {
+    e.preventDefault();
+    setDragOver(id);
+  }, []);
+  const handleDrop = useCallback((e, targetId) => {
+    e.preventDefault();
+    setDragOver(null);
+    const fromId = draggingId.current;
+    if (!fromId || fromId === targetId) return;
+    setBandOrder(prev => {
+      const next = [...prev];
+      const fi = next.indexOf(fromId), ti = next.indexOf(targetId);
+      next.splice(fi, 1);
+      next.splice(ti, 0, fromId);
+      localStorage.setItem('dash-order-v2', JSON.stringify(next));
+      return next;
+    });
+    draggingId.current = null;
+  }, []);
+  const handleDragEnd = useCallback(() => {
+    setDragOver(null);
+    draggingId.current = null;
+  }, []);
+
+  // Convenience: is a given section visible?
+  const vis = (id) => !hiddenSet.has(id);
 
   // pill button style
   const pill = (active) => ({
@@ -373,19 +474,220 @@ export default function PortalDashboard() {
     boxShadow:       active ? '0 1px 4px rgba(124,111,247,0.3)' : 'none',
   });
 
+  // ── Band content renderers ─────────────────────────────────────────────────
+  const renderStats = () => (
+    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1px 1fr 1px 1fr 1px 1fr', alignItems: 'start', gap: '0' }}>
+      <div style={{ paddingRight: '36px' }}>
+        <Label>Retail Value Seeded</Label>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>
+          <span style={{ fontSize: '38px', fontWeight: '800', letterSpacing: '-1.5px', color: 'var(--pt-text)', lineHeight: 1 }}>
+            €{fmtNum(totalSpend)}
+          </span>
+          <Delta delta={spendDelta} />
+        </div>
+      </div>
+      <div style={{ backgroundColor: 'var(--pt-border)', alignSelf: 'stretch' }} />
+      <div style={{ padding: '0 32px' }}>
+        <Label>Units Sent</Label>
+        <span style={{ fontSize: '26px', fontWeight: '800', letterSpacing: '-0.8px', color: 'var(--pt-text)', lineHeight: 1 }}>{totalUnits}</span>
+      </div>
+      <div style={{ backgroundColor: 'var(--pt-border)', alignSelf: 'stretch' }} />
+      <div style={{ padding: '0 32px' }}>
+        <Label>In Transit</Label>
+        <span style={{ fontSize: '26px', fontWeight: '800', letterSpacing: '-0.8px', color: 'var(--pt-text)', lineHeight: 1 }}>{activeSeedings}</span>
+      </div>
+      <div style={{ backgroundColor: 'var(--pt-border)', alignSelf: 'stretch' }} />
+      <div style={{ paddingLeft: '32px' }}>
+        <Label>Influencers</Label>
+        <span style={{ fontSize: '26px', fontWeight: '800', letterSpacing: '-0.8px', color: 'var(--pt-text)', lineHeight: 1 }}>{totalInfluencers}</span>
+      </div>
+    </div>
+  );
+
+  const renderPipeline = () => (
+    <div>
+      <Label>Pipeline</Label>
+      {totalSeedings === 0 ? (
+        <p style={{ margin: 0, fontSize: '13px', color: 'var(--pt-text-muted)' }}>No seedings yet.</p>
+      ) : (
+        <>
+          <div style={{ display: 'flex', height: '3px', borderRadius: '99px', overflow: 'hidden', backgroundColor: 'var(--pt-surface-high)', marginBottom: '20px' }}>
+            {pipeline.filter(s => s.count > 0).map(s => (
+              <div key={s.label} title={`${s.label}: ${s.count}`} style={{ width: `${(s.count / totalSeedings) * 100}%`, backgroundColor: s.color }} />
+            ))}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {pipeline.map(s => (
+              <div key={s.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: s.color, flexShrink: 0 }} />
+                  <span style={{ fontSize: '12px', color: 'var(--pt-text-sub)' }}>{s.label}</span>
+                </div>
+                <span style={{ fontSize: '14px', fontWeight: '700', color: 'var(--pt-text)' }}>{s.count}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ fontSize: '11px', color: 'var(--pt-text-muted)', marginTop: '16px' }}>{completionRate}% delivered</div>
+        </>
+      )}
+    </div>
+  );
+
+  const renderRecent = () => (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+        <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--pt-text-muted)' }}>Recent Seedings</div>
+        <Link to="/portal/seedings" style={{ fontSize: '11px', color: 'var(--pt-accent)', fontWeight: '600', textDecoration: 'none' }}>View all →</Link>
+      </div>
+      {recentSeedings.length === 0 ? (
+        <p style={{ margin: 0, fontSize: '13px', color: 'var(--pt-text-muted)' }}>No seedings yet.</p>
+      ) : (
+        <div>
+          {recentSeedings.slice(0, 6).map((s, i) => (
+            <div key={s.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderTop: i === 0 ? 'none' : '1px solid var(--pt-border-light)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                {s.influencer?.country && <FlagImg country={s.influencer.country} size={13} />}
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--pt-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {s.influencer?.name || `@${s.influencer?.handle}`}
+                  </div>
+                  <div style={{ fontSize: '11px', color: 'var(--pt-text-muted)', marginTop: '1px' }}>
+                    {s.campaign?.title || '—'} · {fmtDate(s.createdAt, 'short')}
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0, marginLeft: '16px' }}>
+                <StatusDot status={s.status} />
+                <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--pt-text)', minWidth: '52px', textAlign: 'right' }}>
+                  {s.totalCost ? `€${fmtNum(s.totalCost)}` : '—'}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  const renderCountries = () => (
+    <div>
+      <Label>Top Countries</Label>
+      {countryData.length === 0 ? (
+        <p style={{ margin: 0, fontSize: '13px', color: 'var(--pt-text-muted)' }}>No data yet.</p>
+      ) : (
+        <div>
+          {countryData.slice(0, 5).map((d, i) => (
+            <div key={d.country} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 0', borderTop: i === 0 ? 'none' : '1px solid var(--pt-border-light)' }}>
+              <FlagImg country={d.country} size={17} />
+              <span style={{ flex: 1, fontSize: '13px', fontWeight: '500', color: 'var(--pt-text)' }}>{d.country}</span>
+              <span style={{ fontSize: '11px', color: 'var(--pt-text-muted)' }}>{d.seedings} seedings</span>
+              <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--pt-text)', minWidth: '56px', textAlign: 'right' }}>€{fmtNum(d.spend)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  const renderInfluencers = () => (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+        <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--pt-text-muted)' }}>Top Influencers</div>
+        <Link to="/portal/influencers" style={{ fontSize: '11px', color: 'var(--pt-accent)', fontWeight: '600', textDecoration: 'none' }}>View all →</Link>
+      </div>
+      {topInfluencers.length === 0 ? (
+        <p style={{ margin: 0, fontSize: '13px', color: 'var(--pt-text-muted)' }}>No influencers yet.</p>
+      ) : (
+        <div>
+          {topInfluencers.map((inf, i) => (
+            <Link key={inf.id} to={`/portal/influencers/${inf.id}`} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 0', borderTop: i === 0 ? 'none' : '1px solid var(--pt-border-light)' }}>
+              <span style={{ fontSize: '10px', fontWeight: '700', color: 'var(--pt-text-muted)', width: '14px', textAlign: 'right', flexShrink: 0 }}>{i + 1}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--pt-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{inf.name || `@${inf.handle}`}</div>
+                <div style={{ fontSize: '11px', color: 'var(--pt-text-muted)', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '1px' }}>
+                  <FlagImg country={inf.country} size={11} />
+                  {inf.country || '—'} · {fmtFollowers(inf.followers)}
+                </div>
+              </div>
+              <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--pt-text)' }}>{inf._count.seedings}</div>
+                <div style={{ fontSize: '11px', color: 'var(--pt-text-muted)' }}>seedings</div>
+              </div>
+              <div style={{ textAlign: 'right', flexShrink: 0, minWidth: '52px' }}>
+                <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--pt-accent)' }}>€{fmtNum(inf.totalSpend)}</div>
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  // ── Band renderer ──────────────────────────────────────────────────────────
+  const bandProps = (id) => ({
+    id, editMode,
+    isDragOver: dragOver === id,
+    onDragStart: handleDragStart, onDragOver: handleDragOver,
+    onDrop: handleDrop, onDragEnd: handleDragEnd,
+  });
+
+  const renderBand = (id) => {
+    if (id === 'stats') {
+      if (!vis('stats')) return null;
+      return (
+        <Band key={id} {...bandProps(id)}>
+          {renderStats()}
+        </Band>
+      );
+    }
+
+    if (id === 'midrow') {
+      const showP = vis('pipeline'), showR = vis('recent');
+      if (!showP && !showR) return null;
+      return (
+        <Band key={id} {...bandProps(id)}>
+          <div style={{ display: 'grid', gridTemplateColumns: showP && showR ? '220px 1fr' : '1fr', gap: '0 60px', alignItems: 'start' }}>
+            {showP && renderPipeline()}
+            {showR && renderRecent()}
+          </div>
+        </Band>
+      );
+    }
+
+    if (id === 'botrow') {
+      const showC = vis('countries') && !activeCountry;
+      const showI = vis('influencers');
+      if (!showC && !showI) return null;
+      return (
+        <Band key={id} {...bandProps(id)}>
+          <div style={{ display: 'grid', gridTemplateColumns: showC && showI ? '1fr 1fr' : '1fr', gap: '60px', alignItems: 'start' }}>
+            {showC && renderCountries()}
+            {showI && renderInfluencers()}
+          </div>
+        </Band>
+      );
+    }
+
+    return null;
+  };
+
+  // Compute which bands are visible (for inserting rules only between visible bands)
+  const visibleBands = bandOrder.filter(id => {
+    if (id === 'stats')  return vis('stats');
+    if (id === 'midrow') return vis('pipeline') || vis('recent');
+    if (id === 'botrow') return (vis('countries') && !activeCountry) || vis('influencers');
+    return false;
+  });
+
   return (
     <div style={{ paddingBottom: '60px' }}>
 
-      {/* ── Header + filters ─────────────────────────────────── */}
+      {/* ── Header ───────────────────────────────────────────── */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '36px' }}>
-        <h1 style={{ margin: 0, fontSize: '18px', fontWeight: '700', color: 'var(--pt-text)', letterSpacing: '-0.3px' }}>
-          Overview
-        </h1>
+        <h1 style={{ margin: 0, fontSize: '18px', fontWeight: '700', color: 'var(--pt-text)', letterSpacing: '-0.3px' }}>Overview</h1>
 
-        {/* Filters — time and country in separate groups */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-
-          {/* Time */}
+          {/* Time filter */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '2px', backgroundColor: 'var(--pt-surface-high)', borderRadius: '99px', padding: '3px', border: '1px solid var(--pt-border)' }}>
             {TIME_OPTIONS.map(opt => (
               <button key={opt.value ?? 'mtd'} onClick={() => toggleDays(opt.value)} style={pill(activeDays === opt.value)}>
@@ -393,14 +695,11 @@ export default function PortalDashboard() {
               </button>
             ))}
             {activeDays && (
-              <button onClick={() => navigate(buildUrl(null, activeCountry))}
-                style={{ ...pill(false), color: 'var(--pt-text-muted)', padding: '5px 9px' }}>
-                ✕
-              </button>
+              <button onClick={() => navigate(buildUrl(null, activeCountry))} style={{ ...pill(false), color: 'var(--pt-text-muted)', padding: '5px 9px' }}>✕</button>
             )}
           </div>
 
-          {/* Country */}
+          {/* Country filter */}
           {countryPills.length > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '2px', backgroundColor: 'var(--pt-surface-high)', borderRadius: '99px', padding: '3px', border: '1px solid var(--pt-border)' }}>
               {countryPills.map(country => (
@@ -410,17 +709,56 @@ export default function PortalDashboard() {
                 </button>
               ))}
               {activeCountry && (
-                <button onClick={() => navigate(buildUrl(activeDays, null))}
-                  style={{ ...pill(false), color: 'var(--pt-text-muted)', padding: '5px 9px' }}>
-                  ✕
-                </button>
+                <button onClick={() => navigate(buildUrl(activeDays, null))} style={{ ...pill(false), color: 'var(--pt-text-muted)', padding: '5px 9px' }}>✕</button>
               )}
             </div>
           )}
+
+          {/* Edit layout toggle */}
+          <button
+            onClick={() => setEditMode(v => !v)}
+            style={{
+              padding: '5px 12px', borderRadius: '8px', border: '1px solid var(--pt-border)',
+              backgroundColor: editMode ? 'var(--pt-accent-light)' : 'transparent',
+              color: editMode ? 'var(--pt-accent)' : 'var(--pt-text-muted)',
+              cursor: 'pointer', fontSize: '12px', fontWeight: '600',
+            }}
+          >
+            {editMode ? 'Done' : 'Edit'}
+          </button>
         </div>
       </div>
 
-      {/* ── Hero: big number + chart ──────────────────────────── */}
+      {/* ── Edit panel ────────────────────────────────────────── */}
+      {editMode && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap',
+          backgroundColor: 'var(--pt-surface)', border: '1px solid var(--pt-border)',
+          borderRadius: '10px', padding: '12px 16px', marginBottom: '28px',
+        }}>
+          <span style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--pt-text-muted)', flexShrink: 0 }}>
+            Sections
+          </span>
+          {SECTION_DEFS.map(s => (
+            <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', userSelect: 'none' }}>
+              <input
+                type="checkbox"
+                checked={vis(s.id)}
+                onChange={() => toggleSection(s.id)}
+                style={{ accentColor: 'var(--pt-accent)', width: '13px', height: '13px' }}
+              />
+              <span style={{ fontSize: '12px', color: vis(s.id) ? 'var(--pt-text)' : 'var(--pt-text-muted)', fontWeight: '500' }}>
+                {s.label}
+              </span>
+            </label>
+          ))}
+          <span style={{ fontSize: '11px', color: 'var(--pt-text-muted)', marginLeft: 'auto' }}>
+            Drag rows to reorder
+          </span>
+        </div>
+      )}
+
+      {/* ── Hero: big number + chart (always visible) ─────────── */}
       <div style={{ marginBottom: '8px' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: '14px', marginBottom: '4px' }}>
           <span style={{ fontSize: '56px', fontWeight: '800', letterSpacing: '-2.5px', lineHeight: 1, color: 'var(--pt-text)' }}>
@@ -439,198 +777,23 @@ export default function PortalDashboard() {
         <DotChart weeks={weeks} />
       </div>
 
-      <Rule my={36} />
-
-      {/* ── Numbers row ──────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1px 1fr 1px 1fr 1px 1fr', alignItems: 'start', gap: '0' }}>
-
-        {/* Retail value — primary stat */}
-        <div style={{ paddingRight: '36px' }}>
-          <Label>Retail Value Seeded</Label>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>
-            <span style={{ fontSize: '38px', fontWeight: '800', letterSpacing: '-1.5px', color: 'var(--pt-text)', lineHeight: 1 }}>
-              €{fmtNum(totalSpend)}
-            </span>
-            <Delta delta={spendDelta} />
-          </div>
-        </div>
-
-        <div style={{ backgroundColor: 'var(--pt-border)', alignSelf: 'stretch' }} />
-
-        {/* Units sent */}
-        <div style={{ padding: '0 32px' }}>
-          <Label>Units Sent</Label>
-          <span style={{ fontSize: '26px', fontWeight: '800', letterSpacing: '-0.8px', color: 'var(--pt-text)', lineHeight: 1 }}>
-            {totalUnits}
-          </span>
-        </div>
-
-        <div style={{ backgroundColor: 'var(--pt-border)', alignSelf: 'stretch' }} />
-
-        {/* In transit */}
-        <div style={{ padding: '0 32px' }}>
-          <Label>In Transit</Label>
-          <span style={{ fontSize: '26px', fontWeight: '800', letterSpacing: '-0.8px', color: 'var(--pt-text)', lineHeight: 1 }}>
-            {activeSeedings}
-          </span>
-        </div>
-
-        <div style={{ backgroundColor: 'var(--pt-border)', alignSelf: 'stretch' }} />
-
-        {/* Influencers */}
-        <div style={{ paddingLeft: '32px' }}>
-          <Label>Influencers</Label>
-          <span style={{ fontSize: '26px', fontWeight: '800', letterSpacing: '-0.8px', color: 'var(--pt-text)', lineHeight: 1 }}>
-            {totalInfluencers}
-          </span>
-        </div>
-      </div>
-
-      <Rule my={36} />
-
-      {/* ── Pipeline ─────────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: '0 60px', alignItems: 'start' }}>
-        <div>
-          <Label>Pipeline</Label>
-          {totalSeedings === 0 ? (
-            <p style={{ margin: 0, fontSize: '13px', color: 'var(--pt-text-muted)' }}>No seedings yet.</p>
-          ) : (
-            <>
-              {/* Stacked bar */}
-              <div style={{ display: 'flex', height: '3px', borderRadius: '99px', overflow: 'hidden', backgroundColor: 'var(--pt-surface-high)', marginBottom: '20px' }}>
-                {pipeline.filter(s => s.count > 0).map(s => (
-                  <div key={s.label} title={`${s.label}: ${s.count}`} style={{ width: `${(s.count / totalSeedings) * 100}%`, backgroundColor: s.color }} />
-                ))}
+      {/* ── Draggable bands ───────────────────────────────────── */}
+      {visibleBands.length > 0 && (
+        <div style={{ marginTop: editMode ? '28px' : '0' }}>
+          {bandOrder.map((id, idx) => {
+            const content = renderBand(id);
+            if (!content) return null;
+            const isFirstVisible = visibleBands[0] === id;
+            return (
+              <div key={id}>
+                <Rule my={36} />
+                {editMode && !isFirstVisible && <div style={{ height: '8px' }} />}
+                {content}
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {pipeline.map(s => (
-                  <div key={s.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: s.color, flexShrink: 0 }} />
-                      <span style={{ fontSize: '12px', color: 'var(--pt-text-sub)' }}>{s.label}</span>
-                    </div>
-                    <span style={{ fontSize: '14px', fontWeight: '700', color: 'var(--pt-text)' }}>{s.count}</span>
-                  </div>
-                ))}
-              </div>
-              <div style={{ fontSize: '11px', color: 'var(--pt-text-muted)', marginTop: '16px' }}>
-                {completionRate}% delivered
-              </div>
-            </>
-          )}
+            );
+          })}
         </div>
-
-        {/* Recent seedings — list format */}
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-            <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--pt-text-muted)' }}>Recent Seedings</div>
-            <Link to="/portal/seedings" style={{ fontSize: '11px', color: 'var(--pt-accent)', fontWeight: '600', textDecoration: 'none' }}>
-              View all →
-            </Link>
-          </div>
-          {recentSeedings.length === 0 ? (
-            <p style={{ margin: 0, fontSize: '13px', color: 'var(--pt-text-muted)' }}>No seedings yet.</p>
-          ) : (
-            <div>
-              {recentSeedings.slice(0, 6).map((s, i) => (
-                <div key={s.id} style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '8px 0',
-                  borderTop: i === 0 ? 'none' : '1px solid var(--pt-border-light)',
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
-                    {s.influencer?.country && <FlagImg country={s.influencer.country} size={13} />}
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--pt-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {s.influencer?.name || `@${s.influencer?.handle}`}
-                      </div>
-                      <div style={{ fontSize: '11px', color: 'var(--pt-text-muted)', marginTop: '1px' }}>
-                        {s.campaign?.title || '—'} · {fmtDate(s.createdAt, 'short')}
-                      </div>
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0, marginLeft: '16px' }}>
-                    <StatusDot status={s.status} />
-                    <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--pt-text)', minWidth: '52px', textAlign: 'right' }}>
-                      {s.totalCost ? `€${fmtNum(s.totalCost)}` : '—'}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      <Rule my={36} />
-
-      {/* ── Countries + Influencers ───────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: activeCountry ? '1fr' : '1fr 1fr', gap: '60px', alignItems: 'start' }}>
-
-        {/* Countries — hidden when a country filter is active */}
-        {!activeCountry && (
-          <div>
-            <Label>Top Countries</Label>
-            {countryData.length === 0 ? (
-              <p style={{ margin: 0, fontSize: '13px', color: 'var(--pt-text-muted)' }}>No data yet.</p>
-            ) : (
-              <div>
-                {countryData.slice(0, 5).map((d, i) => (
-                  <div key={d.country} style={{
-                    display: 'flex', alignItems: 'center', gap: '12px',
-                    padding: '10px 0',
-                    borderTop: i === 0 ? 'none' : '1px solid var(--pt-border-light)',
-                  }}>
-                    <FlagImg country={d.country} size={17} />
-                    <span style={{ flex: 1, fontSize: '13px', fontWeight: '500', color: 'var(--pt-text)' }}>{d.country}</span>
-                    <span style={{ fontSize: '11px', color: 'var(--pt-text-muted)' }}>{d.seedings} seedings</span>
-                    <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--pt-text)', minWidth: '56px', textAlign: 'right' }}>
-                      €{fmtNum(d.spend)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Top influencers */}
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-            <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--pt-text-muted)' }}>Top Influencers</div>
-            <Link to="/portal/influencers" style={{ fontSize: '11px', color: 'var(--pt-accent)', fontWeight: '600', textDecoration: 'none' }}>
-              View all →
-            </Link>
-          </div>
-          {topInfluencers.length === 0 ? (
-            <p style={{ margin: 0, fontSize: '13px', color: 'var(--pt-text-muted)' }}>No influencers yet.</p>
-          ) : (
-            <div>
-              {topInfluencers.map((inf, i) => (
-                <Link key={inf.id} to={`/portal/influencers/${inf.id}`} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 0', borderTop: i === 0 ? 'none' : '1px solid var(--pt-border-light)' }}>
-                  <span style={{ fontSize: '10px', fontWeight: '700', color: 'var(--pt-text-muted)', width: '14px', textAlign: 'right', flexShrink: 0 }}>{i + 1}</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--pt-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {inf.name || `@${inf.handle}`}
-                    </div>
-                    <div style={{ fontSize: '11px', color: 'var(--pt-text-muted)', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '1px' }}>
-                      <FlagImg country={inf.country} size={11} />
-                      {inf.country || '—'} · {fmtFollowers(inf.followers)}
-                    </div>
-                  </div>
-                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--pt-text)' }}>{inf._count.seedings}</div>
-                    <div style={{ fontSize: '11px', color: 'var(--pt-text-muted)' }}>seedings</div>
-                  </div>
-                  <div style={{ textAlign: 'right', flexShrink: 0, minWidth: '52px' }}>
-                    <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--pt-accent)' }}>€{fmtNum(inf.totalSpend)}</div>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+      )}
 
     </div>
   );
