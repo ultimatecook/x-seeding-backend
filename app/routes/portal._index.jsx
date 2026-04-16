@@ -1,162 +1,201 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { useLoaderData, Link } from 'react-router';
+import { useLoaderData, Link, useNavigate, useSearchParams } from 'react-router';
 import prisma from '../db.server';
 import { requirePortalUser } from '../utils/portal-auth.server';
 import { fmtDate, fmtNum } from '../theme';
 import { D, FlagImg } from '../utils/portal-theme';
 
+// ── Predefined country list (for pills fill-in) ───────────────────────────────
+const PRESET_COUNTRIES = ['Spain', 'United Kingdom', 'France', 'Italy', 'United States', 'Netherlands', 'Germany'];
+
 // ── Loader ────────────────────────────────────────────────────────────────────
 export async function loader({ request }) {
   const { shop } = await requirePortalUser(request);
 
-  const now              = new Date();
-  const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const start12Weeks     = new Date(now);
-  start12Weeks.setDate(now.getDate() - 83);
+  const url          = new URL(request.url);
+  const daysParam    = url.searchParams.get('days');    // '30' | '180' | '365' | null
+  const countryParam = url.searchParams.get('country'); // country name | null
+
+  const now      = new Date();
+  const days     = daysParam ? parseInt(daysParam, 10) : null;
+  const dateStart = days ? new Date(now.getTime() - days * 24 * 60 * 60 * 1000) : null;
+  const prevStart = days && dateStart ? new Date(dateStart.getTime() - days * 24 * 60 * 60 * 1000) : null;
+
+  // Prisma where clauses
+  const seedingWhere = {
+    shop,
+    ...(dateStart    ? { createdAt: { gte: dateStart } }    : {}),
+    ...(countryParam ? { influencer: { country: countryParam } } : {}),
+  };
+  const prevWhere = prevStart ? {
+    shop,
+    createdAt: { gte: prevStart, lt: dateStart },
+    ...(countryParam ? { influencer: { country: countryParam } } : {}),
+  } : null;
 
   const [
-    statusCounts,
-    totalInfluencers,
+    allSeedings,
+    prevSeedings,
     recentSeedings,
     topInfluencers,
-    allSeedingsForCountry,
-    weeklyRaw,
-    thisMonthSpend,
-    lastMonthSpend,
     allProductRows,
+    totalInfluencers,
+    allSeedingsForPills,   // unfiltered — for country pill generation
   ] = await Promise.all([
-    prisma.seeding.groupBy({ by: ['status'], where: { shop }, _count: { _all: true } }),
-    prisma.influencer.count({ where: { archived: false } }),
+    // All seedings in range (derive status, spend, weekly chart, countries from this)
     prisma.seeding.findMany({
-      where:   { shop },
+      where:  seedingWhere,
+      select: { status: true, totalCost: true, createdAt: true,
+                influencer: { select: { id: true, country: true } } },
+    }),
+    // Previous period (delta comparison)
+    prevWhere
+      ? prisma.seeding.findMany({ where: prevWhere, select: { totalCost: true } })
+      : Promise.resolve(null),
+    // Recent 8 seedings with full detail
+    prisma.seeding.findMany({
+      where:   seedingWhere,
       select:  { id: true, status: true, totalCost: true, createdAt: true,
                  influencer: { select: { id: true, handle: true, name: true, country: true } },
                  campaign:   { select: { id: true, title: true } } },
       orderBy: { createdAt: 'desc' },
       take:    8,
     }),
+    // Top influencers by seedings count
     prisma.influencer.findMany({
-      where:   { archived: false },
+      where:   { archived: false, ...(countryParam ? { country: countryParam } : {}) },
       orderBy: { seedings: { _count: 'desc' } },
       take:    6,
       select:  { id: true, handle: true, name: true, followers: true, country: true,
                  _count:   { select: { seedings: true } },
                  seedings: { select: { totalCost: true } } },
     }),
+    // Products in range
+    prisma.seedingProduct.findMany({
+      where:  { seeding: seedingWhere },
+      select: { cost: true, productName: true },
+    }),
+    // Total active influencers (absolute roster, unfiltered)
+    prisma.influencer.count({ where: { archived: false } }),
+    // Unfiltered seedings for country pill generation
     prisma.seeding.findMany({
       where:  { shop },
-      select: { influencerId: true, totalCost: true, influencer: { select: { country: true } } },
-      take:   2000,
-    }),
-    prisma.seeding.findMany({
-      where:  { shop, createdAt: { gte: start12Weeks } },
-      select: { createdAt: true, totalCost: true },
-    }),
-    prisma.seeding.aggregate({
-      where: { shop, createdAt: { gte: startOfThisMonth } },
-      _sum:  { totalCost: true }, _count: { _all: true },
-    }),
-    prisma.seeding.aggregate({
-      where: { shop, createdAt: { gte: startOfLastMonth, lt: startOfThisMonth } },
-      _sum:  { totalCost: true }, _count: { _all: true },
-    }),
-    // Single query — used for cost totals, unit count, and product grouping
-    prisma.seedingProduct.findMany({
-      where:  { seeding: { shop } },
-      select: { cost: true, productName: true },
+      select: { influencer: { select: { country: true } } },
+      take:   5000,
     }),
   ]);
 
-  // Derive all product metrics from the single allProductRows query
-  const totalCostValue = allProductRows.reduce((s, p) => s + (p.cost ?? 0), 0);
-  const hasCostData    = allProductRows.some(p => p.cost != null);
-  const totalUnits     = allProductRows.length;
-
-  // Group by product name in JS — avoids Prisma groupBy relation-filter limitation
-  const productMap = {};
-  for (const p of allProductRows) {
-    if (!productMap[p.productName]) productMap[p.productName] = { count: 0, costSum: 0 };
-    productMap[p.productName].count++;
-    productMap[p.productName].costSum += p.cost ?? 0;
+  // ── Derive metrics from allSeedings ────────────────────────────────────────
+  const statusMap = {};
+  for (const s of allSeedings) {
+    statusMap[s.status] = (statusMap[s.status] || 0) + 1;
   }
-  const topProducts = Object.entries(productMap)
-    .map(([name, d]) => ({ name, count: d.count, costSum: d.costSum }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 8);
+  const totalSeedings     = allSeedings.length;
+  const pendingSeedings   = statusMap['Pending']   ?? 0;
+  const orderedSeedings   = statusMap['Ordered']   ?? 0;
+  const shippedSeedings   = statusMap['Shipped']   ?? 0;
+  const deliveredSeedings = statusMap['Delivered'] ?? 0;
 
-  const countMap          = Object.fromEntries(statusCounts.map(r => [r.status, r._count._all]));
-  const totalSeedings     = statusCounts.reduce((s, r) => s + r._count._all, 0);
-  const pendingSeedings   = countMap['Pending']   ?? 0;
-  const orderedSeedings   = countMap['Ordered']   ?? 0;
-  const shippedSeedings   = countMap['Shipped']   ?? 0;
-  const deliveredSeedings = countMap['Delivered'] ?? 0;
-  const postedSeedings    = countMap['Posted']    ?? 0;
+  const totalSpend     = allSeedings.reduce((s, x) => s + (x.totalCost ?? 0), 0);
+  const prevTotalSpend = prevSeedings ? prevSeedings.reduce((s, x) => s + (x.totalCost ?? 0), 0) : null;
+  const prevCount      = prevSeedings ? prevSeedings.length : null;
 
-  const totalSpend     = allSeedingsForCountry.reduce((s, x) => s + (x.totalCost ?? 0), 0);
-  const thisMonthTotal = thisMonthSpend._sum.totalCost ?? 0;
-  const lastMonthTotal = lastMonthSpend._sum.totalCost ?? 0;
-  const thisMonthCount = thisMonthSpend._count._all;
-  const lastMonthCount = lastMonthSpend._count._all;
+  const spendDelta = prevTotalSpend !== null && prevTotalSpend > 0
+    ? Math.round(((totalSpend - prevTotalSpend) / prevTotalSpend) * 100) : null;
+  const countDelta = prevCount !== null && prevCount > 0
+    ? Math.round(((totalSeedings - prevCount) / prevCount) * 100) : null;
 
-  const spendDelta = lastMonthTotal > 0
-    ? Math.round(((thisMonthTotal - lastMonthTotal) / lastMonthTotal) * 100)
-    : null;
-  const countDelta = lastMonthCount > 0
-    ? Math.round(((thisMonthCount - lastMonthCount) / lastMonthCount) * 100)
-    : null;
+  // ── Product metrics ────────────────────────────────────────────────────────
+  const totalUnits = allProductRows.length;
 
-  // Weekly buckets
-  const weeks = Array.from({ length: 12 }, (_, i) => {
-    const d = new Date(start12Weeks);
-    d.setDate(d.getDate() + i * 7);
-    return { weekStart: new Date(d), seedings: 0, spend: 0 };
+  // ── Weekly/period buckets for dot chart ───────────────────────────────────
+  // Always 12 buckets; bucket size depends on selected period.
+  const NUM_BUCKETS  = 12;
+  const periodMs     = days
+    ? days * 24 * 60 * 60 * 1000
+    : 84 * 24 * 60 * 60 * 1000;   // default: 12 weeks
+  const bucketMs     = Math.floor(periodMs / NUM_BUCKETS);
+  const chartStart   = dateStart ?? new Date(now.getTime() - periodMs);
+
+  const buckets = Array.from({ length: NUM_BUCKETS }, (_, i) => {
+    const d = new Date(chartStart.getTime() + i * bucketMs);
+    return { bucketStart: d, seedings: 0, spend: 0 };
   });
-  for (const s of weeklyRaw) {
-    const age = Math.floor((new Date(s.createdAt) - start12Weeks) / (7 * 24 * 60 * 60 * 1000));
-    if (age >= 0 && age < 12) {
-      weeks[age].seedings++;
-      weeks[age].spend += s.totalCost ?? 0;
+
+  for (const s of allSeedings) {
+    const age = Math.floor((new Date(s.createdAt) - chartStart) / bucketMs);
+    if (age >= 0 && age < NUM_BUCKETS) {
+      buckets[age].seedings++;
+      buckets[age].spend += s.totalCost ?? 0;
     }
   }
 
-  // Country stats
+  // ── Country data ───────────────────────────────────────────────────────────
   const countryMap = {};
-  for (const s of allSeedingsForCountry) {
+  for (const s of allSeedings) {
     const c = s.influencer?.country || 'Unknown';
     if (!countryMap[c]) countryMap[c] = { seedings: 0, spend: 0, influencers: new Set() };
     countryMap[c].seedings++;
     countryMap[c].spend += s.totalCost ?? 0;
-    if (s.influencerId) countryMap[c].influencers.add(s.influencerId);
+    if (s.influencer?.id) countryMap[c].influencers.add(s.influencer.id);
   }
   const countryData = Object.entries(countryMap)
     .map(([country, d]) => ({ country, seedings: d.seedings, spend: d.spend, influencers: d.influencers.size }))
-    .sort((a, b) => b.spend - a.spend)
+    .sort((a, b) => b.seedings - a.seedings)
     .slice(0, 8);
+
+  // ── Country pills (unfiltered) ─────────────────────────────────────────────
+  const pillCountMap = {};
+  for (const s of allSeedingsForPills) {
+    const c = s.influencer?.country;
+    if (c && c !== 'Unknown') pillCountMap[c] = (pillCountMap[c] || 0) + 1;
+  }
+  const topDataCountries = Object.entries(pillCountMap)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([c]) => c);
+
+  // Fill remaining slots from preset list (no duplicates)
+  const countryPills = [...topDataCountries];
+  for (const c of PRESET_COUNTRIES) {
+    if (countryPills.length >= 5) break;
+    if (!countryPills.includes(c)) countryPills.push(c);
+  }
 
   const topInfluencersData = topInfluencers.map(inf => ({
     ...inf,
     totalSpend: inf.seedings.reduce((s, x) => s + (x.totalCost ?? 0), 0),
   }));
 
+  // Month this/last for this-month sub-label (always unfiltered for context)
+  const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const thisMonthSeedings = allSeedings.filter(s => new Date(s.createdAt) >= startOfThisMonth);
+  const thisMonthTotal    = thisMonthSeedings.reduce((s, x) => s + (x.totalCost ?? 0), 0);
+  const thisMonthCount    = thisMonthSeedings.length;
 
   return {
     totalSeedings, pendingSeedings, orderedSeedings,
-    shippedSeedings, deliveredSeedings, postedSeedings,
+    shippedSeedings, deliveredSeedings,
     totalInfluencers, recentSeedings, countryData,
-    topInfluencers: topInfluencersData, topProducts,
-    totalSpend, totalCostValue, hasCostData, totalUnits,
+    topInfluencers: topInfluencersData,
+    totalSpend, totalUnits,
     thisMonthTotal, thisMonthCount, spendDelta, countDelta,
-    weeks: weeks.map(w => ({
-      label:    fmtWeekLabel(w.weekStart),
-      seedings: w.seedings,
-      spend:    w.spend,
+    countryPills,
+    activeDays:    daysParam ?? null,
+    activeCountry: countryParam ?? null,
+    activeSeedings: orderedSeedings + shippedSeedings,
+    weeks: buckets.map(b => ({
+      label:    fmtBucketLabel(b.bucketStart, days),
+      seedings: b.seedings,
+      spend:    b.spend,
     })),
   };
 }
 
-function fmtWeekLabel(d) {
-  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+function fmtBucketLabel(d, days) {
+  if (!days || days <= 30) return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  if (days <= 180)         return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  return d.toLocaleDateString('en-GB', { month: 'short' });
 }
 
 function fmtFollowers(n) {
@@ -166,13 +205,12 @@ function fmtFollowers(n) {
   return String(n);
 }
 
-// ── Status meta ───────────────────────────────────────────────────────────────
+// ── Status meta (no Posted) ───────────────────────────────────────────────────
 const STATUS_META = {
   Pending:   { bg: D.statusPending.bg,   text: D.statusPending.color,   dot: D.statusPending.dot   },
   Ordered:   { bg: D.statusOrdered.bg,   text: D.statusOrdered.color,   dot: D.statusOrdered.dot   },
   Shipped:   { bg: D.statusShipped.bg,   text: D.statusShipped.color,   dot: D.statusShipped.dot   },
   Delivered: { bg: D.statusDelivered.bg, text: D.statusDelivered.color, dot: D.statusDelivered.dot },
-  Posted:    { bg: D.statusPosted.bg,    text: D.statusPosted.color,    dot: D.statusPosted.dot    },
 };
 
 function StatusPill({ status }) {
@@ -193,7 +231,7 @@ function StatusPill({ status }) {
 // ── Delta badge ───────────────────────────────────────────────────────────────
 function DeltaBadge({ delta }) {
   if (delta === null || delta === undefined) return null;
-  const up  = delta >= 0;
+  const up = delta >= 0;
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: '3px',
@@ -207,7 +245,7 @@ function DeltaBadge({ delta }) {
   );
 }
 
-// ── Dot-matrix chart (premium alternative to bar chart) ───────────────────────
+// ── Dot-matrix chart ──────────────────────────────────────────────────────────
 function DotChart({ weeks }) {
   const maxSeedings = Math.max(...weeks.map(w => w.seedings), 1);
   const peakIdx     = weeks.reduce((best, w, i) => w.seedings > weeks[best].seedings ? i : best, 0);
@@ -220,36 +258,24 @@ function DotChart({ weeks }) {
           const filled   = maxSeedings > 0 ? Math.max(Math.round((w.seedings / maxSeedings) * MAX_DOTS), w.seedings > 0 ? 1 : 0) : 0;
           const isPeak   = i === peakIdx && maxSeedings > 0;
           const isRecent = i >= weeks.length - 4;
-
           return (
-            <div
-              key={i}
-              title={`${w.label}: ${w.seedings} seedings`}
-              style={{ flex: 1, display: 'flex', flexDirection: 'column-reverse', alignItems: 'center', gap: '3px', height: '100%', justifyContent: 'flex-start' }}
-            >
+            <div key={i} title={`${w.label}: ${w.seedings} seedings`}
+              style={{ flex: 1, display: 'flex', flexDirection: 'column-reverse', alignItems: 'center', gap: '3px', height: '100%', justifyContent: 'flex-start' }}>
               {Array.from({ length: MAX_DOTS }, (_, di) => (
-                <div
-                  key={di}
-                  style={{
-                    width:         '100%',
-                    maxWidth:      '10px',
-                    height:        '8px',
-                    borderRadius:  '50%',
-                    backgroundColor: di < filled
-                      ? isPeak   ? '#7C6FF7'
-                      : isRecent ? '#A78BFA'
-                      :            '#D4D0FB'
-                      : 'var(--pt-surface-high)',
-                    flexShrink: 0,
-                    transition: 'background-color 0.2s',
-                  }}
-                />
+                <div key={di} style={{
+                  width: '100%', maxWidth: '10px', height: '8px', borderRadius: '50%', flexShrink: 0,
+                  backgroundColor: di < filled
+                    ? isPeak   ? '#7C6FF7'
+                    : isRecent ? '#A78BFA'
+                    :            '#D4D0FB'
+                    : 'var(--pt-surface-high)',
+                  transition: 'background-color 0.2s',
+                }} />
               ))}
             </div>
           );
         })}
       </div>
-      {/* X-axis */}
       <div style={{ display: 'flex', gap: '5px', marginTop: '8px' }}>
         {weeks.map((w, i) => (
           <div key={i} style={{ flex: 1, textAlign: 'center', fontSize: '9px', color: 'var(--pt-text-muted)', overflow: 'hidden', whiteSpace: 'nowrap' }}>
@@ -261,37 +287,21 @@ function DotChart({ weeks }) {
   );
 }
 
-// ── Widget shell with drag handle ─────────────────────────────────────────────
+// ── Widget shell ──────────────────────────────────────────────────────────────
 function Widget({ id, children, onDragStart, onDragOver, onDrop, onDragEnd, isDraggingOver, style = {} }) {
   return (
-    <div
-      draggable
-      onDragStart={e => onDragStart(e, id)}
-      onDragOver={e  => onDragOver(e, id)}
-      onDrop={e      => onDrop(e, id)}
-      onDragEnd={onDragEnd}
+    <div draggable onDragStart={e => onDragStart(e, id)} onDragOver={e => onDragOver(e, id)}
+      onDrop={e => onDrop(e, id)} onDragEnd={onDragEnd}
       style={{
-        position: 'relative',
-        borderRadius: '14px',
+        position: 'relative', borderRadius: '14px',
         transition: 'opacity 0.15s, box-shadow 0.15s',
         outline: isDraggingOver ? '2px solid var(--pt-accent)' : 'none',
-        outlineOffset: '2px',
-        cursor: 'grab',
-        ...style,
-      }}
-    >
-      {/* Drag handle — top-right corner */}
-      <div
-        title="Drag to reorder"
-        style={{
-          position: 'absolute', top: '10px', right: '10px', zIndex: 10,
-          fontSize: '14px', color: 'var(--pt-text-muted)',
-          opacity: 0, transition: 'opacity 0.15s',
-          userSelect: 'none', cursor: 'grab', lineHeight: 1,
-          padding: '2px 4px',
-        }}
-        className="drag-handle"
-      >
+        outlineOffset: '2px', cursor: 'grab', ...style,
+      }}>
+      <div title="Drag to reorder" className="drag-handle"
+        style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 10,
+          fontSize: '14px', color: 'var(--pt-text-muted)', opacity: 0, transition: 'opacity 0.15s',
+          userSelect: 'none', cursor: 'grab', lineHeight: 1, padding: '2px 4px' }}>
         ⠿
       </div>
       {children}
@@ -303,12 +313,8 @@ function Widget({ id, children, onDragStart, onDragOver, onDrop, onDragEnd, isDr
 function Card({ children, style = {} }) {
   return (
     <div style={{
-      backgroundColor: 'var(--pt-surface)',
-      border: '1px solid var(--pt-border)',
-      borderRadius: '14px',
-      boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-      overflow: 'hidden',
-      ...style,
+      backgroundColor: 'var(--pt-surface)', border: '1px solid var(--pt-border)',
+      borderRadius: '14px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', overflow: 'hidden', ...style,
     }}>
       {children}
     </div>
@@ -317,10 +323,7 @@ function Card({ children, style = {} }) {
 
 function CardHeader({ title, right }) {
   return (
-    <div style={{
-      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-      padding: '14px 20px', borderBottom: '1px solid var(--pt-border)',
-    }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px', borderBottom: '1px solid var(--pt-border)' }}>
       <span style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--pt-text-muted)' }}>
         {title}
       </span>
@@ -331,32 +334,56 @@ function CardHeader({ title, right }) {
 
 // ── Widget definitions ────────────────────────────────────────────────────────
 const WIDGET_DEFS = [
-  { id: 'activity',     label: 'Activity Chart'  },
-  { id: 'influencers',  label: 'Top Influencers' },
-  { id: 'countries',    label: 'Countries'       },
-  { id: 'products',     label: 'Products'        },
-  { id: 'recent',       label: 'Recent Seedings' },
+  { id: 'activity',    label: 'Activity Chart'  },
+  { id: 'influencers', label: 'Top Influencers' },
+  { id: 'countries',   label: 'Countries'       },
+  { id: 'recent',      label: 'Recent Seedings' },
 ];
 const DEFAULT_ORDER = WIDGET_DEFS.map(w => w.id);
+
+// ── Time filter options ───────────────────────────────────────────────────────
+const TIME_OPTIONS = [
+  { label: '30 Days', value: '30'  },
+  { label: '6 Months', value: '180' },
+  { label: '1 Year',   value: '365' },
+];
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 export default function PortalDashboard() {
   const {
     totalSeedings, pendingSeedings, orderedSeedings,
-    shippedSeedings, deliveredSeedings, postedSeedings,
-    totalInfluencers, recentSeedings, countryData, topProducts,
-    topInfluencers, totalSpend, totalCostValue, hasCostData, totalUnits,
-    thisMonthTotal, thisMonthCount, spendDelta, countDelta, weeks,
+    shippedSeedings, deliveredSeedings,
+    totalInfluencers, recentSeedings, countryData,
+    topInfluencers, totalSpend, totalUnits,
+    thisMonthTotal, thisMonthCount, spendDelta, countDelta,
+    countryPills, activeDays, activeCountry,
+    activeSeedings, weeks,
   } = useLoaderData();
 
-  const activeSeedings    = orderedSeedings + shippedSeedings;
-  const completionRate    = totalSeedings > 0
-    ? Math.round(((deliveredSeedings + postedSeedings) / totalSeedings) * 100) : 0;
-  const totalCountrySpend = countryData.reduce((s, d) => s + d.spend, 0);
-  const maxProduct        = topProducts[0]?.count || 1;
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
-  // ── Widget order + visibility (localStorage) ─────────────────────────────
-  const [widgetOrder, setWidgetOrder] = useState(DEFAULT_ORDER);
+  const completionRate = totalSeedings > 0
+    ? Math.round((deliveredSeedings / totalSeedings) * 100) : 0;
+  const totalCountrySpend = countryData.reduce((s, d) => s + d.spend, 0);
+
+  // ── Filter navigation helpers ─────────────────────────────────────────────
+  function buildUrl(newDays, newCountry) {
+    const p = new URLSearchParams(searchParams);
+    if (newDays    === null) p.delete('days');    else p.set('days', newDays);
+    if (newCountry === null) p.delete('country'); else p.set('country', newCountry);
+    return `/portal?${p.toString()}`;
+  }
+
+  function toggleDays(val) {
+    navigate(buildUrl(activeDays === val ? null : val, activeCountry));
+  }
+  function toggleCountry(name) {
+    navigate(buildUrl(activeDays, activeCountry === name ? null : name));
+  }
+
+  // ── Widget order + visibility ─────────────────────────────────────────────
+  const [widgetOrder,   setWidgetOrder]   = useState(DEFAULT_ORDER);
   const [hiddenWidgets, setHiddenWidgets] = useState(() => new Set());
   const [showCustomize, setShowCustomize] = useState(false);
 
@@ -379,20 +406,18 @@ export default function PortalDashboard() {
   };
 
   // ── Drag-and-drop ─────────────────────────────────────────────────────────
-  const draggingId  = useRef(null);
+  const draggingId = useRef(null);
   const [dragOver, setDragOver] = useState(null);
 
   const handleDragStart = useCallback((e, id) => {
     draggingId.current = id;
     e.dataTransfer.effectAllowed = 'move';
   }, []);
-
-  const handleDragOver = useCallback((e, id) => {
+  const handleDragOver  = useCallback((e, id) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     setDragOver(id);
   }, []);
-
   const handleDrop = useCallback((e, targetId) => {
     e.preventDefault();
     setDragOver(null);
@@ -409,22 +434,25 @@ export default function PortalDashboard() {
     });
     draggingId.current = null;
   }, []);
-
   const handleDragEnd = useCallback(() => {
     setDragOver(null);
     draggingId.current = null;
   }, []);
 
-  // ── Status pipeline ───────────────────────────────────────────────────────
+  // ── Pipeline (no Posted) ──────────────────────────────────────────────────
   const pipeline = [
     { label: 'Pending',   count: pendingSeedings,   color: D.statusPending.dot   },
     { label: 'Ordered',   count: orderedSeedings,   color: D.statusOrdered.dot   },
     { label: 'Shipped',   count: shippedSeedings,   color: D.statusShipped.dot   },
     { label: 'Delivered', count: deliveredSeedings, color: D.statusDelivered.dot },
-    { label: 'Posted',    count: postedSeedings,    color: D.statusPosted.dot    },
   ];
 
   const peakWeek = weeks.reduce((best, w) => w.seedings > best.seedings ? w : best, weeks[0] ?? { label: '', seedings: 0 });
+
+  const chartLabel = activeDays === '30'  ? 'Last 30 Days'
+                   : activeDays === '180' ? 'Last 6 Months'
+                   : activeDays === '365' ? 'Last Year'
+                   :                       'Last 12 Weeks';
 
   // ── Widget renderers ──────────────────────────────────────────────────────
   const renderWidget = (id) => {
@@ -432,7 +460,7 @@ export default function PortalDashboard() {
 
     if (id === 'activity') return (
       <Widget key={id} id={id} onDragStart={handleDragStart} onDragOver={handleDragOver} onDrop={handleDrop} isDraggingOver={dragOver === id} onDragEnd={handleDragEnd}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 260px', gap: '12px' }} onDragEnd={handleDragEnd}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 260px', gap: '12px' }}>
 
           {/* Dot chart */}
           <Card>
@@ -440,7 +468,7 @@ export default function PortalDashboard() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '18px' }}>
                 <div>
                   <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--pt-text-muted)', marginBottom: '6px' }}>
-                    Seedings — Last 12 Weeks
+                    Seedings — {chartLabel}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>
                     <span style={{ fontSize: '28px', fontWeight: '800', color: 'var(--pt-text)', letterSpacing: '-0.8px' }}>
@@ -557,10 +585,7 @@ export default function PortalDashboard() {
     );
 
     if (id === 'countries') return (
-      <Widget key={id} id={id} onDragStart={handleDragStart} onDragOver={handleDragOver} onDrop={handleDrop} isDraggingOver={dragOver === id} onDragEnd={handleDragEnd}
-        style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-
-        {/* Countries */}
+      <Widget key={id} id={id} onDragStart={handleDragStart} onDragOver={handleDragOver} onDrop={handleDrop} isDraggingOver={dragOver === id} onDragEnd={handleDragEnd}>
         <Card>
           <CardHeader
             title="Top Countries"
@@ -588,31 +613,6 @@ export default function PortalDashboard() {
                   </div>
                 );
               })}
-            </div>
-          )}
-        </Card>
-
-        {/* Products */}
-        <Card>
-          <CardHeader title="Product Performance" />
-          {topProducts.length === 0 ? (
-            <div style={{ padding: '24px', color: 'var(--pt-text-muted)', fontSize: '13px' }}>No data yet.</div>
-          ) : (
-            <div style={{ padding: '8px 0' }}>
-              {topProducts.map((p, i) => (
-                <div key={p.name} style={{ padding: '9px 20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--pt-text-muted)', minWidth: '16px' }}>{i + 1}</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                      <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--pt-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
-                      <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--pt-text)', flexShrink: 0, marginLeft: '8px' }}>{p.count}×</span>
-                    </div>
-                    <div style={{ height: '3px', backgroundColor: 'var(--pt-surface-high)', borderRadius: '99px', overflow: 'hidden' }}>
-                      <div style={{ width: `${(p.count / maxProduct) * 100}%`, height: '100%', backgroundColor: 'var(--pt-purple)', borderRadius: '99px' }} />
-                    </div>
-                  </div>
-                </div>
-              ))}
             </div>
           )}
         </Card>
@@ -669,78 +669,56 @@ export default function PortalDashboard() {
     return null;
   };
 
-  // ── KPI cards (fixed, not draggable) ─────────────────────────────────────
+  // ── KPI cards ─────────────────────────────────────────────────────────────
   const kpis = [
-    {
-      label: 'Retail Value Seeded',
-      value: `€${fmtNum(totalSpend)}`,
-      sub:   `€${fmtNum(thisMonthTotal)} this month`,
-      delta: spendDelta,
-    },
-    {
-      label: 'Total Seedings',
-      value: String(totalSeedings),
-      sub:   `${thisMonthCount} this month`,
-      delta: countDelta,
-    },
-    {
-      label: 'Units Sent',
-      value: String(totalUnits),
-      sub:   'Products shipped',
-      accentColor: 'var(--pt-purple)',
-    },
-    {
-      label: 'In Transit',
-      value: String(activeSeedings),
-      sub:   'Ordered + Shipped',
-      accentColor: 'var(--pt-accent)',
-    },
-    {
-      label: 'Influencers',
-      value: String(totalInfluencers),
-      sub:   'Active roster',
-    },
+    { label: 'Retail Value Seeded', value: `€${fmtNum(totalSpend)}`,  sub: `€${fmtNum(thisMonthTotal)} this month`, delta: spendDelta },
+    { label: 'Total Seedings',      value: String(totalSeedings),     sub: `${thisMonthCount} this month`,          delta: countDelta },
+    { label: 'Units Sent',          value: String(totalUnits),        sub: 'Products shipped', accentColor: 'var(--pt-purple)' },
+    { label: 'In Transit',          value: String(activeSeedings),    sub: 'Ordered + Shipped', accentColor: 'var(--pt-accent)' },
+    { label: 'Influencers',         value: String(totalInfluencers),  sub: 'Active roster' },
   ];
+
+  const filterBarStyle = {
+    display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap',
+  };
+
+  const pillStyle = (active) => ({
+    display: 'inline-flex', alignItems: 'center', gap: '6px',
+    padding: '7px 14px', borderRadius: '99px', cursor: 'pointer',
+    fontSize: '13px', fontWeight: '600', border: 'none',
+    transition: 'all 0.15s',
+    backgroundColor: active ? '#7C6FF7' : 'var(--pt-surface)',
+    color:           active ? '#FFFFFF'  : 'var(--pt-text-sub)',
+    boxShadow:       active
+      ? '0 1px 4px rgba(124,111,247,0.35)'
+      : '0 0 0 1px var(--pt-border)',
+  });
 
   return (
     <div>
-
-      {/* ── Drag handle CSS (show on hover via native CSS) ─────── */}
       <style>{`
         [draggable]:hover .drag-handle { opacity: 1 !important; }
         [draggable]:active { opacity: 0.6; cursor: grabbing; }
       `}</style>
 
       {/* ── Page header ───────────────────────────────────────── */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '20px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '16px' }}>
         <div>
           <h1 style={{ margin: 0, fontSize: '20px', fontWeight: '800', color: 'var(--pt-text)', letterSpacing: '-0.4px' }}>Dashboard</h1>
           <p style={{ margin: '3px 0 0', fontSize: '13px', color: 'var(--pt-text-sub)' }}>Your influencer seeding overview.</p>
         </div>
         <div style={{ position: 'relative' }}>
-          <button
-            onClick={() => setShowCustomize(v => !v)}
+          <button onClick={() => setShowCustomize(v => !v)}
             style={{ padding: '7px 14px', borderRadius: '8px', border: '1px solid var(--pt-border)', backgroundColor: showCustomize ? 'var(--pt-accent-light)' : 'var(--pt-surface)', color: showCustomize ? 'var(--pt-accent)' : 'var(--pt-text-sub)', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>
             ⚙ Customize
           </button>
           {showCustomize && (
-            <div style={{
-              position: 'absolute', top: '38px', right: 0, zIndex: 100,
-              backgroundColor: 'var(--pt-surface)', border: '1px solid var(--pt-border)',
-              borderRadius: '12px', boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
-              padding: '12px', minWidth: '200px',
-            }}>
-              <div style={{ fontSize: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--pt-text-muted)', marginBottom: '8px', padding: '0 4px' }}>
-                Visible widgets
-              </div>
+            <div style={{ position: 'absolute', top: '38px', right: 0, zIndex: 100, backgroundColor: 'var(--pt-surface)', border: '1px solid var(--pt-border)', borderRadius: '12px', boxShadow: '0 8px 32px rgba(0,0,0,0.12)', padding: '12px', minWidth: '200px' }}>
+              <div style={{ fontSize: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--pt-text-muted)', marginBottom: '8px', padding: '0 4px' }}>Visible widgets</div>
               {WIDGET_DEFS.map(w => (
                 <label key={w.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 4px', cursor: 'pointer', borderRadius: '6px' }}>
-                  <input
-                    type="checkbox"
-                    checked={!hiddenWidgets.has(w.id)}
-                    onChange={() => toggleHidden(w.id)}
-                    style={{ accentColor: 'var(--pt-accent)', width: '14px', height: '14px' }}
-                  />
+                  <input type="checkbox" checked={!hiddenWidgets.has(w.id)} onChange={() => toggleHidden(w.id)}
+                    style={{ accentColor: 'var(--pt-accent)', width: '14px', height: '14px' }} />
                   <span style={{ fontSize: '13px', color: 'var(--pt-text)', fontWeight: '500' }}>{w.label}</span>
                 </label>
               ))}
@@ -752,23 +730,46 @@ export default function PortalDashboard() {
         </div>
       </div>
 
-      {/* ── KPI row (fixed) ───────────────────────────────────── */}
+      {/* ── Filter bar ────────────────────────────────────────── */}
+      <div style={{ ...filterBarStyle, marginBottom: '16px' }}>
+        {/* Time pills */}
+        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+          {TIME_OPTIONS.map(opt => (
+            <button key={opt.value} onClick={() => toggleDays(opt.value)} style={pillStyle(activeDays === opt.value)}>
+              {opt.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Divider */}
+        {countryPills.length > 0 && (
+          <div style={{ width: '1px', height: '28px', backgroundColor: 'var(--pt-border)', margin: '0 4px', flexShrink: 0 }} />
+        )}
+
+        {/* Country pills */}
+        {countryPills.map(country => (
+          <button key={country} onClick={() => toggleCountry(country)} style={pillStyle(activeCountry === country)}>
+            <FlagImg country={country} size={16} />
+            {country}
+          </button>
+        ))}
+
+        {/* Clear all */}
+        {(activeDays || activeCountry) && (
+          <button onClick={() => navigate('/portal')}
+            style={{ padding: '6px 12px', borderRadius: '99px', cursor: 'pointer', fontSize: '12px', fontWeight: '600', border: '1px solid var(--pt-border)', backgroundColor: 'transparent', color: 'var(--pt-text-muted)' }}>
+            ✕ Clear
+          </button>
+        )}
+      </div>
+
+      {/* ── KPI row ───────────────────────────────────────────── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px', marginBottom: '14px' }}>
         {kpis.map(kpi => (
-          <div key={kpi.label} style={{
-            backgroundColor: 'var(--pt-surface)',
-            border: '1px solid var(--pt-border)',
-            borderRadius: '14px',
-            padding: '16px 18px',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-          }}>
-            <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--pt-text-muted)', marginBottom: '6px' }}>
-              {kpi.label}
-            </div>
+          <div key={kpi.label} style={{ backgroundColor: 'var(--pt-surface)', border: '1px solid var(--pt-border)', borderRadius: '14px', padding: '16px 18px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+            <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--pt-text-muted)', marginBottom: '6px' }}>{kpi.label}</div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '3px' }}>
-              <span style={{ fontSize: '26px', fontWeight: '800', color: kpi.accentColor || 'var(--pt-text)', letterSpacing: '-0.8px', lineHeight: 1 }}>
-                {kpi.value}
-              </span>
+              <span style={{ fontSize: '26px', fontWeight: '800', color: kpi.accentColor || 'var(--pt-text)', letterSpacing: '-0.8px', lineHeight: 1 }}>{kpi.value}</span>
               {kpi.delta !== undefined && <DeltaBadge delta={kpi.delta} />}
             </div>
             {kpi.sub && <div style={{ fontSize: '11px', color: 'var(--pt-text-sub)' }}>{kpi.sub}</div>}
@@ -777,10 +778,7 @@ export default function PortalDashboard() {
       </div>
 
       {/* ── Draggable widgets ─────────────────────────────────── */}
-      <div
-        style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}
-        onDragOver={e => e.preventDefault()}
-      >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }} onDragOver={e => e.preventDefault()}>
         {widgetOrder.map(id => renderWidget(id))}
       </div>
 

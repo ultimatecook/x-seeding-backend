@@ -43,14 +43,6 @@ const AVATAR_GRADIENTS = [
   ['#8B5CF6','#A78BFA'],
 ];
 
-// Ordered list of avatar URL builders to try in sequence
-function avatarSources(handle) {
-  return [
-    `https://unavatar.io/instagram/${encodeURIComponent(handle)}`,
-    `https://unavatar.io/${encodeURIComponent(handle)}`,
-  ];
-}
-
 export function InstagramAvatar({ handle, size = 36 }) {
   const clean    = (handle || '').replace(/^@/, '');
   const initials = clean.slice(0, 2).toUpperCase() || '?';
@@ -58,12 +50,11 @@ export function InstagramAvatar({ handle, size = 36 }) {
   const [c1, c2] = AVATAR_GRADIENTS[idx];
   const fontSize = Math.round(size * 0.38);
 
-  const sources = avatarSources(clean);
-  const [srcIdx, setSrcIdx] = React.useState(0);
+  // Use our server-side proxy route which validates the CDN redirect.
+  // If the proxy returns 404 (no real profile photo found), onError fires
+  // and we fall back to the gradient initials.
   const [visible, setVisible] = React.useState(false);
-
-  // Reset when handle changes
-  React.useEffect(() => { setSrcIdx(0); setVisible(false); }, [clean]);
+  React.useEffect(() => { setVisible(false); }, [clean]);
 
   return (
     <div style={{
@@ -76,23 +67,16 @@ export function InstagramAvatar({ handle, size = 36 }) {
       {/* Fallback initials always rendered underneath */}
       <span style={{ position: 'relative', zIndex: 1, userSelect: 'none' }}>{initials}</span>
 
-      {/* Profile photo overlay — tries each source in sequence */}
-      {clean && srcIdx < sources.length && (
+      {/* Profile photo via server proxy — only shows if it's a real CDN photo */}
+      {clean && (
         <img
-          key={srcIdx}
-          src={sources[srcIdx]}
+          key={clean}
+          src={`/portal/ig-avatar/${encodeURIComponent(clean)}`}
           alt=""
           onLoad={e => {
-            const img = e.currentTarget;
-            // Skip 1×1 placeholder GIFs that some proxies return on failure
-            if (img.naturalWidth > 8 && img.naturalHeight > 8) {
-              setVisible(true);
-            } else {
-              // Try next source
-              setSrcIdx(i => i + 1);
-            }
+            if (e.currentTarget.naturalWidth > 8) setVisible(true);
           }}
-          onError={() => setSrcIdx(i => i + 1)}
+          onError={() => setVisible(false)}
           style={{
             position: 'absolute', inset: 0, width: '100%', height: '100%',
             objectFit: 'cover',
