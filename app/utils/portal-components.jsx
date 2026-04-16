@@ -2,6 +2,7 @@
  * Portal React components — kept in .jsx so Vite can parse JSX syntax.
  * Import from here instead of portal-theme.js for InstagramAvatar & FlagImg.
  */
+import * as React from 'react';
 
 // ── Country code map (mirrors the one in portal-theme.js) ────────────────────
 const COUNTRY_CODES_MAP = {
@@ -42,6 +43,14 @@ const AVATAR_GRADIENTS = [
   ['#8B5CF6','#A78BFA'],
 ];
 
+// Ordered list of avatar URL builders to try in sequence
+function avatarSources(handle) {
+  return [
+    `https://unavatar.io/instagram/${encodeURIComponent(handle)}`,
+    `https://unavatar.io/${encodeURIComponent(handle)}`,
+  ];
+}
+
 export function InstagramAvatar({ handle, size = 36 }) {
   const clean    = (handle || '').replace(/^@/, '');
   const initials = clean.slice(0, 2).toUpperCase() || '?';
@@ -49,9 +58,13 @@ export function InstagramAvatar({ handle, size = 36 }) {
   const [c1, c2] = AVATAR_GRADIENTS[idx];
   const fontSize = Math.round(size * 0.38);
 
-  // Try unavatar.io proxy which aggregates social profiles.
-  // Wrap in a state: start hidden, show on successful load, hide on error.
-  // The gradient+initials fallback is always rendered underneath.
+  const sources = avatarSources(clean);
+  const [srcIdx, setSrcIdx] = React.useState(0);
+  const [visible, setVisible] = React.useState(false);
+
+  // Reset when handle changes
+  React.useEffect(() => { setSrcIdx(0); setVisible(false); }, [clean]);
+
   return (
     <div style={{
       width: size, height: size, borderRadius: '50%', flexShrink: 0,
@@ -60,27 +73,30 @@ export function InstagramAvatar({ handle, size = 36 }) {
       fontSize, fontWeight: '900', color: '#fff', letterSpacing: '-0.5px',
       overflow: 'hidden', position: 'relative',
     }}>
-      {/* Fallback initials always rendered */}
+      {/* Fallback initials always rendered underneath */}
       <span style={{ position: 'relative', zIndex: 1, userSelect: 'none' }}>{initials}</span>
 
-      {/* Profile photo overlay — fades in on load, disappears on error */}
-      {clean && (
+      {/* Profile photo overlay — tries each source in sequence */}
+      {clean && srcIdx < sources.length && (
         <img
-          src={`https://unavatar.io/instagram/${encodeURIComponent(clean)}?fallback=false`}
+          key={srcIdx}
+          src={sources[srcIdx]}
           alt=""
           onLoad={e => {
             const img = e.currentTarget;
-            // unavatar sometimes returns a 1x1 transparent GIF on failure
-            if (img.naturalWidth > 4) {
-              img.style.opacity = '1';
+            // Skip 1×1 placeholder GIFs that some proxies return on failure
+            if (img.naturalWidth > 8 && img.naturalHeight > 8) {
+              setVisible(true);
             } else {
-              img.style.display = 'none';
+              // Try next source
+              setSrcIdx(i => i + 1);
             }
           }}
-          onError={e => { e.currentTarget.style.display = 'none'; }}
+          onError={() => setSrcIdx(i => i + 1)}
           style={{
             position: 'absolute', inset: 0, width: '100%', height: '100%',
-            objectFit: 'cover', opacity: 0,
+            objectFit: 'cover',
+            opacity: visible ? 1 : 0,
             transition: 'opacity 0.25s ease',
             zIndex: 2,
           }}
