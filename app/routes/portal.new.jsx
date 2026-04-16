@@ -305,6 +305,26 @@ export async function action({ request }) {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+const COUNTRY_CODES = {
+  'Afghanistan':'AF','Albania':'AL','Algeria':'DZ','Argentina':'AR','Australia':'AU',
+  'Austria':'AT','Belgium':'BE','Brazil':'BR','Canada':'CA','Chile':'CL','China':'CN',
+  'Colombia':'CO','Croatia':'HR','Czech Republic':'CZ','Denmark':'DK','Ecuador':'EC',
+  'Egypt':'EG','Finland':'FI','France':'FR','Germany':'DE','Greece':'GR','Hungary':'HU',
+  'India':'IN','Indonesia':'ID','Iran':'IR','Ireland':'IE','Israel':'IL','Italy':'IT',
+  'Japan':'JP','Jordan':'JO','Kenya':'KE','Malaysia':'MY','Mexico':'MX',
+  'Netherlands':'NL','New Zealand':'NZ','Nigeria':'NG','Norway':'NO','Pakistan':'PK',
+  'Peru':'PE','Philippines':'PH','Poland':'PL','Portugal':'PT','Romania':'RO',
+  'Russia':'RU','Saudi Arabia':'SA','Serbia':'RS','Singapore':'SG','South Africa':'ZA',
+  'South Korea':'KR','Spain':'ES','Sweden':'SE','Switzerland':'CH','Taiwan':'TW',
+  'Thailand':'TH','Turkey':'TR','Ukraine':'UA','United Arab Emirates':'AE',
+  'United Kingdom':'GB','United States':'US','Vietnam':'VN',
+};
+function countryFlag(name) {
+  const code = COUNTRY_CODES[name];
+  if (!code) return '🌍';
+  return [...code].map(c => String.fromCodePoint(0x1F1E0 + c.charCodeAt(0) - 65)).join('');
+}
+
 function fmtFollowers(n) {
   if (!n) return null;
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`;
@@ -374,7 +394,15 @@ export default function PortalNewSeeding() {
   }, [selectedInfluencer?.id]);
 
   // ── Derived influencer filter data ──────────────────────────────────────────
-  const allCountries = [...new Set(influencers.map(i => i.country).filter(Boolean))].sort();
+  // Top 5 countries by influencer count
+  const countryCounts = {};
+  for (const inf of influencers) {
+    if (inf.country) countryCounts[inf.country] = (countryCounts[inf.country] ?? 0) + 1;
+  }
+  const topCountries = Object.entries(countryCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([c]) => c);
   const selectedRange = FOLLOWER_RANGES.find(r => r.label === infFollowerRange) ?? FOLLOWER_RANGES[0];
 
   const filteredInfluencers = influencers.filter(inf => {
@@ -508,13 +536,17 @@ export default function PortalNewSeeding() {
                   ))}
                 </div>
 
-                {/* Country dropdown */}
-                {allCountries.length > 1 && (
-                  <select value={infCountry} onChange={e => setInfCountry(e.target.value)}
-                    style={{ ...input.base, width: '100%', boxSizing: 'border-box', fontSize: '12px' }}>
-                    <option value="">All countries</option>
-                    {allCountries.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
+                {/* Top country pills */}
+                {topCountries.length > 0 && (
+                  <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                    <FilterPill label="🌍 All" active={!infCountry} onClick={() => setInfCountry('')} />
+                    {topCountries.map(c => (
+                      <FilterPill key={c}
+                        label={`${countryFlag(c)} ${c}`}
+                        active={infCountry === c}
+                        onClick={() => setInfCountry(infCountry === c ? '' : c)} />
+                    ))}
+                  </div>
                 )}
               </div>
 
