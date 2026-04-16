@@ -55,16 +55,19 @@ export async function loader({ request }) {
         }
       }`;
 
-      let succeeded = false;
-      for (const session of candidates) {
+      async function shopifyGQL(session, query) {
         const res  = await fetch(`https://${shop}/admin/api/2025-10/graphql.json`, {
           method:  'POST',
           headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': session.accessToken },
-          body:    JSON.stringify({ query: GQL_QUERY }),
+          body:    JSON.stringify({ query }),
         });
-        const body = await res.json();
+        return { res, body: await res.json() };
+      }
 
-        // 401 = this token is revoked/invalid — try the next session
+      let goodSession = null;
+      for (const session of candidates) {
+        const { res, body } = await shopifyGQL(session, GQL_QUERY);
+
         if (res.status === 401) {
           console.warn(`Portal: session ${session.id} returned 401, trying next...`);
           continue;
@@ -78,10 +81,9 @@ export async function loader({ request }) {
           else if (body.error)                  errMsg = body.error_description ?? body.error;
           console.error('Portal: Shopify GraphQL error (HTTP', res.status, '):', errMsg);
           productsError = `Shopify API error (${res.status}): ${errMsg}`;
-          break; // non-401 error — no point trying other sessions
+          break;
         }
 
-        // Success
         products = (body?.data?.products?.edges ?? []).map(edge => {
           const vars = edge.node.variants.edges;
           const hasStock = vars.some(v => v.node.availableForSale);
@@ -105,12 +107,37 @@ export async function loader({ request }) {
         if (products.length === 0) {
           console.warn('Portal: Shopify returned 0 products for shop', shop);
         }
-        succeeded = true;
+        goodSession = session;
         break;
       }
 
-      if (!succeeded && !productsError) {
+      if (!goodSession && !productsError) {
         productsError = 'All stored Shopify tokens are invalid (401). Please open the app in Shopify admin to re-authorize.';
+      }
+
+      // Fetch collections using the same valid session
+      let collections = [];
+      if (goodSession) {
+        try {
+          const COLLECTIONS_QUERY = `query GetCollections {
+            collections(first: 50, sortKey: TITLE) {
+              edges { node {
+                id title
+                products(first: 250) {
+                  edges { node { id } }
+                }
+              } }
+            }
+          }`;
+          const { body: cb } = await shopifyGQL(goodSession, COLLECTIONS_QUERY);
+          collections = (cb?.data?.collections?.edges ?? []).map(e => ({
+            id:         e.node.id,
+            title:      e.node.title,
+            productIds: new Set(e.node.products.edges.map(p => p.node.id)),
+          }));
+        } catch (ce) {
+          console.warn('Portal: could not fetch collections:', ce.message);
+        }
       }
     }
   } catch (e) {
@@ -153,7 +180,14 @@ export async function loader({ request }) {
     console.warn('influencerSavedSize table not ready:', e.message);
   }
 
-  return { products, productsError, influencers, campaigns, recentlySeededMap, allSavedSizes, shop };
+  // Serialize collections (Set isn't JSON-serializable)
+  const collectionsData = collections.map(c => ({
+    id:         c.id,
+    title:      c.title,
+    productIds: [...c.productIds],
+  }));
+
+  return { products, productsError, collections: collectionsData, influencers, campaigns, recentlySeededMap, allSavedSizes, shop };
 }
 
 // ── Action ────────────────────────────────────────────────────────────────────
@@ -300,7 +334,7 @@ function FilterPill({ label, active, onClick }) {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function PortalNewSeeding() {
-  const { products, productsError, influencers, campaigns, recentlySeededMap, allSavedSizes, shop } = useLoaderData();
+  const { products, productsError, collections, influencers, campaigns, recentlySeededMap, allSavedSizes, shop } = useLoaderData();
   const navigate = useNavigate();
 
   const [selectedInfluencer, setSelectedInfluencer] = useState(null);
@@ -311,7 +345,7 @@ export default function PortalNewSeeding() {
   const [infFollowerRange,   setInfFollowerRange]   = useState('All');
   const [infCountry,         setInfCountry]         = useState('');
   const [search,             setSearch]             = useState('');
-  const [prodCategory,       setProdCategory]       = useState('All');
+  const [selectedCollection, setSelectedCollection] = useState(null);
   const [dragOver,           setDragOver]           = useState(false);
   const [shakeId,            setShakeId]            = useState(null);
   const [dragProductId,      setDragProductId]      = useState(null);
@@ -361,18 +395,15 @@ export default function PortalNewSeeding() {
     ? new Set(selectedCampaign.products.map(cp => cp.productId))
     : null;
 
-  const visibleProducts = campaignProductIds
-    ? products.filter(p => campaignProductIds.has(p.id))
-    : products;
+  // Build a Set for the selected collection's product IDs (for fast lookup)
+  const collectionProductIds = selectedCollection
+    ? new Set(selectedCollection.productIds)
+    : null;
 
-  // Build category list from product names
-  const allCategories = ['All', ...new Set(
-    visibleProducts.map(p => guessProductCategory(p.name)).filter(Boolean).sort()
-  )];
-
-  const filteredProducts = visibleProducts.filter(p => {
+  const filteredProducts = products.filter(p => {
+    if (campaignProductIds && !campaignProductIds.has(p.id))    return false;
+    if (collectionProductIds && !collectionProductIds.has(p.id)) return false;
     if (search && !p.name.toLowerCase().includes(search.toLowerCase())) return false;
-    if (prodCategory !== 'All' && guessProductCategory(p.name) !== prodCategory) return false;
     return true;
   });
 
@@ -601,13 +632,15 @@ export default function PortalNewSeeding() {
                   onChange={e => setSearch(e.target.value)}
                   style={{ ...input.base, width: '100%', boxSizing: 'border-box', fontSize: '13px', marginBottom: '10px' }} />
 
-                {/* Category pills */}
-                {allCategories.length > 1 && (
+                {/* Collection pills */}
+                {collections.length > 0 && (
                   <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
-                    {allCategories.map(cat => (
-                      <FilterPill key={cat} label={cat}
-                        active={prodCategory === cat}
-                        onClick={() => setProdCategory(cat)} />
+                    <FilterPill label="All" active={!selectedCollection}
+                      onClick={() => setSelectedCollection(null)} />
+                    {collections.map(c => (
+                      <FilterPill key={c.id} label={c.title}
+                        active={selectedCollection?.id === c.id}
+                        onClick={() => setSelectedCollection(selectedCollection?.id === c.id ? null : c)} />
                     ))}
                   </div>
                 )}
@@ -622,7 +655,7 @@ export default function PortalNewSeeding() {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '10px', maxHeight: '380px', overflowY: 'auto', padding: '14px 16px' }}>
                 {!productsError && filteredProducts.length === 0 && (
                   <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '32px 16px', color: D.textMuted, fontSize: '13px' }}>
-                    {products.length === 0 ? 'No products found in your Shopify store.' : 'No products match your filters.'}
+                    {products.length === 0 ? 'No products found in your Shopify store.' : `No products in ${selectedCollection ? `"${selectedCollection.title}"` : 'this filter'}${search ? ` matching "${search}"` : ''}.`}
                   </div>
                 )}
                 {filteredProducts.map(prod => {
