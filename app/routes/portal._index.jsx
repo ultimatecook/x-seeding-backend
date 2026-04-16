@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { useLoaderData, Link, useNavigate, useSearchParams } from 'react-router';
 import prisma from '../db.server';
 import { requirePortalUser } from '../utils/portal-auth.server';
@@ -205,42 +205,36 @@ function fmtFollowers(n) {
   return String(n);
 }
 
-// ── Status meta (no Posted) ───────────────────────────────────────────────────
-const STATUS_META = {
-  Pending:   { bg: D.statusPending.bg,   text: D.statusPending.color,   dot: D.statusPending.dot   },
-  Ordered:   { bg: D.statusOrdered.bg,   text: D.statusOrdered.color,   dot: D.statusOrdered.dot   },
-  Shipped:   { bg: D.statusShipped.bg,   text: D.statusShipped.color,   dot: D.statusShipped.dot   },
-  Delivered: { bg: D.statusDelivered.bg, text: D.statusDelivered.color, dot: D.statusDelivered.dot },
+// ── Status dots only (no pill chrome) ────────────────────────────────────────
+const STATUS_DOT = {
+  Pending:   D.statusPending.dot,
+  Ordered:   D.statusOrdered.dot,
+  Shipped:   D.statusShipped.dot,
+  Delivered: D.statusDelivered.dot,
 };
 
-function StatusPill({ status }) {
-  const m = STATUS_META[status] || { bg: D.surfaceHigh, text: D.textSub, dot: D.textMuted };
+function StatusDot({ status }) {
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: '5px',
-      backgroundColor: m.bg, color: m.text,
-      borderRadius: '20px', padding: '3px 9px',
-      fontSize: '11px', fontWeight: '700', whiteSpace: 'nowrap',
+      fontSize: '11px', fontWeight: '600', color: 'var(--pt-text-sub)', whiteSpace: 'nowrap',
     }}>
-      <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: m.dot, flexShrink: 0 }} />
+      <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: STATUS_DOT[status] || 'var(--pt-text-muted)', flexShrink: 0, display: 'inline-block' }} />
       {status}
     </span>
   );
 }
 
-// ── Delta badge ───────────────────────────────────────────────────────────────
-function DeltaBadge({ delta }) {
+// ── Delta inline ──────────────────────────────────────────────────────────────
+function Delta({ delta }) {
   if (delta === null || delta === undefined) return null;
   const up = delta >= 0;
   return (
     <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: '3px',
-      fontSize: '11px', fontWeight: '700',
-      color:           up ? '#15803D' : '#B91C1C',
-      backgroundColor: up ? '#DCFCE7' : '#FEE2E2',
-      padding: '2px 7px', borderRadius: '20px',
+      fontSize: '11px', fontWeight: '600',
+      color: up ? '#15803D' : '#B91C1C',
     }}>
-      {up ? '↑' : '↓'} {Math.abs(delta)}%
+      {up ? '↑' : '↓'}{Math.abs(delta)}%
     </span>
   );
 }
@@ -249,34 +243,33 @@ function DeltaBadge({ delta }) {
 function DotChart({ weeks }) {
   const maxSeedings = Math.max(...weeks.map(w => w.seedings), 1);
   const peakIdx     = weeks.reduce((best, w, i) => w.seedings > weeks[best].seedings ? i : best, 0);
-  const MAX_DOTS    = 8;
+  const MAX_DOTS    = 9;
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: '5px', height: '80px' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: '4px', height: '88px' }}>
         {weeks.map((w, i) => {
           const filled   = maxSeedings > 0 ? Math.max(Math.round((w.seedings / maxSeedings) * MAX_DOTS), w.seedings > 0 ? 1 : 0) : 0;
           const isPeak   = i === peakIdx && maxSeedings > 0;
           const isRecent = i >= weeks.length - 4;
           return (
             <div key={i} title={`${w.label}: ${w.seedings} seedings`}
-              style={{ flex: 1, display: 'flex', flexDirection: 'column-reverse', alignItems: 'center', gap: '3px', height: '100%', justifyContent: 'flex-start' }}>
+              style={{ flex: 1, display: 'flex', flexDirection: 'column-reverse', alignItems: 'center', gap: '4px', height: '100%', justifyContent: 'flex-start' }}>
               {Array.from({ length: MAX_DOTS }, (_, di) => (
                 <div key={di} style={{
-                  width: '100%', maxWidth: '10px', height: '8px', borderRadius: '50%', flexShrink: 0,
+                  width: '100%', maxWidth: '11px', height: '8px', borderRadius: '3px', flexShrink: 0,
                   backgroundColor: di < filled
                     ? isPeak   ? '#7C6FF7'
                     : isRecent ? '#A78BFA'
-                    :            '#D4D0FB'
+                    :            '#DDD9FC'
                     : 'var(--pt-surface-high)',
-                  transition: 'background-color 0.2s',
                 }} />
               ))}
             </div>
           );
         })}
       </div>
-      <div style={{ display: 'flex', gap: '5px', marginTop: '8px' }}>
+      <div style={{ display: 'flex', gap: '4px', marginTop: '8px' }}>
         {weeks.map((w, i) => (
           <div key={i} style={{ flex: 1, textAlign: 'center', fontSize: '9px', color: 'var(--pt-text-muted)', overflow: 'hidden', whiteSpace: 'nowrap' }}>
             {i % 3 === 0 ? w.label : ''}
@@ -287,65 +280,25 @@ function DotChart({ weeks }) {
   );
 }
 
-// ── Widget shell ──────────────────────────────────────────────────────────────
-function Widget({ id, children, onDragStart, onDragOver, onDrop, onDragEnd, isDraggingOver, style = {} }) {
+// ── Section label ─────────────────────────────────────────────────────────────
+function Label({ children }) {
   return (
-    <div draggable onDragStart={e => onDragStart(e, id)} onDragOver={e => onDragOver(e, id)}
-      onDrop={e => onDrop(e, id)} onDragEnd={onDragEnd}
-      style={{
-        position: 'relative', borderRadius: '14px',
-        transition: 'opacity 0.15s, box-shadow 0.15s',
-        outline: isDraggingOver ? '2px solid var(--pt-accent)' : 'none',
-        outlineOffset: '2px', cursor: 'grab', ...style,
-      }}>
-      <div title="Drag to reorder" className="drag-handle"
-        style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 10,
-          fontSize: '14px', color: 'var(--pt-text-muted)', opacity: 0, transition: 'opacity 0.15s',
-          userSelect: 'none', cursor: 'grab', lineHeight: 1, padding: '2px 4px' }}>
-        ⠿
-      </div>
+    <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--pt-text-muted)', marginBottom: '18px' }}>
       {children}
     </div>
   );
 }
 
-// ── Shared card ───────────────────────────────────────────────────────────────
-function Card({ children, style = {} }) {
-  return (
-    <div style={{
-      backgroundColor: 'var(--pt-surface)', border: '1px solid var(--pt-border)',
-      borderRadius: '14px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', overflow: 'hidden', ...style,
-    }}>
-      {children}
-    </div>
-  );
+// ── Thin rule ─────────────────────────────────────────────────────────────────
+function Rule({ my = 40 }) {
+  return <div style={{ borderTop: '1px solid var(--pt-border)', margin: `${my}px 0` }} />;
 }
-
-function CardHeader({ title, right }) {
-  return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px', borderBottom: '1px solid var(--pt-border)' }}>
-      <span style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--pt-text-muted)' }}>
-        {title}
-      </span>
-      {right}
-    </div>
-  );
-}
-
-// ── Widget definitions ────────────────────────────────────────────────────────
-const WIDGET_DEFS = [
-  { id: 'activity',    label: 'Activity Chart'  },
-  { id: 'influencers', label: 'Top Influencers' },
-  { id: 'countries',   label: 'Countries'       },
-  { id: 'recent',      label: 'Recent Seedings' },
-];
-const DEFAULT_ORDER = WIDGET_DEFS.map(w => w.id);
 
 // ── Time filter options ───────────────────────────────────────────────────────
 const TIME_OPTIONS = [
-  { label: '30 Days', value: '30'  },
-  { label: '6 Months', value: '180' },
-  { label: '1 Year',   value: '365' },
+  { label: '30d',    value: '30'  },
+  { label: '6mo',    value: '180' },
+  { label: '1yr',    value: '365' },
 ];
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
@@ -355,91 +308,23 @@ export default function PortalDashboard() {
     shippedSeedings, deliveredSeedings,
     totalInfluencers, recentSeedings, countryData,
     topInfluencers, totalSpend, totalUnits,
-    thisMonthTotal, thisMonthCount, spendDelta, countDelta,
+    spendDelta, countDelta,
     countryPills, activeDays, activeCountry,
     activeSeedings, weeks,
   } = useLoaderData();
 
-  const navigate = useNavigate();
+  const navigate     = useNavigate();
   const [searchParams] = useSearchParams();
 
-  const completionRate = totalSeedings > 0
-    ? Math.round((deliveredSeedings / totalSeedings) * 100) : 0;
-  const totalCountrySpend = countryData.reduce((s, d) => s + d.spend, 0);
+  const completionRate    = totalSeedings > 0 ? Math.round((deliveredSeedings / totalSeedings) * 100) : 0;
+  const chartTotal        = weeks.reduce((s, w) => s + w.seedings, 0);
+  const peakWeek          = weeks.reduce((best, w) => w.seedings > best.seedings ? w : best, weeks[0] ?? { label: '', seedings: 0 });
 
-  // ── Filter navigation helpers ─────────────────────────────────────────────
-  function buildUrl(newDays, newCountry) {
-    const p = new URLSearchParams(searchParams);
-    if (newDays    === null) p.delete('days');    else p.set('days', newDays);
-    if (newCountry === null) p.delete('country'); else p.set('country', newCountry);
-    return `/portal?${p.toString()}`;
-  }
+  const chartLabel = activeDays === '30'  ? 'last 30 days'
+                   : activeDays === '180' ? 'last 6 months'
+                   : activeDays === '365' ? 'last year'
+                   :                       'last 12 weeks';
 
-  function toggleDays(val) {
-    navigate(buildUrl(activeDays === val ? null : val, activeCountry));
-  }
-  function toggleCountry(name) {
-    navigate(buildUrl(activeDays, activeCountry === name ? null : name));
-  }
-
-  // ── Widget order + visibility ─────────────────────────────────────────────
-  const [widgetOrder,   setWidgetOrder]   = useState(DEFAULT_ORDER);
-  const [hiddenWidgets, setHiddenWidgets] = useState(() => new Set());
-  const [showCustomize, setShowCustomize] = useState(false);
-
-  useEffect(() => {
-    try {
-      const savedOrder  = localStorage.getItem('dash-order');
-      const savedHidden = localStorage.getItem('dash-hidden');
-      if (savedOrder)  setWidgetOrder(JSON.parse(savedOrder));
-      if (savedHidden) setHiddenWidgets(new Set(JSON.parse(savedHidden)));
-    } catch {}
-  }, []);
-
-  const toggleHidden = (id) => {
-    setHiddenWidgets(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      localStorage.setItem('dash-hidden', JSON.stringify([...next]));
-      return next;
-    });
-  };
-
-  // ── Drag-and-drop ─────────────────────────────────────────────────────────
-  const draggingId = useRef(null);
-  const [dragOver, setDragOver] = useState(null);
-
-  const handleDragStart = useCallback((e, id) => {
-    draggingId.current = id;
-    e.dataTransfer.effectAllowed = 'move';
-  }, []);
-  const handleDragOver  = useCallback((e, id) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    setDragOver(id);
-  }, []);
-  const handleDrop = useCallback((e, targetId) => {
-    e.preventDefault();
-    setDragOver(null);
-    const fromId = draggingId.current;
-    if (!fromId || fromId === targetId) return;
-    setWidgetOrder(prev => {
-      const next = [...prev];
-      const fromIdx = next.indexOf(fromId);
-      const toIdx   = next.indexOf(targetId);
-      next.splice(fromIdx, 1);
-      next.splice(toIdx, 0, fromId);
-      localStorage.setItem('dash-order', JSON.stringify(next));
-      return next;
-    });
-    draggingId.current = null;
-  }, []);
-  const handleDragEnd = useCallback(() => {
-    setDragOver(null);
-    draggingId.current = null;
-  }, []);
-
-  // ── Pipeline (no Posted) ──────────────────────────────────────────────────
   const pipeline = [
     { label: 'Pending',   count: pendingSeedings,   color: D.statusPending.dot   },
     { label: 'Ordered',   count: orderedSeedings,   color: D.statusOrdered.dot   },
@@ -447,339 +332,269 @@ export default function PortalDashboard() {
     { label: 'Delivered', count: deliveredSeedings, color: D.statusDelivered.dot },
   ];
 
-  const peakWeek = weeks.reduce((best, w) => w.seedings > best.seedings ? w : best, weeks[0] ?? { label: '', seedings: 0 });
+  function buildUrl(newDays, newCountry) {
+    const p = new URLSearchParams(searchParams);
+    if (newDays    === null) p.delete('days');    else p.set('days', newDays);
+    if (newCountry === null) p.delete('country'); else p.set('country', newCountry);
+    const qs = p.toString();
+    return `/portal${qs ? `?${qs}` : ''}`;
+  }
+  const toggleDays    = val  => navigate(buildUrl(activeDays === val ? null : val, activeCountry));
+  const toggleCountry = name => navigate(buildUrl(activeDays, activeCountry === name ? null : name));
 
-  const chartLabel = activeDays === '30'  ? 'Last 30 Days'
-                   : activeDays === '180' ? 'Last 6 Months'
-                   : activeDays === '365' ? 'Last Year'
-                   :                       'Last 12 Weeks';
-
-  // ── Widget renderers ──────────────────────────────────────────────────────
-  const renderWidget = (id) => {
-    if (hiddenWidgets.has(id)) return null;
-
-    if (id === 'activity') return (
-      <Widget key={id} id={id} onDragStart={handleDragStart} onDragOver={handleDragOver} onDrop={handleDrop} isDraggingOver={dragOver === id} onDragEnd={handleDragEnd}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 260px', gap: '12px' }}>
-
-          {/* Dot chart */}
-          <Card>
-            <div style={{ padding: '20px 22px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '18px' }}>
-                <div>
-                  <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--pt-text-muted)', marginBottom: '6px' }}>
-                    Seedings — {chartLabel}
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>
-                    <span style={{ fontSize: '28px', fontWeight: '800', color: 'var(--pt-text)', letterSpacing: '-0.8px' }}>
-                      {weeks.reduce((s, w) => s + w.seedings, 0)}
-                    </span>
-                    <DeltaBadge delta={countDelta} />
-                  </div>
-                </div>
-                {peakWeek.seedings > 0 && (
-                  <span style={{ fontSize: '11px', color: 'var(--pt-text-muted)', backgroundColor: 'var(--pt-surface-high)', padding: '4px 10px', borderRadius: '20px', border: '1px solid var(--pt-border)' }}>
-                    Peak: <strong style={{ color: 'var(--pt-text)' }}>{peakWeek.label}</strong>
-                  </span>
-                )}
-              </div>
-              <DotChart weeks={weeks} />
-            </div>
-          </Card>
-
-          {/* Pipeline */}
-          <Card>
-            <CardHeader title="Pipeline" />
-            <div style={{ padding: '16px 20px' }}>
-              {totalSeedings === 0 ? (
-                <p style={{ margin: 0, color: 'var(--pt-text-muted)', fontSize: '13px' }}>No seedings yet.</p>
-              ) : (
-                <>
-                  <div style={{ display: 'flex', height: '4px', borderRadius: '99px', overflow: 'hidden', backgroundColor: 'var(--pt-surface-high)', marginBottom: '16px' }}>
-                    {pipeline.filter(s => s.count > 0).map(s => (
-                      <div key={s.label} style={{ width: `${(s.count / totalSeedings) * 100}%`, backgroundColor: s.color }} />
-                    ))}
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '9px' }}>
-                    {pipeline.map(s => (
-                      <div key={s.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
-                          <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: s.color, flexShrink: 0 }} />
-                          <span style={{ fontSize: '12px', color: 'var(--pt-text-sub)' }}>{s.label}</span>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <div style={{ width: '48px', height: '3px', backgroundColor: 'var(--pt-surface-high)', borderRadius: '99px', overflow: 'hidden' }}>
-                            <div style={{ width: `${(s.count / totalSeedings) * 100}%`, height: '100%', backgroundColor: s.color }} />
-                          </div>
-                          <span style={{ fontSize: '13px', fontWeight: '800', color: 'var(--pt-text)', minWidth: '18px', textAlign: 'right' }}>{s.count}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px solid var(--pt-border)', fontSize: '11px', color: 'var(--pt-text-muted)' }}>
-                    {completionRate}% completion rate
-                  </div>
-                </>
-              )}
-            </div>
-          </Card>
-        </div>
-      </Widget>
-    );
-
-    if (id === 'influencers') return (
-      <Widget key={id} id={id} onDragStart={handleDragStart} onDragOver={handleDragOver} onDrop={handleDrop} isDraggingOver={dragOver === id} onDragEnd={handleDragEnd}>
-        <Card>
-          <CardHeader
-            title="Top Influencers"
-            right={<Link to="/portal/influencers" style={{ fontSize: '11px', color: 'var(--pt-accent)', fontWeight: '700', textDecoration: 'none' }}>View all →</Link>}
-          />
-          {topInfluencers.length === 0 ? (
-            <div style={{ padding: '32px', textAlign: 'center', color: 'var(--pt-text-muted)', fontSize: '13px' }}>No influencers yet.</div>
-          ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', tableLayout: 'fixed' }}>
-              <colgroup>
-                <col style={{ width: '32px' }} /><col /><col style={{ width: '130px' }} />
-                <col style={{ width: '85px' }} /><col style={{ width: '110px' }} /><col style={{ width: '110px' }} />
-              </colgroup>
-              <thead>
-                <tr style={{ backgroundColor: 'var(--pt-bg)' }}>
-                  {['#', 'Influencer', 'Country', 'Followers', 'Seedings', 'Value'].map(h => (
-                    <th key={h} style={{ textAlign: h === '#' ? 'center' : 'left', padding: '8px 16px', color: 'var(--pt-text-muted)', fontWeight: '700', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {topInfluencers.map((inf, i) => (
-                  <tr key={inf.id} style={{ borderTop: '1px solid var(--pt-border-light)' }}>
-                    <td style={{ padding: '11px 16px', textAlign: 'center', color: 'var(--pt-text-muted)', fontSize: '11px', fontWeight: '700' }}>{i + 1}</td>
-                    <td style={{ padding: '11px 16px', overflow: 'hidden' }}>
-                      <Link to={`/portal/influencers/${inf.id}`} style={{ textDecoration: 'none' }}>
-                        <div style={{ fontWeight: '700', color: 'var(--pt-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{inf.name || `@${inf.handle}`}</div>
-                        {inf.name && <div style={{ fontSize: '11px', color: 'var(--pt-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>@{inf.handle}</div>}
-                      </Link>
-                    </td>
-                    <td style={{ padding: '11px 16px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
-                        <FlagImg country={inf.country} size={15} />
-                        <span style={{ fontSize: '12px', color: 'var(--pt-text-sub)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{inf.country || '—'}</span>
-                      </div>
-                    </td>
-                    <td style={{ padding: '11px 16px', color: 'var(--pt-text-sub)', fontSize: '12px', fontWeight: '600' }}>{fmtFollowers(inf.followers)}</td>
-                    <td style={{ padding: '11px 16px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
-                        <div style={{ width: '44px', height: '3px', backgroundColor: 'var(--pt-surface-high)', borderRadius: '99px', overflow: 'hidden' }}>
-                          <div style={{ width: `${(inf._count.seedings / (topInfluencers[0]._count.seedings || 1)) * 100}%`, height: '100%', backgroundColor: 'var(--pt-accent)' }} />
-                        </div>
-                        <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--pt-text)' }}>{inf._count.seedings}</span>
-                      </div>
-                    </td>
-                    <td style={{ padding: '11px 16px', fontWeight: '800', color: 'var(--pt-accent)', fontSize: '13px' }}>€{fmtNum(inf.totalSpend)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </Card>
-      </Widget>
-    );
-
-    if (id === 'countries') return (
-      <Widget key={id} id={id} onDragStart={handleDragStart} onDragOver={handleDragOver} onDrop={handleDrop} isDraggingOver={dragOver === id} onDragEnd={handleDragEnd}>
-        <Card>
-          <CardHeader
-            title="Top Countries"
-            right={<span style={{ fontSize: '11px', color: 'var(--pt-text-sub)' }}>{countryData.length} countr{countryData.length !== 1 ? 'ies' : 'y'}</span>}
-          />
-          {countryData.length === 0 ? (
-            <div style={{ padding: '24px', color: 'var(--pt-text-muted)', fontSize: '13px' }}>No data yet.</div>
-          ) : (
-            <div style={{ padding: '8px 0' }}>
-              {countryData.map(d => {
-                const pct = totalCountrySpend > 0 ? (d.spend / totalCountrySpend) * 100 : 0;
-                return (
-                  <div key={d.country} style={{ padding: '9px 20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <FlagImg country={d.country} size={18} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                        <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--pt-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.country}</span>
-                        <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--pt-text)', flexShrink: 0, marginLeft: '8px' }}>€{fmtNum(d.spend)}</span>
-                      </div>
-                      <div style={{ height: '3px', backgroundColor: 'var(--pt-surface-high)', borderRadius: '99px', overflow: 'hidden' }}>
-                        <div style={{ width: `${pct}%`, height: '100%', backgroundColor: 'var(--pt-accent)', borderRadius: '99px' }} />
-                      </div>
-                    </div>
-                    <span style={{ fontSize: '11px', color: 'var(--pt-text-muted)', flexShrink: 0, minWidth: '28px', textAlign: 'right' }}>{Math.round(pct)}%</span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </Card>
-      </Widget>
-    );
-
-    if (id === 'recent') return (
-      <Widget key={id} id={id} onDragStart={handleDragStart} onDragOver={handleDragOver} onDrop={handleDrop} isDraggingOver={dragOver === id} onDragEnd={handleDragEnd}>
-        <Card>
-          <CardHeader
-            title="Recent Seedings"
-            right={<Link to="/portal/seedings" style={{ fontSize: '11px', color: 'var(--pt-accent)', fontWeight: '700', textDecoration: 'none' }}>View all →</Link>}
-          />
-          {recentSeedings.length === 0 ? (
-            <div style={{ padding: '40px', textAlign: 'center', color: 'var(--pt-text-muted)', fontSize: '13px' }}>No seedings yet.</div>
-          ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-              <thead>
-                <tr style={{ backgroundColor: 'var(--pt-bg)' }}>
-                  {['Influencer', 'Campaign', 'Status', 'Value', 'Date'].map(h => (
-                    <th key={h} style={{ textAlign: 'left', padding: '8px 16px', color: 'var(--pt-text-muted)', fontWeight: '700', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {recentSeedings.map(s => (
-                  <tr key={s.id} style={{ borderTop: '1px solid var(--pt-border-light)' }}>
-                    <td style={{ padding: '11px 16px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        {s.influencer?.country && <FlagImg country={s.influencer.country} size={14} />}
-                        <div>
-                          <div style={{ fontWeight: '700', color: 'var(--pt-text)' }}>{s.influencer?.name || `@${s.influencer?.handle}`}</div>
-                          {s.influencer?.name && <div style={{ fontSize: '11px', color: 'var(--pt-text-muted)' }}>@{s.influencer.handle}</div>}
-                        </div>
-                      </div>
-                    </td>
-                    <td style={{ padding: '11px 16px', fontSize: '12px' }}>
-                      {s.campaign
-                        ? <Link to={`/portal/campaigns/${s.campaign.id}`} style={{ color: 'var(--pt-accent)', fontWeight: '600', textDecoration: 'none' }}>{s.campaign.title}</Link>
-                        : <span style={{ color: 'var(--pt-text-muted)' }}>—</span>}
-                    </td>
-                    <td style={{ padding: '11px 16px' }}><StatusPill status={s.status} /></td>
-                    <td style={{ padding: '11px 16px', fontWeight: '700', color: 'var(--pt-text)' }}>{s.totalCost ? `€${fmtNum(s.totalCost)}` : '—'}</td>
-                    <td style={{ padding: '11px 16px', color: 'var(--pt-text-sub)', fontSize: '12px' }}>{fmtDate(s.createdAt, 'medium')}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </Card>
-      </Widget>
-    );
-
-    return null;
-  };
-
-  // ── KPI cards ─────────────────────────────────────────────────────────────
-  const kpis = [
-    { label: 'Retail Value Seeded', value: `€${fmtNum(totalSpend)}`,  sub: `€${fmtNum(thisMonthTotal)} this month`, delta: spendDelta },
-    { label: 'Total Seedings',      value: String(totalSeedings),     sub: `${thisMonthCount} this month`,          delta: countDelta },
-    { label: 'Units Sent',          value: String(totalUnits),        sub: 'Products shipped', accentColor: 'var(--pt-purple)' },
-    { label: 'In Transit',          value: String(activeSeedings),    sub: 'Ordered + Shipped', accentColor: 'var(--pt-accent)' },
-    { label: 'Influencers',         value: String(totalInfluencers),  sub: 'Active roster' },
-  ];
-
-  const filterBarStyle = {
-    display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap',
-  };
-
-  const pillStyle = (active) => ({
-    display: 'inline-flex', alignItems: 'center', gap: '6px',
-    padding: '7px 14px', borderRadius: '99px', cursor: 'pointer',
-    fontSize: '13px', fontWeight: '600', border: 'none',
-    transition: 'all 0.15s',
-    backgroundColor: active ? '#7C6FF7' : 'var(--pt-surface)',
-    color:           active ? '#FFFFFF'  : 'var(--pt-text-sub)',
-    boxShadow:       active
-      ? '0 1px 4px rgba(124,111,247,0.35)'
-      : '0 0 0 1px var(--pt-border)',
+  // pill button style
+  const pill = (active) => ({
+    display: 'inline-flex', alignItems: 'center', gap: '5px',
+    padding: '5px 12px', borderRadius: '99px', cursor: 'pointer',
+    fontSize: '12px', fontWeight: '600', border: 'none',
+    transition: 'all 0.12s',
+    backgroundColor: active ? '#7C6FF7'               : 'transparent',
+    color:           active ? '#fff'                  : 'var(--pt-text-muted)',
+    boxShadow:       active ? '0 1px 4px rgba(124,111,247,0.3)' : 'none',
   });
 
   return (
-    <div>
-      <style>{`
-        [draggable]:hover .drag-handle { opacity: 1 !important; }
-        [draggable]:active { opacity: 0.6; cursor: grabbing; }
-      `}</style>
+    <div style={{ paddingBottom: '60px' }}>
 
-      {/* ── Page header ───────────────────────────────────────── */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '16px' }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: '20px', fontWeight: '800', color: 'var(--pt-text)', letterSpacing: '-0.4px' }}>Dashboard</h1>
-          <p style={{ margin: '3px 0 0', fontSize: '13px', color: 'var(--pt-text-sub)' }}>Your influencer seeding overview.</p>
+      {/* ── Header + filters ─────────────────────────────────── */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '36px' }}>
+        <h1 style={{ margin: 0, fontSize: '18px', fontWeight: '700', color: 'var(--pt-text)', letterSpacing: '-0.3px' }}>
+          Overview
+        </h1>
+
+        {/* Filter row */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '2px', backgroundColor: 'var(--pt-surface-high)', borderRadius: '99px', padding: '3px', border: '1px solid var(--pt-border)' }}>
+          {TIME_OPTIONS.map(opt => (
+            <button key={opt.value} onClick={() => toggleDays(opt.value)} style={pill(activeDays === opt.value)}>
+              {opt.label}
+            </button>
+          ))}
+          {countryPills.length > 0 && (
+            <div style={{ width: '1px', height: '16px', backgroundColor: 'var(--pt-border)', margin: '0 2px' }} />
+          )}
+          {countryPills.map(country => (
+            <button key={country} onClick={() => toggleCountry(country)} style={{ ...pill(activeCountry === country), gap: '5px' }}>
+              <FlagImg country={country} size={14} />
+              <span>{country.split(' ')[0]}</span>
+            </button>
+          ))}
+          {(activeDays || activeCountry) && (
+            <button onClick={() => navigate('/portal')}
+              style={{ ...pill(false), color: 'var(--pt-text-muted)', padding: '5px 10px' }}>
+              ✕
+            </button>
+          )}
         </div>
-        <div style={{ position: 'relative' }}>
-          <button onClick={() => setShowCustomize(v => !v)}
-            style={{ padding: '7px 14px', borderRadius: '8px', border: '1px solid var(--pt-border)', backgroundColor: showCustomize ? 'var(--pt-accent-light)' : 'var(--pt-surface)', color: showCustomize ? 'var(--pt-accent)' : 'var(--pt-text-sub)', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>
-            ⚙ Customize
-          </button>
-          {showCustomize && (
-            <div style={{ position: 'absolute', top: '38px', right: 0, zIndex: 100, backgroundColor: 'var(--pt-surface)', border: '1px solid var(--pt-border)', borderRadius: '12px', boxShadow: '0 8px 32px rgba(0,0,0,0.12)', padding: '12px', minWidth: '200px' }}>
-              <div style={{ fontSize: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--pt-text-muted)', marginBottom: '8px', padding: '0 4px' }}>Visible widgets</div>
-              {WIDGET_DEFS.map(w => (
-                <label key={w.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 4px', cursor: 'pointer', borderRadius: '6px' }}>
-                  <input type="checkbox" checked={!hiddenWidgets.has(w.id)} onChange={() => toggleHidden(w.id)}
-                    style={{ accentColor: 'var(--pt-accent)', width: '14px', height: '14px' }} />
-                  <span style={{ fontSize: '13px', color: 'var(--pt-text)', fontWeight: '500' }}>{w.label}</span>
-                </label>
-              ))}
-              <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid var(--pt-border)', fontSize: '11px', color: 'var(--pt-text-muted)', padding: '8px 4px 0' }}>
-                Drag cards to reorder.
+      </div>
+
+      {/* ── Hero: big number + chart ──────────────────────────── */}
+      <div style={{ marginBottom: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '14px', marginBottom: '4px' }}>
+          <span style={{ fontSize: '56px', fontWeight: '800', letterSpacing: '-2.5px', lineHeight: 1, color: 'var(--pt-text)' }}>
+            {chartTotal}
+          </span>
+          <span style={{ fontSize: '16px', color: 'var(--pt-text-muted)', fontWeight: '400' }}>seedings</span>
+          <Delta delta={countDelta} />
+        </div>
+        <div style={{ fontSize: '13px', color: 'var(--pt-text-muted)', marginBottom: '24px' }}>
+          {chartLabel}
+          {activeCountry && <span> · {activeCountry}</span>}
+          {peakWeek.seedings > 0 && (
+            <span> · peak <strong style={{ color: 'var(--pt-text-sub)', fontWeight: '600' }}>{peakWeek.label}</strong></span>
+          )}
+        </div>
+        <DotChart weeks={weeks} />
+      </div>
+
+      <Rule my={36} />
+
+      {/* ── Numbers row ──────────────────────────────────────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1px 1fr 1px 1fr 1px 1fr', alignItems: 'start', gap: '0' }}>
+
+        {/* Retail value — primary stat */}
+        <div style={{ paddingRight: '36px' }}>
+          <Label>Retail Value Seeded</Label>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>
+            <span style={{ fontSize: '38px', fontWeight: '800', letterSpacing: '-1.5px', color: 'var(--pt-text)', lineHeight: 1 }}>
+              €{fmtNum(totalSpend)}
+            </span>
+            <Delta delta={spendDelta} />
+          </div>
+        </div>
+
+        <div style={{ backgroundColor: 'var(--pt-border)', alignSelf: 'stretch' }} />
+
+        {/* Units sent */}
+        <div style={{ padding: '0 32px' }}>
+          <Label>Units Sent</Label>
+          <span style={{ fontSize: '26px', fontWeight: '800', letterSpacing: '-0.8px', color: 'var(--pt-text)', lineHeight: 1 }}>
+            {totalUnits}
+          </span>
+        </div>
+
+        <div style={{ backgroundColor: 'var(--pt-border)', alignSelf: 'stretch' }} />
+
+        {/* In transit */}
+        <div style={{ padding: '0 32px' }}>
+          <Label>In Transit</Label>
+          <span style={{ fontSize: '26px', fontWeight: '800', letterSpacing: '-0.8px', color: 'var(--pt-text)', lineHeight: 1 }}>
+            {activeSeedings}
+          </span>
+        </div>
+
+        <div style={{ backgroundColor: 'var(--pt-border)', alignSelf: 'stretch' }} />
+
+        {/* Influencers */}
+        <div style={{ paddingLeft: '32px' }}>
+          <Label>Influencers</Label>
+          <span style={{ fontSize: '26px', fontWeight: '800', letterSpacing: '-0.8px', color: 'var(--pt-text)', lineHeight: 1 }}>
+            {totalInfluencers}
+          </span>
+        </div>
+      </div>
+
+      <Rule my={36} />
+
+      {/* ── Pipeline ─────────────────────────────────────────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: '0 60px', alignItems: 'start' }}>
+        <div>
+          <Label>Pipeline</Label>
+          {totalSeedings === 0 ? (
+            <p style={{ margin: 0, fontSize: '13px', color: 'var(--pt-text-muted)' }}>No seedings yet.</p>
+          ) : (
+            <>
+              {/* Stacked bar */}
+              <div style={{ display: 'flex', height: '3px', borderRadius: '99px', overflow: 'hidden', backgroundColor: 'var(--pt-surface-high)', marginBottom: '20px' }}>
+                {pipeline.filter(s => s.count > 0).map(s => (
+                  <div key={s.label} title={`${s.label}: ${s.count}`} style={{ width: `${(s.count / totalSeedings) * 100}%`, backgroundColor: s.color }} />
+                ))}
               </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {pipeline.map(s => (
+                  <div key={s.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: s.color, flexShrink: 0 }} />
+                      <span style={{ fontSize: '12px', color: 'var(--pt-text-sub)' }}>{s.label}</span>
+                    </div>
+                    <span style={{ fontSize: '14px', fontWeight: '700', color: 'var(--pt-text)' }}>{s.count}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--pt-text-muted)', marginTop: '16px' }}>
+                {completionRate}% delivered
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Recent seedings — list format */}
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '18px' }}>
+            <Label>Recent Seedings</Label>
+            <Link to="/portal/seedings" style={{ fontSize: '11px', color: 'var(--pt-accent)', fontWeight: '600', textDecoration: 'none', marginTop: '-2px' }}>
+              View all →
+            </Link>
+          </div>
+          {recentSeedings.length === 0 ? (
+            <p style={{ margin: 0, fontSize: '13px', color: 'var(--pt-text-muted)' }}>No seedings yet.</p>
+          ) : (
+            <div>
+              {recentSeedings.slice(0, 6).map((s, i) => (
+                <div key={s.id} style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '10px 0',
+                  borderTop: i === 0 ? 'none' : '1px solid var(--pt-border-light)',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                    {s.influencer?.country && <FlagImg country={s.influencer.country} size={13} />}
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--pt-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {s.influencer?.name || `@${s.influencer?.handle}`}
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'var(--pt-text-muted)', marginTop: '1px' }}>
+                        {s.campaign?.title || '—'} · {fmtDate(s.createdAt, 'short')}
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0, marginLeft: '16px' }}>
+                    <StatusDot status={s.status} />
+                    <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--pt-text)', minWidth: '52px', textAlign: 'right' }}>
+                      {s.totalCost ? `€${fmtNum(s.totalCost)}` : '—'}
+                    </span>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
       </div>
 
-      {/* ── Filter bar ────────────────────────────────────────── */}
-      <div style={{ ...filterBarStyle, marginBottom: '16px' }}>
-        {/* Time pills */}
-        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-          {TIME_OPTIONS.map(opt => (
-            <button key={opt.value} onClick={() => toggleDays(opt.value)} style={pillStyle(activeDays === opt.value)}>
-              {opt.label}
-            </button>
-          ))}
+      <Rule my={36} />
+
+      {/* ── Countries + Influencers ───────────────────────────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '60px', alignItems: 'start' }}>
+
+        {/* Countries */}
+        <div>
+          <Label>Top Countries</Label>
+          {countryData.length === 0 ? (
+            <p style={{ margin: 0, fontSize: '13px', color: 'var(--pt-text-muted)' }}>No data yet.</p>
+          ) : (
+            <div>
+              {countryData.slice(0, 5).map((d, i) => (
+                <div key={d.country} style={{
+                  display: 'flex', alignItems: 'center', gap: '12px',
+                  padding: '10px 0',
+                  borderTop: i === 0 ? 'none' : '1px solid var(--pt-border-light)',
+                }}>
+                  <FlagImg country={d.country} size={17} />
+                  <span style={{ flex: 1, fontSize: '13px', fontWeight: '500', color: 'var(--pt-text)' }}>{d.country}</span>
+                  <span style={{ fontSize: '11px', color: 'var(--pt-text-muted)' }}>{d.seedings} seedings</span>
+                  <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--pt-text)', minWidth: '56px', textAlign: 'right' }}>
+                    €{fmtNum(d.spend)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* Divider */}
-        {countryPills.length > 0 && (
-          <div style={{ width: '1px', height: '28px', backgroundColor: 'var(--pt-border)', margin: '0 4px', flexShrink: 0 }} />
-        )}
-
-        {/* Country pills */}
-        {countryPills.map(country => (
-          <button key={country} onClick={() => toggleCountry(country)} style={pillStyle(activeCountry === country)}>
-            <FlagImg country={country} size={16} />
-            {country}
-          </button>
-        ))}
-
-        {/* Clear all */}
-        {(activeDays || activeCountry) && (
-          <button onClick={() => navigate('/portal')}
-            style={{ padding: '6px 12px', borderRadius: '99px', cursor: 'pointer', fontSize: '12px', fontWeight: '600', border: '1px solid var(--pt-border)', backgroundColor: 'transparent', color: 'var(--pt-text-muted)' }}>
-            ✕ Clear
-          </button>
-        )}
-      </div>
-
-      {/* ── KPI row ───────────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px', marginBottom: '14px' }}>
-        {kpis.map(kpi => (
-          <div key={kpi.label} style={{ backgroundColor: 'var(--pt-surface)', border: '1px solid var(--pt-border)', borderRadius: '14px', padding: '16px 18px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-            <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--pt-text-muted)', marginBottom: '6px' }}>{kpi.label}</div>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '3px' }}>
-              <span style={{ fontSize: '26px', fontWeight: '800', color: kpi.accentColor || 'var(--pt-text)', letterSpacing: '-0.8px', lineHeight: 1 }}>{kpi.value}</span>
-              {kpi.delta !== undefined && <DeltaBadge delta={kpi.delta} />}
-            </div>
-            {kpi.sub && <div style={{ fontSize: '11px', color: 'var(--pt-text-sub)' }}>{kpi.sub}</div>}
+        {/* Top influencers */}
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '18px' }}>
+            <Label>Top Influencers</Label>
+            <Link to="/portal/influencers" style={{ fontSize: '11px', color: 'var(--pt-accent)', fontWeight: '600', textDecoration: 'none', marginTop: '-2px' }}>
+              View all →
+            </Link>
           </div>
-        ))}
-      </div>
-
-      {/* ── Draggable widgets ─────────────────────────────────── */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }} onDragOver={e => e.preventDefault()}>
-        {widgetOrder.map(id => renderWidget(id))}
+          {topInfluencers.length === 0 ? (
+            <p style={{ margin: 0, fontSize: '13px', color: 'var(--pt-text-muted)' }}>No influencers yet.</p>
+          ) : (
+            <div>
+              {topInfluencers.map((inf, i) => (
+                <Link key={inf.id} to={`/portal/influencers/${inf.id}`} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 0', borderTop: i === 0 ? 'none' : '1px solid var(--pt-border-light)' }}>
+                  <span style={{ fontSize: '10px', fontWeight: '700', color: 'var(--pt-text-muted)', width: '14px', textAlign: 'right', flexShrink: 0 }}>{i + 1}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--pt-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {inf.name || `@${inf.handle}`}
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--pt-text-muted)', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '1px' }}>
+                      <FlagImg country={inf.country} size={11} />
+                      {inf.country || '—'} · {fmtFollowers(inf.followers)}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--pt-text)' }}>{inf._count.seedings}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--pt-text-muted)' }}>seedings</div>
+                  </div>
+                  <div style={{ textAlign: 'right', flexShrink: 0, minWidth: '52px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--pt-accent)' }}>€{fmtNum(inf.totalSpend)}</div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
     </div>
