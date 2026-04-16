@@ -260,22 +260,19 @@ export default function PortalLayout() {
               onClick={toggleCollapsed}
               title="Expand sidebar"
               style={{
-                background:   'none',
-                border:       'none',
-                cursor:       'pointer',
-                padding:      0,
-                display:      'flex',
-                alignItems:   'center',
+                background:     'none',
+                border:         'none',
+                cursor:         'pointer',
+                padding:        0,
+                display:        'flex',
+                alignItems:     'center',
                 justifyContent: 'center',
-                width:        '40px',
-                height:       '40px',
-                borderRadius: '10px',
-                color:        'var(--pt-accent)',
+                width:          '40px',
+                height:         '40px',
+                borderRadius:   '10px',
               }}
             >
-              <span style={{ fontSize: '26px', fontWeight: '900', letterSpacing: '-1.5px', lineHeight: 1 }}>
-                Z
-              </span>
+              <img src="/logonly.png" alt="Z" style={{ height: '28px', width: 'auto', display: 'block' }} />
             </button>
           ) : (
             <>
