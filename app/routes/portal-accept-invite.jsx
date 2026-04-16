@@ -96,21 +96,23 @@ const inputStyle = {
   fontSize: '14px', width: '100%', boxSizing: 'border-box', color: P.text, backgroundColor: '#fff',
 };
 
-const logoBlock = (
-  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '32px' }}>
-    <div style={{
-      width: '34px', height: '34px',
-      background: 'linear-gradient(135deg, #7C6FF7 0%, #5B4CF0 100%)',
-      borderRadius: '9px',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontSize: '16px', color: '#fff',
-      boxShadow: '0 2px 8px rgba(124,111,247,0.4)',
-    }}>✦</div>
-    <span style={{ fontSize: '15px', fontWeight: '800', color: P.text, letterSpacing: '-0.3px' }}>
-      X – Seeding Portal
-    </span>
-  </div>
-);
+function LogoBlock() {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '32px' }}>
+      <div style={{
+        width: '34px', height: '34px',
+        background: 'linear-gradient(135deg, #7C6FF7 0%, #5B4CF0 100%)',
+        borderRadius: '9px',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: '16px', color: '#fff',
+        boxShadow: '0 2px 8px rgba(124,111,247,0.4)',
+      }}>✦</div>
+      <span style={{ fontSize: '15px', fontWeight: '800', color: P.text, letterSpacing: '-0.3px' }}>
+        X – Seeding Portal
+      </span>
+    </div>
+  );
+}
 
 export default function AcceptInvite() {
   const loaderData = useLoaderData();
@@ -121,7 +123,7 @@ export default function AcceptInvite() {
     return (
       <div style={sharedWrap}>
         <div style={{ ...sharedCard, textAlign: 'center' }}>
-          {logoBlock}
+          <LogoBlock />
           <div style={{ fontSize: '32px', marginBottom: '12px' }}>⚠️</div>
           <p style={{ color: P.text, fontWeight: '600', marginBottom: '16px' }}>{loaderData?.error}</p>
           <a href="/portal-login" style={{ color: P.accent, fontWeight: '700', fontSize: '14px', textDecoration: 'none' }}>
@@ -135,7 +137,7 @@ export default function AcceptInvite() {
   return (
     <div style={sharedWrap}>
       <div style={sharedCard}>
-        {logoBlock}
+        <LogoBlock />
 
         <h2 style={{ margin: '0 0 4px', fontSize: '20px', fontWeight: '800', color: P.text, letterSpacing: '-0.3px' }}>
           Welcome, {loaderData.name}!

@@ -52,7 +52,6 @@ export async function loader({ request }) {
               edges { node {
                 id title
                 featuredImage { url }
-                collections(first: 5) { edges { node { title } } }
                 variants(first: 30) { edges { node {
                   id title price availableForSale
                 } } }
@@ -74,7 +73,6 @@ export async function loader({ request }) {
             name:        edge.node.title,
             image:       edge.node.featuredImage?.url ?? null,
             stock:       hasStock ? 1 : 0,  // 0 = treat as out of stock
-            collections: edge.node.collections.edges.map(c => c.node.title),
             variants:    vars.map(v => ({
               id:        v.node.id,
               title:     v.node.title,
