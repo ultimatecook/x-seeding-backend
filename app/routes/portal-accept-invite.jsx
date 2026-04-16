@@ -5,7 +5,15 @@ import {
   getPortalSession,
   commitPortalSession,
 } from '../utils/portal-auth.server';
-import { C } from '../theme';
+
+// Portal purple palette (hardcoded — page has no theme provider)
+const P = {
+  accent:  '#7C6FF7',
+  border:  '#E5E3F0',
+  text:    '#1A1523',
+  textSub: '#6B6880',
+  bg:      '#F7F6FB',
+};
 
 export async function loader({ request }) {
   const url   = new URL(request.url);
@@ -62,7 +70,6 @@ export async function action({ request }) {
     },
   });
 
-  // Auto log in after accepting
   const session = await getPortalSession(request);
   session.set('portalUserId', String(user.id));
   session.set('portalShop', user.shop);
@@ -72,6 +79,39 @@ export async function action({ request }) {
   });
 }
 
+const sharedWrap = {
+  minHeight: '100vh', backgroundColor: P.bg,
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  fontFamily: '-apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif',
+};
+
+const sharedCard = {
+  backgroundColor: '#fff', border: `1px solid ${P.border}`,
+  borderRadius: '16px', padding: '40px', width: '100%', maxWidth: '400px',
+  boxShadow: '0 4px 24px rgba(124,111,247,0.1)',
+};
+
+const inputStyle = {
+  padding: '10px 12px', borderRadius: '8px', border: `1px solid ${P.border}`,
+  fontSize: '14px', width: '100%', boxSizing: 'border-box', color: P.text, backgroundColor: '#fff',
+};
+
+const logoBlock = (
+  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '32px' }}>
+    <div style={{
+      width: '34px', height: '34px',
+      background: 'linear-gradient(135deg, #7C6FF7 0%, #5B4CF0 100%)',
+      borderRadius: '9px',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontSize: '16px', color: '#fff',
+      boxShadow: '0 2px 8px rgba(124,111,247,0.4)',
+    }}>✦</div>
+    <span style={{ fontSize: '15px', fontWeight: '800', color: P.text, letterSpacing: '-0.3px' }}>
+      X – Seeding Portal
+    </span>
+  </div>
+);
+
 export default function AcceptInvite() {
   const loaderData = useLoaderData();
   const actionData = useActionData();
@@ -79,19 +119,12 @@ export default function AcceptInvite() {
 
   if (!loaderData?.valid) {
     return (
-      <div style={{
-        minHeight: '100vh', backgroundColor: '#F9F9F8',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontFamily: 'system-ui, sans-serif',
-      }}>
-        <div style={{
-          backgroundColor: '#fff', border: `1px solid ${C.border}`,
-          borderRadius: '12px', padding: '40px', maxWidth: '400px', width: '100%',
-          textAlign: 'center',
-        }}>
+      <div style={sharedWrap}>
+        <div style={{ ...sharedCard, textAlign: 'center' }}>
+          {logoBlock}
           <div style={{ fontSize: '32px', marginBottom: '12px' }}>⚠️</div>
-          <p style={{ color: C.text, fontWeight: '600', marginBottom: '16px' }}>{loaderData?.error}</p>
-          <a href="/portal-login" style={{ color: C.accent, fontWeight: '700', fontSize: '14px' }}>
+          <p style={{ color: P.text, fontWeight: '600', marginBottom: '16px' }}>{loaderData?.error}</p>
+          <a href="/portal-login" style={{ color: P.accent, fontWeight: '700', fontSize: '14px', textDecoration: 'none' }}>
             Go to login →
           </a>
         </div>
@@ -100,37 +133,23 @@ export default function AcceptInvite() {
   }
 
   return (
-    <div style={{
-      minHeight: '100vh', backgroundColor: '#F9F9F8',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontFamily: 'system-ui, sans-serif',
-    }}>
-      <div style={{
-        backgroundColor: '#fff', border: `1px solid ${C.border}`,
-        borderRadius: '12px', padding: '40px', width: '100%', maxWidth: '400px',
-        boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '28px' }}>
-          <div style={{
-            width: '32px', height: '32px', backgroundColor: C.accent, borderRadius: '8px',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', color: '#fff',
-          }}>✦</div>
-          <h1 style={{ margin: 0, fontSize: '17px', fontWeight: '800', color: C.text }}>
-            X – Seeding Manager
-          </h1>
-        </div>
+    <div style={sharedWrap}>
+      <div style={sharedCard}>
+        {logoBlock}
 
-        <h2 style={{ margin: '0 0 6px', fontSize: '15px', fontWeight: '700', color: C.text }}>
+        <h2 style={{ margin: '0 0 4px', fontSize: '20px', fontWeight: '800', color: P.text, letterSpacing: '-0.3px' }}>
           Welcome, {loaderData.name}!
         </h2>
-        <p style={{ margin: '0 0 20px', fontSize: '13px', color: C.textSub }}>
-          Set a password to activate your account ({loaderData.email}).
+        <p style={{ margin: '0 0 24px', fontSize: '13px', color: P.textSub }}>
+          Set a password to activate your account<br />
+          <span style={{ fontWeight: '600', color: P.text }}>{loaderData.email}</span>
         </p>
 
         {error && (
           <div style={{
             padding: '10px 14px', backgroundColor: '#FEF2F2', color: '#DC2626',
-            borderRadius: '6px', fontSize: '13px', marginBottom: '16px', fontWeight: '600',
+            border: '1px solid #FECACA', borderRadius: '8px', fontSize: '13px',
+            marginBottom: '16px', fontWeight: '600',
           }}>
             {error}
           </div>
@@ -139,36 +158,35 @@ export default function AcceptInvite() {
         <Form method="post" style={{ display: 'grid', gap: '14px' }}>
           <input type="hidden" name="token" value={loaderData.token} />
 
-          <div style={{ display: 'grid', gap: '5px' }}>
-            <label style={{ fontSize: '13px', fontWeight: '600', color: C.text }}>Password</label>
+          <div style={{ display: 'grid', gap: '6px' }}>
+            <label style={{ fontSize: '12px', fontWeight: '700', color: P.textSub, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Password
+            </label>
             <input
               name="password" type="password" autoComplete="new-password"
               placeholder="At least 8 characters" required
-              style={{
-                padding: '10px 12px', borderRadius: '6px', border: `1px solid ${C.border}`,
-                fontSize: '14px', width: '100%', boxSizing: 'border-box',
-              }}
+              style={inputStyle}
             />
           </div>
 
-          <div style={{ display: 'grid', gap: '5px' }}>
-            <label style={{ fontSize: '13px', fontWeight: '600', color: C.text }}>Confirm password</label>
+          <div style={{ display: 'grid', gap: '6px' }}>
+            <label style={{ fontSize: '12px', fontWeight: '700', color: P.textSub, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Confirm password
+            </label>
             <input
               name="confirm" type="password" autoComplete="new-password"
-              required
-              style={{
-                padding: '10px 12px', borderRadius: '6px', border: `1px solid ${C.border}`,
-                fontSize: '14px', width: '100%', boxSizing: 'border-box',
-              }}
+              required style={inputStyle}
             />
           </div>
 
           <button type="submit" style={{
-            padding: '11px', backgroundColor: C.accent, color: '#fff',
-            border: 'none', borderRadius: '6px', fontSize: '14px', fontWeight: '700',
-            cursor: 'pointer', marginTop: '4px',
+            padding: '12px',
+            background: 'linear-gradient(135deg, #7C6FF7 0%, #5B4CF0 100%)',
+            color: '#fff', border: 'none', borderRadius: '9px',
+            fontSize: '14px', fontWeight: '700', cursor: 'pointer', marginTop: '4px',
+            boxShadow: '0 2px 8px rgba(124,111,247,0.35)',
           }}>
-            Activate account
+            Activate account →
           </button>
         </Form>
       </div>

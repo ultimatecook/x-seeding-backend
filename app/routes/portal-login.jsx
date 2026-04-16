@@ -6,10 +6,17 @@ import {
   verifyPassword,
   getPortalUser,
 } from '../utils/portal-auth.server';
-import { C } from '../theme';
+
+// Portal purple palette (hardcoded — login page has no theme provider)
+const P = {
+  accent:  '#7C6FF7',
+  border:  '#E5E3F0',
+  text:    '#1A1523',
+  textSub: '#6B6880',
+  bg:      '#F7F6FB',
+};
 
 export async function loader({ request }) {
-  // Already logged in — go to portal home
   const user = await getPortalUser(request);
   if (user) throw redirect('/portal');
   return null;
@@ -51,47 +58,66 @@ export default function PortalLogin() {
   const [params]     = useSearchParams();
   const defaultEmail = params.get('email') || '';
 
+  const inputStyle = {
+    padding: '10px 12px',
+    borderRadius: '8px',
+    border: `1px solid ${P.border}`,
+    fontSize: '14px',
+    outline: 'none',
+    width: '100%',
+    boxSizing: 'border-box',
+    color: P.text,
+    backgroundColor: '#fff',
+  };
+
   return (
     <div style={{
       minHeight: '100vh',
-      backgroundColor: '#F9F9F8',
+      backgroundColor: P.bg,
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      fontFamily: 'system-ui, sans-serif',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif',
     }}>
       <div style={{
         backgroundColor: '#fff',
-        border: `1px solid ${C.border}`,
-        borderRadius: '12px',
+        border: `1px solid ${P.border}`,
+        borderRadius: '16px',
         padding: '40px',
         width: '100%',
         maxWidth: '400px',
-        boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+        boxShadow: '0 4px 24px rgba(124,111,247,0.1)',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '28px' }}>
+
+        {/* Logo */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '32px' }}>
           <div style={{
-            width: '32px', height: '32px',
-            backgroundColor: C.accent,
-            borderRadius: '8px',
+            width: '34px', height: '34px',
+            background: 'linear-gradient(135deg, #7C6FF7 0%, #5B4CF0 100%)',
+            borderRadius: '9px',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: '16px', color: '#fff',
+            boxShadow: '0 2px 8px rgba(124,111,247,0.4)',
           }}>✦</div>
-          <h1 style={{ margin: 0, fontSize: '17px', fontWeight: '800', color: C.text }}>
-            X – Seeding Manager
-          </h1>
+          <span style={{ fontSize: '15px', fontWeight: '800', color: P.text, letterSpacing: '-0.3px' }}>
+            X – Seeding Portal
+          </span>
         </div>
 
-        <h2 style={{ margin: '0 0 20px', fontSize: '15px', fontWeight: '700', color: C.text }}>
-          Sign in to your account
+        <h2 style={{ margin: '0 0 6px', fontSize: '20px', fontWeight: '800', color: P.text, letterSpacing: '-0.3px' }}>
+          Welcome back
         </h2>
+        <p style={{ margin: '0 0 24px', fontSize: '13px', color: P.textSub }}>
+          Sign in to your account to continue.
+        </p>
 
         {actionData?.error && (
           <div style={{
             padding: '10px 14px',
             backgroundColor: '#FEF2F2',
             color: '#DC2626',
-            borderRadius: '6px',
+            border: '1px solid #FECACA',
+            borderRadius: '8px',
             fontSize: '13px',
             marginBottom: '16px',
             fontWeight: '600',
@@ -101,8 +127,8 @@ export default function PortalLogin() {
         )}
 
         <Form method="post" style={{ display: 'grid', gap: '14px' }}>
-          <div style={{ display: 'grid', gap: '5px' }}>
-            <label style={{ fontSize: '13px', fontWeight: '600', color: C.text }}>
+          <div style={{ display: 'grid', gap: '6px' }}>
+            <label style={{ fontSize: '12px', fontWeight: '700', color: P.textSub, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
               Email
             </label>
             <input
@@ -111,20 +137,12 @@ export default function PortalLogin() {
               autoComplete="email"
               defaultValue={defaultEmail}
               required
-              style={{
-                padding: '10px 12px',
-                borderRadius: '6px',
-                border: `1px solid ${C.border}`,
-                fontSize: '14px',
-                outline: 'none',
-                width: '100%',
-                boxSizing: 'border-box',
-              }}
+              style={inputStyle}
             />
           </div>
 
-          <div style={{ display: 'grid', gap: '5px' }}>
-            <label style={{ fontSize: '13px', fontWeight: '600', color: C.text }}>
+          <div style={{ display: 'grid', gap: '6px' }}>
+            <label style={{ fontSize: '12px', fontWeight: '700', color: P.textSub, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
               Password
             </label>
             <input
@@ -132,33 +150,27 @@ export default function PortalLogin() {
               type="password"
               autoComplete="current-password"
               required
-              style={{
-                padding: '10px 12px',
-                borderRadius: '6px',
-                border: `1px solid ${C.border}`,
-                fontSize: '14px',
-                outline: 'none',
-                width: '100%',
-                boxSizing: 'border-box',
-              }}
+              style={inputStyle}
             />
           </div>
 
           <button
             type="submit"
             style={{
-              padding: '11px',
-              backgroundColor: C.accent,
+              padding: '12px',
+              background: 'linear-gradient(135deg, #7C6FF7 0%, #5B4CF0 100%)',
               color: '#fff',
               border: 'none',
-              borderRadius: '6px',
+              borderRadius: '9px',
               fontSize: '14px',
               fontWeight: '700',
               cursor: 'pointer',
               marginTop: '4px',
+              boxShadow: '0 2px 8px rgba(124,111,247,0.35)',
+              letterSpacing: '-0.1px',
             }}
           >
-            Sign in
+            Sign in →
           </button>
         </Form>
       </div>

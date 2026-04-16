@@ -269,7 +269,7 @@ export default function PortalInfluencers() {
 
       {/* ── Banners ─────────────────────────────────────────────── */}
       {actionData?.imported && (
-        <div style={{ padding: '12px 16px', backgroundColor: D.successBg, color: D.successText, borderRadius: '8px', fontWeight: '600', fontSize: '13px' }}>
+        <div style={{ padding: '12px 16px', backgroundColor: D.accentLight, color: D.accent, border: `1px solid ${D.accent}`, borderRadius: '8px', fontWeight: '600', fontSize: '13px' }}>
           ✓ Successfully imported {actionData.imported} influencer{actionData.imported !== 1 ? 's' : ''}.
         </div>
       )}

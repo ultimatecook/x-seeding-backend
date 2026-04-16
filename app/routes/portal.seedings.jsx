@@ -49,7 +49,7 @@ export async function loader({ request }) {
       where,
       select: {
         id: true, status: true, trackingNumber: true, totalCost: true, createdAt: true,
-        invoiceUrl: true, shopifyOrderName: true,
+        invoiceUrl: true, shopifyOrderName: true, shippingAddress: true,
         influencer: { select: { id: true, handle: true, name: true, country: true } },
         products:   { select: { id: true, productName: true, price: true, imageUrl: true } },
       },
