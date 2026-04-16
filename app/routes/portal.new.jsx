@@ -61,9 +61,16 @@ export async function loader({ request }) {
         }),
       });
       const body = await res.json();
-      if (body?.errors) {
-        console.error('Portal: Shopify GraphQL errors:', JSON.stringify(body.errors));
-        productsError = `Shopify API error: ${body.errors[0]?.message ?? 'unknown'}`;
+      // Shopify can return errors as an array of {message} objects OR as a plain string
+      // (e.g. "[API] Invalid API key or access token"). Handle both shapes.
+      const hasErrors = body?.errors || body?.error;
+      if (hasErrors) {
+        let errMsg = 'unknown';
+        if (typeof body.errors === 'string')       errMsg = body.errors;
+        else if (Array.isArray(body.errors))       errMsg = body.errors[0]?.message ?? JSON.stringify(body.errors[0]);
+        else if (body.error)                       errMsg = body.error_description ?? body.error;
+        console.error('Portal: Shopify GraphQL error (HTTP', res.status, '):', errMsg, '| full body:', JSON.stringify(body));
+        productsError = `Shopify API error (${res.status}): ${errMsg}`;
       } else {
         products = (body?.data?.products?.edges ?? []).map(edge => {
           const vars = edge.node.variants.edges;
