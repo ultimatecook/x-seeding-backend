@@ -24,8 +24,7 @@ export async function loader({ request }) {
     weeklyRaw,
     thisMonthSpend,
     lastMonthSpend,
-    totalUnits,
-    productStats,
+    allProductRows,
   ] = await Promise.all([
     prisma.seeding.groupBy({ by: ['status'], where: { shop }, _count: { _all: true } }),
     prisma.influencer.count({ where: { archived: false } }),
@@ -62,25 +61,29 @@ export async function loader({ request }) {
       where: { shop, createdAt: { gte: startOfLastMonth, lt: startOfThisMonth } },
       _sum:  { totalCost: true }, _count: { _all: true },
     }),
-    // Total units ever sent
-    prisma.seedingProduct.count({ where: { seeding: { shop } } }),
-    // Product performance
-    prisma.seedingProduct.groupBy({
-      by:      ['productName'],
-      where:   { seeding: { shop } },
-      _count:  { _all: true },
-      _sum:    { cost: true },
-      orderBy: { _count: { _all: 'desc' } },
-      take:    8,
+    // Single query — used for cost totals, unit count, and product grouping
+    prisma.seedingProduct.findMany({
+      where:  { seeding: { shop } },
+      select: { cost: true, productName: true },
     }),
   ]);
 
-  const allProductCosts = await prisma.seedingProduct.findMany({
-    where:  { seeding: { shop } },
-    select: { cost: true },
-  });
-  const totalCostValue = allProductCosts.reduce((s, p) => s + (p.cost ?? 0), 0);
-  const hasCostData    = allProductCosts.some(p => p.cost != null);
+  // Derive all product metrics from the single allProductRows query
+  const totalCostValue = allProductRows.reduce((s, p) => s + (p.cost ?? 0), 0);
+  const hasCostData    = allProductRows.some(p => p.cost != null);
+  const totalUnits     = allProductRows.length;
+
+  // Group by product name in JS — avoids Prisma groupBy relation-filter limitation
+  const productMap = {};
+  for (const p of allProductRows) {
+    if (!productMap[p.productName]) productMap[p.productName] = { count: 0, costSum: 0 };
+    productMap[p.productName].count++;
+    productMap[p.productName].costSum += p.cost ?? 0;
+  }
+  const topProducts = Object.entries(productMap)
+    .map(([name, d]) => ({ name, count: d.count, costSum: d.costSum }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 8);
 
   const countMap          = Object.fromEntries(statusCounts.map(r => [r.status, r._count._all]));
   const totalSeedings     = statusCounts.reduce((s, r) => s + r._count._all, 0);
@@ -136,11 +139,6 @@ export async function loader({ request }) {
     totalSpend: inf.seedings.reduce((s, x) => s + (x.totalCost ?? 0), 0),
   }));
 
-  const topProducts = productStats.map(p => ({
-    name:     p.productName,
-    count:    p._count._all,
-    costSum:  p._sum.cost ?? 0,
-  }));
 
   return {
     totalSeedings, pendingSeedings, orderedSeedings,
