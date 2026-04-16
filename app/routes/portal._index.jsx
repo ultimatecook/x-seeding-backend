@@ -22,11 +22,9 @@ export async function loader({ request }) {
   // Date range — default is month-to-date (April 1 → today)
   let dateStart, prevWhere;
   if (!daysParam) {
-    // MTD: 1st of current month → now
     dateStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    // Compare to same days 1→N in previous month
     const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const prevMonthEnd   = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate() + 1); // exclusive
+    const prevMonthEnd   = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate() + 1);
     prevWhere = {
       shop,
       createdAt: { gte: prevMonthStart, lt: prevMonthEnd },
@@ -42,7 +40,6 @@ export async function loader({ request }) {
     };
   }
 
-  // Prisma where clauses
   const seedingWhere = {
     shop,
     createdAt: { gte: dateStart },
@@ -56,19 +53,16 @@ export async function loader({ request }) {
     topInfluencers,
     allProductRows,
     totalInfluencers,
-    allSeedingsForPills,   // unfiltered — for country pill generation
+    allSeedingsForPills,
   ] = await Promise.all([
-    // All seedings in range (derive status, spend, weekly chart, countries from this)
     prisma.seeding.findMany({
       where:  seedingWhere,
       select: { status: true, totalCost: true, createdAt: true,
                 influencer: { select: { id: true, country: true } } },
     }),
-    // Previous period (delta comparison)
     prevWhere
       ? prisma.seeding.findMany({ where: prevWhere, select: { totalCost: true } })
       : Promise.resolve(null),
-    // Recent 8 seedings with full detail
     prisma.seeding.findMany({
       where:   seedingWhere,
       select:  { id: true, status: true, totalCost: true, createdAt: true,
@@ -77,7 +71,6 @@ export async function loader({ request }) {
       orderBy: { createdAt: 'desc' },
       take:    8,
     }),
-    // Top influencers by seedings count
     prisma.influencer.findMany({
       where:   { archived: false, ...(countryParam ? { country: countryParam } : {}) },
       orderBy: { seedings: { _count: 'desc' } },
@@ -86,14 +79,11 @@ export async function loader({ request }) {
                  _count:   { select: { seedings: true } },
                  seedings: { select: { totalCost: true } } },
     }),
-    // Products in range
     prisma.seedingProduct.findMany({
       where:  { seeding: seedingWhere },
       select: { cost: true, productName: true },
     }),
-    // Total active influencers (absolute roster, unfiltered)
     prisma.influencer.count({ where: { archived: false } }),
-    // Unfiltered seedings for country pill generation
     prisma.seeding.findMany({
       where:  { shop },
       select: { influencer: { select: { country: true } } },
@@ -101,7 +91,7 @@ export async function loader({ request }) {
     }),
   ]);
 
-  // ── Derive metrics from allSeedings ────────────────────────────────────────
+  // ── Metrics ────────────────────────────────────────────────────────────────
   const statusMap = {};
   for (const s of allSeedings) {
     statusMap[s.status] = (statusMap[s.status] || 0) + 1;
@@ -121,29 +111,26 @@ export async function loader({ request }) {
   const countDelta = prevCount !== null && prevCount > 0
     ? Math.round(((totalSeedings - prevCount) / prevCount) * 100) : null;
 
-  // ── Product metrics ────────────────────────────────────────────────────────
   const totalUnits = allProductRows.length;
 
-  // ── Weekly/period buckets for dot chart ───────────────────────────────────
-  // Always 12 buckets; bucket size depends on selected period.
-  const NUM_BUCKETS  = 12;
-  // MTD: from 1st of month to now; named periods: from N days ago to now
-  const chartStart   = dateStart;
-  const periodMs     = now - chartStart;
-  const bucketMs     = Math.max(Math.floor(periodMs / NUM_BUCKETS), 1);
+  // ── Per-day chart data ─────────────────────────────────────────────────────
+  const DAY_MS    = 24 * 60 * 60 * 1000;
+  const totalDays = Math.min(Math.ceil((now - dateStart) / DAY_MS) + 1, 365);
 
-  const buckets = Array.from({ length: NUM_BUCKETS }, (_, i) => {
-    const d = new Date(chartStart.getTime() + i * bucketMs);
-    return { bucketStart: d, seedings: 0, spend: 0 };
-  });
+  const dayBuckets = Array.from({ length: totalDays }, (_, i) => ({
+    date:     new Date(dateStart.getTime() + i * DAY_MS),
+    seedings: 0,
+  }));
 
   for (const s of allSeedings) {
-    const age = Math.floor((new Date(s.createdAt) - chartStart) / bucketMs);
-    if (age >= 0 && age < NUM_BUCKETS) {
-      buckets[age].seedings++;
-      buckets[age].spend += s.totalCost ?? 0;
-    }
+    const age = Math.floor((new Date(s.createdAt) - dateStart) / DAY_MS);
+    if (age >= 0 && age < totalDays) dayBuckets[age].seedings++;
   }
+
+  const chartDays = dayBuckets.map(b => ({
+    label:    b.date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
+    seedings: b.seedings,
+  }));
 
   // ── Country data ───────────────────────────────────────────────────────────
   const countryMap = {};
@@ -166,11 +153,8 @@ export async function loader({ request }) {
     if (c && c !== 'Unknown') pillCountMap[c] = (pillCountMap[c] || 0) + 1;
   }
   const topDataCountries = Object.entries(pillCountMap)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
-    .map(([c]) => c);
+    .sort((a, b) => b[1] - a[1]).slice(0, 5).map(([c]) => c);
 
-  // Fill remaining slots from preset list (no duplicates)
   const countryPills = [...topDataCountries];
   for (const c of PRESET_COUNTRIES) {
     if (countryPills.length >= 5) break;
@@ -182,7 +166,6 @@ export async function loader({ request }) {
     totalSpend: inf.seedings.reduce((s, x) => s + (x.totalCost ?? 0), 0),
   }));
 
-  // Human-readable range label, e.g. "Apr 1–16"
   const monthName  = dateStart.toLocaleDateString('en-GB', { month: 'short' });
   const rangeLabel = !daysParam
     ? `${monthName} 1–${now.getDate()}`
@@ -202,19 +185,9 @@ export async function loader({ request }) {
     activeCountry: countryParam ?? null,
     activeSeedings: orderedSeedings + shippedSeedings,
     rangeLabel,
-    currentMonthShort: now.toLocaleDateString('en-GB', { month: 'short' }), // e.g. "Apr"
-    weeks: buckets.map(b => ({
-      label:    fmtBucketLabel(b.bucketStart, days),
-      seedings: b.seedings,
-      spend:    b.spend,
-    })),
+    currentMonthShort: now.toLocaleDateString('en-GB', { month: 'short' }),
+    chartDays,
   };
-}
-
-function fmtBucketLabel(d, days) {
-  if (!days || days <= 30) return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-  if (days <= 180)         return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-  return d.toLocaleDateString('en-GB', { month: 'short' });
 }
 
 function fmtFollowers(n) {
@@ -224,7 +197,7 @@ function fmtFollowers(n) {
   return String(n);
 }
 
-// ── Status dots only (no pill chrome) ────────────────────────────────────────
+// ── Status dots ───────────────────────────────────────────────────────────────
 const STATUS_DOT = {
   Pending:   D.statusPending.dot,
   Ordered:   D.statusOrdered.dot,
@@ -234,11 +207,10 @@ const STATUS_DOT = {
 
 function StatusDot({ status }) {
   return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: '5px',
-      fontSize: '11px', fontWeight: '600', color: 'var(--pt-text-sub)', whiteSpace: 'nowrap',
-    }}>
-      <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: STATUS_DOT[status] || 'var(--pt-text-muted)', flexShrink: 0, display: 'inline-block' }} />
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px',
+      fontSize: '11px', fontWeight: '600', color: 'var(--pt-text-sub)', whiteSpace: 'nowrap' }}>
+      <span style={{ width: '5px', height: '5px', borderRadius: '50%',
+        backgroundColor: STATUS_DOT[status] || 'var(--pt-text-muted)', flexShrink: 0, display: 'inline-block' }} />
       {status}
     </span>
   );
@@ -249,52 +221,222 @@ function Delta({ delta }) {
   if (delta === null || delta === undefined) return null;
   const up = delta >= 0;
   return (
-    <span style={{
-      fontSize: '11px', fontWeight: '600',
-      color: up ? '#15803D' : '#B91C1C',
-    }}>
+    <span style={{ fontSize: '11px', fontWeight: '600', color: up ? '#15803D' : '#B91C1C' }}>
       {up ? '↑' : '↓'}{Math.abs(delta)}%
     </span>
   );
 }
 
-// ── Dot-matrix chart ──────────────────────────────────────────────────────────
-function DotChart({ weeks }) {
-  const maxSeedings = Math.max(...weeks.map(w => w.seedings), 1);
-  const peakIdx     = weeks.reduce((best, w, i) => w.seedings > weeks[best].seedings ? i : best, 0);
-  const MAX_DOTS    = 9;
+// ── Stat card icons ───────────────────────────────────────────────────────────
+function IconEuro() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9"/>
+      <path d="M14.5 8.5a4 4 0 0 0-6 3.5v0a4 4 0 0 0 6 3.5"/>
+      <line x1="8" y1="11" x2="14" y2="11"/>
+      <line x1="8" y1="13" x2="14" y2="13"/>
+    </svg>
+  );
+}
+function IconBox() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+      <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+      <line x1="12" y1="22.08" x2="12" y2="12"/>
+    </svg>
+  );
+}
+function IconTruck() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="1" y="3" width="15" height="13" rx="1"/>
+      <path d="M16 8h4l3 5v3h-7V8z"/>
+      <circle cx="5.5" cy="18.5" r="2.5"/>
+      <circle cx="18.5" cy="18.5" r="2.5"/>
+    </svg>
+  );
+}
+function IconUsers() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+      <circle cx="9" cy="7" r="4"/>
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+      <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+    </svg>
+  );
+}
+
+// ── Stat card ─────────────────────────────────────────────────────────────────
+function StatCard({ label, value, delta, icon, iconColor, iconBg }) {
+  return (
+    <div style={{
+      border: '1px solid var(--pt-border)',
+      borderRadius: '14px',
+      padding: '20px 20px 18px',
+      backgroundColor: 'var(--pt-surface)',
+      position: 'relative',
+    }}>
+      {/* Icon badge */}
+      <div style={{
+        position: 'absolute', top: '16px', right: '16px',
+        width: '34px', height: '34px', borderRadius: '9px',
+        backgroundColor: iconBg,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        color: iconColor,
+      }}>
+        {icon}
+      </div>
+
+      {/* Label */}
+      <div style={{ fontSize: '12px', fontWeight: '500', color: 'var(--pt-text-muted)', marginBottom: '14px' }}>
+        {label}
+      </div>
+
+      {/* Value + delta */}
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+        <span style={{ fontSize: '28px', fontWeight: '800', letterSpacing: '-1px', color: 'var(--pt-text)', lineHeight: 1 }}>
+          {value}
+        </span>
+        {delta != null && <Delta delta={delta} />}
+      </div>
+    </div>
+  );
+}
+
+// ── Interactive line chart ─────────────────────────────────────────────────────
+function LineChart({ days }) {
+  const [hover, setHover] = useState(null);
+  const svgRef            = useRef(null);
+
+  const W    = 800;
+  const H    = 130;
+  const PAD  = { top: 10, right: 14, bottom: 28, left: 26 };
+  const CW   = W - PAD.left - PAD.right;
+  const CH   = H - PAD.top  - PAD.bottom;
+
+  const maxVal = Math.max(...days.map(d => d.seedings), 1);
+  const yMax   = maxVal <= 1 ? 2 : Math.ceil(maxVal * 1.15);
+
+  const xScale = useCallback(i =>
+    days.length <= 1
+      ? PAD.left + CW / 2
+      : PAD.left + (i / (days.length - 1)) * CW,
+  [days.length, CW]);
+
+  const yScale = useCallback(v =>
+    PAD.top + CH - (v / yMax) * CH,
+  [yMax, CH]);
+
+  const pts   = days.map((d, i) => [xScale(i), yScale(d.seedings)]);
+  const pathD = pts.length < 2 ? '' :
+    pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(2)},${p[1].toFixed(2)}`).join(' ');
+  const areaD = pts.length < 2 ? '' :
+    `${pathD} L${pts.at(-1)[0].toFixed(2)},${(PAD.top + CH).toFixed(2)} L${pts[0][0].toFixed(2)},${(PAD.top + CH).toFixed(2)} Z`;
+
+  const gridVals   = [0, Math.round(yMax / 2), yMax];
+  const labelEvery = Math.max(1, Math.ceil(days.length / 8));
+
+  const handleMouseMove = useCallback((e) => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const rect   = svg.getBoundingClientRect();
+    const relX   = ((e.clientX - rect.left) / rect.width) * W - PAD.left;
+    const rawIdx = (relX / CW) * (days.length - 1);
+    const idx    = Math.max(0, Math.min(days.length - 1, Math.round(rawIdx)));
+    const svgX   = xScale(idx);
+    const svgY   = yScale(days[idx].seedings);
+    setHover({
+      idx,
+      px: (svgX / W) * rect.width,
+      py: (svgY / H) * rect.height,
+    });
+  }, [days, CW, xScale, yScale]);
+
+  const hoverData = hover !== null ? days[hover.idx] : null;
+  const hSvgX     = hover !== null ? xScale(hover.idx) : null;
+  const hSvgY     = hover !== null ? yScale(days[hover.idx]?.seedings ?? 0) : null;
 
   return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: '4px', height: '88px' }}>
-        {weeks.map((w, i) => {
-          const filled   = maxSeedings > 0 ? Math.max(Math.round((w.seedings / maxSeedings) * MAX_DOTS), w.seedings > 0 ? 1 : 0) : 0;
-          const isPeak   = i === peakIdx && maxSeedings > 0;
-          const isRecent = i >= weeks.length - 4;
+    <div style={{ position: 'relative', userSelect: 'none' }}>
+      <svg
+        ref={svgRef}
+        viewBox={`0 0 ${W} ${H}`}
+        style={{ width: '100%', height: `${H}px`, display: 'block' }}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={() => setHover(null)}
+      >
+        <defs>
+          <linearGradient id="lcGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stopColor="#7C6FF7" stopOpacity="0.22" />
+            <stop offset="100%" stopColor="#7C6FF7" stopOpacity="0"    />
+          </linearGradient>
+        </defs>
+
+        {/* Gridlines + Y labels */}
+        {gridVals.map(v => (
+          <g key={v}>
+            <line x1={PAD.left} y1={yScale(v)} x2={PAD.left + CW} y2={yScale(v)}
+              stroke="var(--pt-border)" strokeWidth="1" />
+            <text x={PAD.left - 5} y={yScale(v) + 3.5} textAnchor="end"
+              fontSize="9" fill="var(--pt-text-muted)">{v}</text>
+          </g>
+        ))}
+
+        {/* Area fill */}
+        {areaD && <path d={areaD} fill="url(#lcGrad)" />}
+
+        {/* Line */}
+        {pathD && (
+          <path d={pathD} fill="none" stroke="#7C6FF7" strokeWidth="1.8"
+            strokeLinecap="round" strokeLinejoin="round" />
+        )}
+
+        {/* X labels */}
+        {days.map((d, i) => {
+          if (i % labelEvery !== 0 && i !== days.length - 1) return null;
           return (
-            <div key={i} title={`${w.label}: ${w.seedings} seedings`}
-              style={{ flex: 1, display: 'flex', flexDirection: 'column-reverse', alignItems: 'center', gap: '4px', height: '100%', justifyContent: 'flex-start' }}>
-              {Array.from({ length: MAX_DOTS }, (_, di) => (
-                <div key={di} style={{
-                  width: '100%', maxWidth: '11px', height: '8px', borderRadius: '3px', flexShrink: 0,
-                  backgroundColor: di < filled
-                    ? isPeak   ? '#7C6FF7'
-                    : isRecent ? '#A78BFA'
-                    :            '#DDD9FC'
-                    : 'var(--pt-surface-high)',
-                }} />
-              ))}
-            </div>
+            <text key={i} x={xScale(i)} y={H - 4} textAnchor="middle"
+              fontSize="9" fill="var(--pt-text-muted)">{d.label}</text>
           );
         })}
-      </div>
-      <div style={{ display: 'flex', gap: '4px', marginTop: '8px' }}>
-        {weeks.map((w, i) => (
-          <div key={i} style={{ flex: 1, textAlign: 'center', fontSize: '9px', color: 'var(--pt-text-muted)', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-            {i % 3 === 0 ? w.label : ''}
+
+        {/* Hover crosshair */}
+        {hover !== null && (
+          <>
+            <line x1={hSvgX} y1={PAD.top} x2={hSvgX} y2={PAD.top + CH}
+              stroke="#94A3B8" strokeWidth="1" opacity="0.6" />
+            <circle cx={hSvgX} cy={hSvgY} r="4.5"
+              fill="#7C6FF7" stroke="white" strokeWidth="2" />
+          </>
+        )}
+      </svg>
+
+      {/* Floating tooltip */}
+      {hover !== null && hoverData && (
+        <div style={{
+          position:        'absolute',
+          left:            `clamp(0px, ${hover.px - 55}px, calc(100% - 130px))`,
+          top:             `${Math.max(0, hover.py - 72)}px`,
+          backgroundColor: 'var(--pt-surface)',
+          border:          '1px solid var(--pt-border)',
+          borderRadius:    '10px',
+          padding:         '8px 14px',
+          pointerEvents:   'none',
+          whiteSpace:      'nowrap',
+          boxShadow:       '0 4px 16px rgba(0,0,0,0.08)',
+          zIndex:          20,
+          minWidth:        '110px',
+        }}>
+          <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--pt-text)', marginBottom: '4px' }}>
+            {hoverData.label}
           </div>
-        ))}
-      </div>
+          <div style={{ fontSize: '12px', fontWeight: '600', color: '#7C6FF7' }}>
+            {hoverData.seedings} seedings
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -302,7 +444,8 @@ function DotChart({ weeks }) {
 // ── Section label ─────────────────────────────────────────────────────────────
 function Label({ children }) {
   return (
-    <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--pt-text-muted)', marginBottom: '18px' }}>
+    <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px',
+      color: 'var(--pt-text-muted)', marginBottom: '18px' }}>
       {children}
     </div>
   );
@@ -314,15 +457,14 @@ function Rule({ my = 40 }) {
 }
 
 // ── Band / section definitions ────────────────────────────────────────────────
-// Bands are the draggable rows. Sections are the individual hideable pieces.
 const DEFAULT_BAND_ORDER = ['stats', 'midrow', 'botrow'];
 
 const SECTION_DEFS = [
-  { id: 'stats',       label: 'Stats',          band: 'stats'   },
-  { id: 'pipeline',    label: 'Pipeline',        band: 'midrow'  },
-  { id: 'recent',      label: 'Recent Seedings', band: 'midrow'  },
-  { id: 'countries',   label: 'Countries',       band: 'botrow'  },
-  { id: 'influencers', label: 'Top Influencers', band: 'botrow'  },
+  { id: 'stats',       label: 'Stats',          band: 'stats'  },
+  { id: 'pipeline',    label: 'Pipeline',        band: 'midrow' },
+  { id: 'recent',      label: 'Recent Seedings', band: 'midrow' },
+  { id: 'countries',   label: 'Countries',       band: 'botrow' },
+  { id: 'influencers', label: 'Top Influencers', band: 'botrow' },
 ];
 
 // ── Draggable band wrapper ────────────────────────────────────────────────────
@@ -357,8 +499,6 @@ function Band({ id, editMode, isDragOver, onDragStart, onDragOver, onDrop, onDra
   );
 }
 
-// TIME_OPTIONS is built dynamically in the component (first pill uses month name from loader)
-
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 export default function PortalDashboard() {
   const {
@@ -368,25 +508,22 @@ export default function PortalDashboard() {
     topInfluencers, totalSpend, totalUnits,
     spendDelta, countDelta,
     countryPills, activeDays, activeCountry,
-    activeSeedings, weeks, rangeLabel, currentMonthShort,
+    activeSeedings, chartDays, rangeLabel, currentMonthShort,
   } = useLoaderData();
 
-  // Time filter pill options — first pill is always the current month (MTD default)
   const TIME_OPTIONS = [
-    { label: currentMonthShort, value: null  },  // MTD — default state
+    { label: currentMonthShort, value: null  },
     { label: '30d',             value: '30'  },
     { label: '6mo',             value: '180' },
     { label: '1yr',             value: '365' },
   ];
 
-  const navigate     = useNavigate();
+  const navigate       = useNavigate();
   const [searchParams] = useSearchParams();
 
-  const completionRate    = totalSeedings > 0 ? Math.round((deliveredSeedings / totalSeedings) * 100) : 0;
-  const chartTotal        = weeks.reduce((s, w) => s + w.seedings, 0);
-  const peakWeek          = weeks.reduce((best, w) => w.seedings > best.seedings ? w : best, weeks[0] ?? { label: '', seedings: 0 });
-
-  const chartLabel = rangeLabel;
+  const completionRate = totalSeedings > 0 ? Math.round((deliveredSeedings / totalSeedings) * 100) : 0;
+  const chartTotal     = chartDays.reduce((s, d) => s + d.seedings, 0);
+  const peakDay        = chartDays.reduce((best, d) => d.seedings > best.seedings ? d : best, chartDays[0] ?? { label: '', seedings: 0 });
 
   const pipeline = [
     { label: 'Pending',   count: pendingSeedings,   color: D.statusPending.dot   },
@@ -405,10 +542,10 @@ export default function PortalDashboard() {
   const toggleDays    = val  => navigate(buildUrl(val === activeDays ? null : val, activeCountry));
   const toggleCountry = name => navigate(buildUrl(activeDays, activeCountry === name ? null : name));
 
-  // ── Edit mode: band order + section visibility ──────────────────────────────
-  const [editMode,     setEditMode]     = useState(false);
-  const [bandOrder,    setBandOrder]    = useState(DEFAULT_BAND_ORDER);
-  const [hiddenSet,    setHiddenSet]    = useState(() => new Set());
+  // ── Edit mode ──────────────────────────────────────────────────────────────
+  const [editMode,  setEditMode]  = useState(false);
+  const [bandOrder, setBandOrder] = useState(DEFAULT_BAND_ORDER);
+  const [hiddenSet, setHiddenSet] = useState(() => new Set());
 
   useEffect(() => {
     try {
@@ -428,7 +565,7 @@ export default function PortalDashboard() {
     });
   }, []);
 
-  // ── Drag-and-drop (only active in editMode) ─────────────────────────────────
+  // ── Drag-and-drop ──────────────────────────────────────────────────────────
   const draggingId = useRef(null);
   const [dragOver, setDragOver] = useState(null);
 
@@ -460,47 +597,50 @@ export default function PortalDashboard() {
     draggingId.current = null;
   }, []);
 
-  // Convenience: is a given section visible?
   const vis = (id) => !hiddenSet.has(id);
 
-  // pill button style
   const pill = (active) => ({
     display: 'inline-flex', alignItems: 'center', gap: '5px',
     padding: '5px 12px', borderRadius: '99px', cursor: 'pointer',
     fontSize: '12px', fontWeight: '600', border: 'none',
     transition: 'all 0.12s',
-    backgroundColor: active ? '#7C6FF7'               : 'transparent',
-    color:           active ? '#fff'                  : 'var(--pt-text-muted)',
+    backgroundColor: active ? '#7C6FF7'                       : 'transparent',
+    color:           active ? '#fff'                          : 'var(--pt-text-muted)',
     boxShadow:       active ? '0 1px 4px rgba(124,111,247,0.3)' : 'none',
   });
 
-  // ── Band content renderers ─────────────────────────────────────────────────
+  // ── Section renderers ──────────────────────────────────────────────────────
   const renderStats = () => (
-    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1px 1fr 1px 1fr 1px 1fr', alignItems: 'start', gap: '0' }}>
-      <div style={{ paddingRight: '36px' }}>
-        <Label>Retail Value Seeded</Label>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>
-          <span style={{ fontSize: '38px', fontWeight: '800', letterSpacing: '-1.5px', color: 'var(--pt-text)', lineHeight: 1 }}>
-            €{fmtNum(totalSpend)}
-          </span>
-          <Delta delta={spendDelta} />
-        </div>
-      </div>
-      <div style={{ backgroundColor: 'var(--pt-border)', alignSelf: 'stretch' }} />
-      <div style={{ padding: '0 32px' }}>
-        <Label>Units Sent</Label>
-        <span style={{ fontSize: '26px', fontWeight: '800', letterSpacing: '-0.8px', color: 'var(--pt-text)', lineHeight: 1 }}>{totalUnits}</span>
-      </div>
-      <div style={{ backgroundColor: 'var(--pt-border)', alignSelf: 'stretch' }} />
-      <div style={{ padding: '0 32px' }}>
-        <Label>In Transit</Label>
-        <span style={{ fontSize: '26px', fontWeight: '800', letterSpacing: '-0.8px', color: 'var(--pt-text)', lineHeight: 1 }}>{activeSeedings}</span>
-      </div>
-      <div style={{ backgroundColor: 'var(--pt-border)', alignSelf: 'stretch' }} />
-      <div style={{ paddingLeft: '32px' }}>
-        <Label>Influencers</Label>
-        <span style={{ fontSize: '26px', fontWeight: '800', letterSpacing: '-0.8px', color: 'var(--pt-text)', lineHeight: 1 }}>{totalInfluencers}</span>
-      </div>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
+      <StatCard
+        label="Retail Value Seeded"
+        value={`€${fmtNum(totalSpend)}`}
+        delta={spendDelta}
+        icon={<IconEuro />}
+        iconColor="#F59E0B"
+        iconBg="rgba(245,158,11,0.1)"
+      />
+      <StatCard
+        label="Units Sent"
+        value={totalUnits}
+        icon={<IconBox />}
+        iconColor="#3B82F6"
+        iconBg="rgba(59,130,246,0.1)"
+      />
+      <StatCard
+        label="In Transit"
+        value={activeSeedings}
+        icon={<IconTruck />}
+        iconColor="#7C6FF7"
+        iconBg="rgba(124,111,247,0.1)"
+      />
+      <StatCard
+        label="Influencers"
+        value={totalInfluencers}
+        icon={<IconUsers />}
+        iconColor="#10B981"
+        iconBg="rgba(16,185,129,0.1)"
+      />
     </div>
   );
 
@@ -511,23 +651,28 @@ export default function PortalDashboard() {
         <p style={{ margin: 0, fontSize: '13px', color: 'var(--pt-text-muted)' }}>No seedings yet.</p>
       ) : (
         <>
-          <div style={{ display: 'flex', height: '3px', borderRadius: '99px', overflow: 'hidden', backgroundColor: 'var(--pt-surface-high)', marginBottom: '20px' }}>
+          <div style={{ display: 'flex', height: '3px', borderRadius: '99px', overflow: 'hidden',
+            backgroundColor: 'var(--pt-surface-high)', marginBottom: '20px' }}>
             {pipeline.filter(s => s.count > 0).map(s => (
-              <div key={s.label} title={`${s.label}: ${s.count}`} style={{ width: `${(s.count / totalSeedings) * 100}%`, backgroundColor: s.color }} />
+              <div key={s.label} title={`${s.label}: ${s.count}`}
+                style={{ width: `${(s.count / totalSeedings) * 100}%`, backgroundColor: s.color }} />
             ))}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {pipeline.map(s => (
               <div key={s.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: s.color, flexShrink: 0 }} />
+                  <span style={{ width: '6px', height: '6px', borderRadius: '50%',
+                    backgroundColor: s.color, flexShrink: 0 }} />
                   <span style={{ fontSize: '12px', color: 'var(--pt-text-sub)' }}>{s.label}</span>
                 </div>
                 <span style={{ fontSize: '14px', fontWeight: '700', color: 'var(--pt-text)' }}>{s.count}</span>
               </div>
             ))}
           </div>
-          <div style={{ fontSize: '11px', color: 'var(--pt-text-muted)', marginTop: '16px' }}>{completionRate}% delivered</div>
+          <div style={{ fontSize: '11px', color: 'var(--pt-text-muted)', marginTop: '16px' }}>
+            {completionRate}% delivered
+          </div>
         </>
       )}
     </div>
@@ -536,19 +681,23 @@ export default function PortalDashboard() {
   const renderRecent = () => (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-        <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--pt-text-muted)' }}>Recent Seedings</div>
-        <Link to="/portal/seedings" style={{ fontSize: '11px', color: 'var(--pt-accent)', fontWeight: '600', textDecoration: 'none' }}>View all →</Link>
+        <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase',
+          letterSpacing: '1px', color: 'var(--pt-text-muted)' }}>Recent Seedings</div>
+        <Link to="/portal/seedings" style={{ fontSize: '11px', color: 'var(--pt-accent)',
+          fontWeight: '600', textDecoration: 'none' }}>View all →</Link>
       </div>
       {recentSeedings.length === 0 ? (
         <p style={{ margin: 0, fontSize: '13px', color: 'var(--pt-text-muted)' }}>No seedings yet.</p>
       ) : (
         <div>
           {recentSeedings.slice(0, 6).map((s, i) => (
-            <div key={s.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderTop: i === 0 ? 'none' : '1px solid var(--pt-border-light)' }}>
+            <div key={s.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '8px 0', borderTop: i === 0 ? 'none' : '1px solid var(--pt-border-light)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
                 {s.influencer?.country && <FlagImg country={s.influencer.country} size={13} />}
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--pt-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--pt-text)',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {s.influencer?.name || `@${s.influencer?.handle}`}
                   </div>
                   <div style={{ fontSize: '11px', color: 'var(--pt-text-muted)', marginTop: '1px' }}>
@@ -558,7 +707,8 @@ export default function PortalDashboard() {
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0, marginLeft: '16px' }}>
                 <StatusDot status={s.status} />
-                <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--pt-text)', minWidth: '52px', textAlign: 'right' }}>
+                <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--pt-text)',
+                  minWidth: '52px', textAlign: 'right' }}>
                   {s.totalCost ? `€${fmtNum(s.totalCost)}` : '—'}
                 </span>
               </div>
@@ -577,11 +727,15 @@ export default function PortalDashboard() {
       ) : (
         <div>
           {countryData.slice(0, 5).map((d, i) => (
-            <div key={d.country} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 0', borderTop: i === 0 ? 'none' : '1px solid var(--pt-border-light)' }}>
+            <div key={d.country} style={{ display: 'flex', alignItems: 'center', gap: '12px',
+              padding: '10px 0', borderTop: i === 0 ? 'none' : '1px solid var(--pt-border-light)' }}>
               <FlagImg country={d.country} size={17} />
-              <span style={{ flex: 1, fontSize: '13px', fontWeight: '500', color: 'var(--pt-text)' }}>{d.country}</span>
+              <span style={{ flex: 1, fontSize: '13px', fontWeight: '500', color: 'var(--pt-text)' }}>
+                {d.country}
+              </span>
               <span style={{ fontSize: '11px', color: 'var(--pt-text-muted)' }}>{d.seedings} seedings</span>
-              <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--pt-text)', minWidth: '56px', textAlign: 'right' }}>€{fmtNum(d.spend)}</span>
+              <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--pt-text)',
+                minWidth: '56px', textAlign: 'right' }}>€{fmtNum(d.spend)}</span>
             </div>
           ))}
         </div>
@@ -592,29 +746,42 @@ export default function PortalDashboard() {
   const renderInfluencers = () => (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-        <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--pt-text-muted)' }}>Top Influencers</div>
-        <Link to="/portal/influencers" style={{ fontSize: '11px', color: 'var(--pt-accent)', fontWeight: '600', textDecoration: 'none' }}>View all →</Link>
+        <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase',
+          letterSpacing: '1px', color: 'var(--pt-text-muted)' }}>Top Influencers</div>
+        <Link to="/portal/influencers" style={{ fontSize: '11px', color: 'var(--pt-accent)',
+          fontWeight: '600', textDecoration: 'none' }}>View all →</Link>
       </div>
       {topInfluencers.length === 0 ? (
         <p style={{ margin: 0, fontSize: '13px', color: 'var(--pt-text-muted)' }}>No influencers yet.</p>
       ) : (
         <div>
           {topInfluencers.map((inf, i) => (
-            <Link key={inf.id} to={`/portal/influencers/${inf.id}`} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 0', borderTop: i === 0 ? 'none' : '1px solid var(--pt-border-light)' }}>
-              <span style={{ fontSize: '10px', fontWeight: '700', color: 'var(--pt-text-muted)', width: '14px', textAlign: 'right', flexShrink: 0 }}>{i + 1}</span>
+            <Link key={inf.id} to={`/portal/influencers/${inf.id}`} style={{ textDecoration: 'none',
+              display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 0',
+              borderTop: i === 0 ? 'none' : '1px solid var(--pt-border-light)' }}>
+              <span style={{ fontSize: '10px', fontWeight: '700', color: 'var(--pt-text-muted)',
+                width: '14px', textAlign: 'right', flexShrink: 0 }}>{i + 1}</span>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--pt-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{inf.name || `@${inf.handle}`}</div>
-                <div style={{ fontSize: '11px', color: 'var(--pt-text-muted)', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '1px' }}>
+                <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--pt-text)',
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {inf.name || `@${inf.handle}`}
+                </div>
+                <div style={{ fontSize: '11px', color: 'var(--pt-text-muted)',
+                  display: 'flex', alignItems: 'center', gap: '6px', marginTop: '1px' }}>
                   <FlagImg country={inf.country} size={11} />
                   {inf.country || '—'} · {fmtFollowers(inf.followers)}
                 </div>
               </div>
               <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--pt-text)' }}>{inf._count.seedings}</div>
+                <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--pt-text)' }}>
+                  {inf._count.seedings}
+                </div>
                 <div style={{ fontSize: '11px', color: 'var(--pt-text-muted)' }}>seedings</div>
               </div>
               <div style={{ textAlign: 'right', flexShrink: 0, minWidth: '52px' }}>
-                <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--pt-accent)' }}>€{fmtNum(inf.totalSpend)}</div>
+                <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--pt-accent)' }}>
+                  €{fmtNum(inf.totalSpend)}
+                </div>
               </div>
             </Link>
           ))}
@@ -634,44 +801,40 @@ export default function PortalDashboard() {
   const renderBand = (id) => {
     if (id === 'stats') {
       if (!vis('stats')) return null;
-      return (
-        <Band key={id} {...bandProps(id)}>
-          {renderStats()}
-        </Band>
-      );
+      return <Band key={id} {...bandProps(id)}>{renderStats()}</Band>;
     }
-
     if (id === 'midrow') {
       const showP = vis('pipeline'), showR = vis('recent');
       if (!showP && !showR) return null;
       return (
         <Band key={id} {...bandProps(id)}>
-          <div style={{ display: 'grid', gridTemplateColumns: showP && showR ? '220px 1fr' : '1fr', gap: '0 60px', alignItems: 'start' }}>
+          <div style={{ display: 'grid',
+            gridTemplateColumns: showP && showR ? '220px 1fr' : '1fr',
+            gap: '0 60px', alignItems: 'start' }}>
             {showP && renderPipeline()}
             {showR && renderRecent()}
           </div>
         </Band>
       );
     }
-
     if (id === 'botrow') {
       const showC = vis('countries') && !activeCountry;
       const showI = vis('influencers');
       if (!showC && !showI) return null;
       return (
         <Band key={id} {...bandProps(id)}>
-          <div style={{ display: 'grid', gridTemplateColumns: showC && showI ? '1fr 1fr' : '1fr', gap: '60px', alignItems: 'start' }}>
+          <div style={{ display: 'grid',
+            gridTemplateColumns: showC && showI ? '1fr 1fr' : '1fr',
+            gap: '60px', alignItems: 'start' }}>
             {showC && renderCountries()}
             {showI && renderInfluencers()}
           </div>
         </Band>
       );
     }
-
     return null;
   };
 
-  // Compute which bands are visible (for inserting rules only between visible bands)
   const visibleBands = bandOrder.filter(id => {
     if (id === 'stats')  return vis('stats');
     if (id === 'midrow') return vis('pipeline') || vis('recent');
@@ -682,39 +845,48 @@ export default function PortalDashboard() {
   return (
     <div style={{ paddingBottom: '60px' }}>
 
-      {/* ── Header ───────────────────────────────────────────── */}
+      {/* ── Header ─────────────────────────────────────────────── */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '36px' }}>
-        <h1 style={{ margin: 0, fontSize: '18px', fontWeight: '700', color: 'var(--pt-text)', letterSpacing: '-0.3px' }}>Overview</h1>
+        <h1 style={{ margin: 0, fontSize: '18px', fontWeight: '700', color: 'var(--pt-text)', letterSpacing: '-0.3px' }}>
+          Overview
+        </h1>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           {/* Time filter */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '2px', backgroundColor: 'var(--pt-surface-high)', borderRadius: '99px', padding: '3px', border: '1px solid var(--pt-border)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '2px',
+            backgroundColor: 'var(--pt-surface-high)', borderRadius: '99px',
+            padding: '3px', border: '1px solid var(--pt-border)' }}>
             {TIME_OPTIONS.map(opt => (
               <button key={opt.value ?? 'mtd'} onClick={() => toggleDays(opt.value)} style={pill(activeDays === opt.value)}>
                 {opt.label}
               </button>
             ))}
             {activeDays && (
-              <button onClick={() => navigate(buildUrl(null, activeCountry))} style={{ ...pill(false), color: 'var(--pt-text-muted)', padding: '5px 9px' }}>✕</button>
+              <button onClick={() => navigate(buildUrl(null, activeCountry))}
+                style={{ ...pill(false), color: 'var(--pt-text-muted)', padding: '5px 9px' }}>✕</button>
             )}
           </div>
 
           {/* Country filter */}
           {countryPills.length > 0 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '2px', backgroundColor: 'var(--pt-surface-high)', borderRadius: '99px', padding: '3px', border: '1px solid var(--pt-border)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '2px',
+              backgroundColor: 'var(--pt-surface-high)', borderRadius: '99px',
+              padding: '3px', border: '1px solid var(--pt-border)' }}>
               {countryPills.map(country => (
-                <button key={country} onClick={() => toggleCountry(country)} style={{ ...pill(activeCountry === country), gap: '5px' }}>
+                <button key={country} onClick={() => toggleCountry(country)}
+                  style={{ ...pill(activeCountry === country), gap: '5px' }}>
                   <FlagImg country={country} size={14} />
                   <span>{country.split(' ')[0]}</span>
                 </button>
               ))}
               {activeCountry && (
-                <button onClick={() => navigate(buildUrl(activeDays, null))} style={{ ...pill(false), color: 'var(--pt-text-muted)', padding: '5px 9px' }}>✕</button>
+                <button onClick={() => navigate(buildUrl(activeDays, null))}
+                  style={{ ...pill(false), color: 'var(--pt-text-muted)', padding: '5px 9px' }}>✕</button>
               )}
             </div>
           )}
 
-          {/* Edit layout toggle */}
+          {/* Edit toggle */}
           <button
             onClick={() => setEditMode(v => !v)}
             style={{
@@ -729,25 +901,24 @@ export default function PortalDashboard() {
         </div>
       </div>
 
-      {/* ── Edit panel ────────────────────────────────────────── */}
+      {/* ── Edit panel ──────────────────────────────────────────── */}
       {editMode && (
         <div style={{
           display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap',
           backgroundColor: 'var(--pt-surface)', border: '1px solid var(--pt-border)',
           borderRadius: '10px', padding: '12px 16px', marginBottom: '28px',
         }}>
-          <span style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--pt-text-muted)', flexShrink: 0 }}>
+          <span style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase',
+            letterSpacing: '0.8px', color: 'var(--pt-text-muted)', flexShrink: 0 }}>
             Sections
           </span>
           {SECTION_DEFS.map(s => (
-            <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', userSelect: 'none' }}>
-              <input
-                type="checkbox"
-                checked={vis(s.id)}
-                onChange={() => toggleSection(s.id)}
-                style={{ accentColor: 'var(--pt-accent)', width: '13px', height: '13px' }}
-              />
-              <span style={{ fontSize: '12px', color: vis(s.id) ? 'var(--pt-text)' : 'var(--pt-text-muted)', fontWeight: '500' }}>
+            <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: '6px',
+              cursor: 'pointer', userSelect: 'none' }}>
+              <input type="checkbox" checked={vis(s.id)} onChange={() => toggleSection(s.id)}
+                style={{ accentColor: 'var(--pt-accent)', width: '13px', height: '13px' }} />
+              <span style={{ fontSize: '12px', color: vis(s.id) ? 'var(--pt-text)' : 'var(--pt-text-muted)',
+                fontWeight: '500' }}>
                 {s.label}
               </span>
             </label>
@@ -758,7 +929,7 @@ export default function PortalDashboard() {
         </div>
       )}
 
-      {/* ── Hero: big number + chart (always visible) ─────────── */}
+      {/* ── Hero: big number + line chart ───────────────────────── */}
       <div style={{ marginBottom: '8px' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: '14px', marginBottom: '4px' }}>
           <span style={{ fontSize: '56px', fontWeight: '800', letterSpacing: '-2.5px', lineHeight: 1, color: 'var(--pt-text)' }}>
@@ -768,26 +939,24 @@ export default function PortalDashboard() {
           <Delta delta={countDelta} />
         </div>
         <div style={{ fontSize: '13px', color: 'var(--pt-text-muted)', marginBottom: '24px' }}>
-          {chartLabel}
+          {rangeLabel}
           {activeCountry && <span> · {activeCountry}</span>}
-          {peakWeek.seedings > 0 && (
-            <span> · peak <strong style={{ color: 'var(--pt-text-sub)', fontWeight: '600' }}>{peakWeek.label}</strong></span>
+          {peakDay.seedings > 0 && (
+            <span> · peak <strong style={{ color: 'var(--pt-text-sub)', fontWeight: '600' }}>{peakDay.label}</strong></span>
           )}
         </div>
-        <DotChart weeks={weeks} />
+        <LineChart days={chartDays} />
       </div>
 
-      {/* ── Draggable bands ───────────────────────────────────── */}
+      {/* ── Draggable bands ─────────────────────────────────────── */}
       {visibleBands.length > 0 && (
         <div style={{ marginTop: editMode ? '28px' : '0' }}>
-          {bandOrder.map((id, idx) => {
+          {bandOrder.map((id) => {
             const content = renderBand(id);
             if (!content) return null;
-            const isFirstVisible = visibleBands[0] === id;
             return (
               <div key={id}>
                 <Rule my={36} />
-                {editMode && !isFirstVisible && <div style={{ height: '8px' }} />}
                 {content}
               </div>
             );
