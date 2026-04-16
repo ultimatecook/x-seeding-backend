@@ -502,9 +502,9 @@ export default function PortalDashboard() {
 
         {/* Recent seedings — list format */}
         <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '18px' }}>
-            <Label>Recent Seedings</Label>
-            <Link to="/portal/seedings" style={{ fontSize: '11px', color: 'var(--pt-accent)', fontWeight: '600', textDecoration: 'none', marginTop: '-2px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+            <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--pt-text-muted)' }}>Recent Seedings</div>
+            <Link to="/portal/seedings" style={{ fontSize: '11px', color: 'var(--pt-accent)', fontWeight: '600', textDecoration: 'none' }}>
               View all →
             </Link>
           </div>
@@ -515,7 +515,7 @@ export default function PortalDashboard() {
               {recentSeedings.slice(0, 6).map((s, i) => (
                 <div key={s.id} style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '10px 0',
+                  padding: '8px 0',
                   borderTop: i === 0 ? 'none' : '1px solid var(--pt-border-light)',
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
@@ -576,9 +576,9 @@ export default function PortalDashboard() {
 
         {/* Top influencers */}
         <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '18px' }}>
-            <Label>Top Influencers</Label>
-            <Link to="/portal/influencers" style={{ fontSize: '11px', color: 'var(--pt-accent)', fontWeight: '600', textDecoration: 'none', marginTop: '-2px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+            <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--pt-text-muted)' }}>Top Influencers</div>
+            <Link to="/portal/influencers" style={{ fontSize: '11px', color: 'var(--pt-accent)', fontWeight: '600', textDecoration: 'none' }}>
               View all →
             </Link>
           </div>
