@@ -60,14 +60,14 @@ export default function Index() {
           border: `1.5px solid ${P.accentLight}`,
           borderRadius: '8px', backgroundColor: P.accentLight,
         }}>
-          Influencer login →
+          Admin login →
         </a>
       </nav>
 
       {/* Hero */}
       <section style={{
         maxWidth: '760px', margin: '0 auto',
-        padding: '80px 24px 64px',
+        padding: '48px 24px 56px',
         textAlign: 'center',
       }}>
         <div style={{
@@ -169,7 +169,7 @@ export default function Index() {
           © {new Date().getFullYear()} Zeedy · Shopify influencer seeding
         </span>
         <a href="/portal-login" style={{ fontSize: '12px', color: P.accent, fontWeight: '600', textDecoration: 'none' }}>
-          Influencer portal →
+          Admin login →
         </a>
       </footer>
     </div>
