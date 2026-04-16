@@ -703,7 +703,7 @@ export default function PortalDashboard() {
   ];
 
   return (
-    <div style={{ maxWidth: '1100px' }}>
+    <div>
 
       {/* ── Drag handle CSS (show on hover via native CSS) ─────── */}
       <style>{`

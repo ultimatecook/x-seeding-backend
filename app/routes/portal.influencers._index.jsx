@@ -434,20 +434,20 @@ export default function PortalInfluencers() {
             <Form method="post" style={{ display: 'inline' }} onSubmit={clearSel}>
               <input type="hidden" name="intent" value="bulkArchive" />
               {selectedInView.map(id => <input key={id} type="hidden" name="ids" value={id} />)}
-              <button type="submit" disabled={isSubmitting} style={{ ...btnBase, color: D.text }}>Archive selected</button>
+              <button type="submit" disabled={isSubmitting} style={{ padding: '7px 14px', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', border: `1px solid ${D.border}`, backgroundColor: D.surfaceHigh, color: D.text }}>Archive selected</button>
             </Form>
           ) : (
             <Form method="post" style={{ display: 'inline' }} onSubmit={clearSel}>
               <input type="hidden" name="intent" value="bulkUnarchive" />
               {selectedInView.map(id => <input key={id} type="hidden" name="ids" value={id} />)}
-              <button type="submit" disabled={isSubmitting} style={{ ...btnBase, color: D.text }}>Unarchive selected</button>
+              <button type="submit" disabled={isSubmitting} style={{ padding: '7px 14px', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', border: `1px solid ${D.border}`, backgroundColor: D.surfaceHigh, color: D.text }}>Unarchive selected</button>
             </Form>
           )}
 
           {/* Delete — two-step confirmation */}
           {!confirmDelete ? (
             <button type="button" onClick={() => setConfirmDelete(true)}
-              style={{ ...btnBase, color: D.errorText, borderColor: D.errorText }}>
+              style={{ padding: '7px 14px', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', border: 'none', background: 'linear-gradient(135deg, #DC2626 0%, #B91C1C 100%)', color: '#FFFFFF', boxShadow: '0 1px 3px rgba(220,38,38,0.25)' }}>
               Delete selected
             </button>
           ) : (
