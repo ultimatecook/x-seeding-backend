@@ -457,8 +457,9 @@ export default function PortalNewSeeding() {
     } else if (savedSize) {
       const match = prod.variants.find(v => extractSizeFromVariant(v.title) === savedSize);
       if (match) {
-        matchedVariant  = match.available !== false ? match : null;
-        size            = matchedVariant ? extractSizeFromVariant(match.title) : null;
+        // Use the saved size regardless of stock — it's a seeding, OOS is fine
+        matchedVariant  = match;
+        size            = extractSizeFromVariant(match.title);
         sizeUnavailable = match.available === false;
       } else {
         sizeUnavailable = true;
@@ -780,11 +781,14 @@ export default function PortalNewSeeding() {
                               }}
                               style={{ fontSize: '12px', padding: '4px 8px', borderRadius: '6px', border: `1px solid ${!prod.size ? D.errorText : D.border}`, backgroundColor: !prod.size ? D.errorBg : D.surface, color: D.text }}>
                               <option value="">Pick size…</option>
-                              {prod.variants.filter(v => v.available !== false).map(v => (
-                                <option key={v.id} value={extractSizeFromVariant(v.title)}>
-                                  {extractSizeFromVariant(v.title) || v.title}
-                                </option>
-                              ))}
+                              {prod.variants.map(v => {
+                                const label = extractSizeFromVariant(v.title) || v.title;
+                                return (
+                                  <option key={v.id} value={extractSizeFromVariant(v.title)}>
+                                    {label}{v.available === false ? ' (out of stock)' : ''}
+                                  </option>
+                                );
+                              })}
                             </select>
                           ) : (
                             <span style={{ fontSize: '12px', color: D.textMuted, backgroundColor: D.surfaceHigh, padding: '3px 8px', borderRadius: '6px' }}>One size</span>
