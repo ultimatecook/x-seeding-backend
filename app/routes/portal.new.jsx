@@ -21,6 +21,7 @@ export async function loader({ request }) {
   // Fetch ALL sessions for this shop ordered by preference, then try each until one works.
   let products = [];
   let productsError = null;
+  let collections = [];
   try {
     // Collect all candidate sessions in priority order:
     // 1. Permanent offline (expires = null) first
@@ -116,7 +117,6 @@ export async function loader({ request }) {
       }
 
       // Fetch collections using the same valid session
-      let collections = [];
       if (goodSession) {
         try {
           const COLLECTIONS_QUERY = `query GetCollections {
