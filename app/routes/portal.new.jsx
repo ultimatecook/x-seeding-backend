@@ -18,69 +18,79 @@ export async function loader({ request }) {
   requirePermission(portalUser.role, 'createSeeding');
 
   // Fetch Shopify products using stored offline access token.
-  // Offline tokens have expires = null; we prefer those. Online tokens expire and are useless here.
+  // Fetch ALL sessions for this shop ordered by preference, then try each until one works.
   let products = [];
   let productsError = null;
   try {
-    // First try: session with no expiry = permanent offline token
-    let session = await prisma.session.findFirst({
-      where: { shop, isOnline: false, expires: null },
+    // Collect all candidate sessions in priority order:
+    // 1. Permanent offline (expires = null) first
+    // 2. Non-expired offline tokens, newest first
+    // 3. Any other session as last resort
+    const allSessions = await prisma.session.findMany({
+      where: { shop },
+      orderBy: [{ expires: 'desc' }],
     });
-    // Fallback: any offline-flagged session, latest expiry first
-    if (!session) {
-      session = await prisma.session.findFirst({
-        where:   { shop, isOnline: false },
-        orderBy: { expires: 'desc' },
-      });
-    }
-    // Last resort: any session for this shop (some setups don't set isOnline correctly)
-    if (!session) {
-      session = await prisma.session.findFirst({
-        where:   { shop },
-        orderBy: { expires: 'desc' },
-      });
-    }
-    if (!session?.accessToken) {
+    // Sort: null expires (permanent) first, then by isOnline=false preference
+    allSessions.sort((a, b) => {
+      if (a.expires === null && b.expires !== null) return -1;
+      if (a.expires !== null && b.expires === null) return 1;
+      if (!a.isOnline && b.isOnline) return -1;
+      if (a.isOnline && !b.isOnline) return 1;
+      return 0;
+    });
+
+    const candidates = allSessions.filter(s => s.accessToken);
+    if (candidates.length === 0) {
       productsError = 'No Shopify session found. Please open the app in Shopify admin once to authorize it.';
     } else {
-      const res  = await fetch(`https://${shop}/admin/api/2025-10/graphql.json`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': session.accessToken },
-        body: JSON.stringify({
-          query: `query GetProducts {
-            products(first: 100, sortKey: TITLE) {
-              edges { node {
-                id title
-                featuredImage { url }
-                variants(first: 30) { edges { node {
-                  id title price availableForSale
-                } } }
-              } }
-            }
-          }`,
-        }),
-      });
-      const body = await res.json();
-      // Shopify can return errors as an array of {message} objects OR as a plain string
-      // (e.g. "[API] Invalid API key or access token"). Handle both shapes.
-      const hasErrors = body?.errors || body?.error;
-      if (hasErrors) {
-        let errMsg = 'unknown';
-        if (typeof body.errors === 'string')       errMsg = body.errors;
-        else if (Array.isArray(body.errors))       errMsg = body.errors[0]?.message ?? JSON.stringify(body.errors[0]);
-        else if (body.error)                       errMsg = body.error_description ?? body.error;
-        console.error('Portal: Shopify GraphQL error (HTTP', res.status, '):', errMsg, '| full body:', JSON.stringify(body));
-        productsError = `Shopify API error (${res.status}): ${errMsg}`;
-      } else {
+      const GQL_QUERY = `query GetProducts {
+        products(first: 100, sortKey: TITLE) {
+          edges { node {
+            id title
+            featuredImage { url }
+            variants(first: 30) { edges { node {
+              id title price availableForSale
+            } } }
+          } }
+        }
+      }`;
+
+      let succeeded = false;
+      for (const session of candidates) {
+        const res  = await fetch(`https://${shop}/admin/api/2025-10/graphql.json`, {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': session.accessToken },
+          body:    JSON.stringify({ query: GQL_QUERY }),
+        });
+        const body = await res.json();
+
+        // 401 = this token is revoked/invalid — try the next session
+        if (res.status === 401) {
+          console.warn(`Portal: session ${session.id} returned 401, trying next...`);
+          continue;
+        }
+
+        const hasErrors = body?.errors || body?.error;
+        if (hasErrors) {
+          let errMsg = 'unknown';
+          if (typeof body.errors === 'string')  errMsg = body.errors;
+          else if (Array.isArray(body.errors))  errMsg = body.errors[0]?.message ?? JSON.stringify(body.errors[0]);
+          else if (body.error)                  errMsg = body.error_description ?? body.error;
+          console.error('Portal: Shopify GraphQL error (HTTP', res.status, '):', errMsg);
+          productsError = `Shopify API error (${res.status}): ${errMsg}`;
+          break; // non-401 error — no point trying other sessions
+        }
+
+        // Success
         products = (body?.data?.products?.edges ?? []).map(edge => {
           const vars = edge.node.variants.edges;
           const hasStock = vars.some(v => v.node.availableForSale);
           return {
-            id:          edge.node.id,
-            name:        edge.node.title,
-            image:       edge.node.featuredImage?.url ?? null,
-            stock:       hasStock ? 1 : 0,  // 0 = treat as out of stock
-            variants:    vars.map(v => ({
+            id:       edge.node.id,
+            name:     edge.node.title,
+            image:    edge.node.featuredImage?.url ?? null,
+            stock:    hasStock ? 1 : 0,
+            variants: vars.map(v => ({
               id:        v.node.id,
               title:     v.node.title,
               price:     parseFloat(v.node.price || 0),
@@ -95,6 +105,12 @@ export async function loader({ request }) {
         if (products.length === 0) {
           console.warn('Portal: Shopify returned 0 products for shop', shop);
         }
+        succeeded = true;
+        break;
+      }
+
+      if (!succeeded && !productsError) {
+        productsError = 'All stored Shopify tokens are invalid (401). Please open the app in Shopify admin to re-authorize.';
       }
     }
   } catch (e) {
