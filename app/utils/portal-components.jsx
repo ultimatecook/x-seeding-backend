@@ -49,25 +49,43 @@ export function InstagramAvatar({ handle, size = 36 }) {
   const [c1, c2] = AVATAR_GRADIENTS[idx];
   const fontSize = Math.round(size * 0.38);
 
+  // Try unavatar.io proxy which aggregates social profiles.
+  // Wrap in a state: start hidden, show on successful load, hide on error.
+  // The gradient+initials fallback is always rendered underneath.
   return (
     <div style={{
       width: size, height: size, borderRadius: '50%', flexShrink: 0,
       background: `linear-gradient(135deg, ${c1}, ${c2})`,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontSize, fontWeight: '900', color: '#000', letterSpacing: '-0.5px',
+      fontSize, fontWeight: '900', color: '#fff', letterSpacing: '-0.5px',
       overflow: 'hidden', position: 'relative',
     }}>
-      <span style={{ position: 'relative', zIndex: 1 }}>{initials}</span>
-      <img
-        src={`https://unavatar.io/instagram/${clean}`}
-        alt=""
-        onLoad={e => { e.currentTarget.style.opacity = '1'; }}
-        onError={e => { e.currentTarget.style.display = 'none'; }}
-        style={{
-          position: 'absolute', inset: 0, width: '100%', height: '100%',
-          objectFit: 'cover', opacity: 0, transition: 'opacity 0.3s', zIndex: 2,
-        }}
-      />
+      {/* Fallback initials always rendered */}
+      <span style={{ position: 'relative', zIndex: 1, userSelect: 'none' }}>{initials}</span>
+
+      {/* Profile photo overlay — fades in on load, disappears on error */}
+      {clean && (
+        <img
+          src={`https://unavatar.io/instagram/${encodeURIComponent(clean)}?fallback=false`}
+          alt=""
+          onLoad={e => {
+            const img = e.currentTarget;
+            // unavatar sometimes returns a 1x1 transparent GIF on failure
+            if (img.naturalWidth > 4) {
+              img.style.opacity = '1';
+            } else {
+              img.style.display = 'none';
+            }
+          }}
+          onError={e => { e.currentTarget.style.display = 'none'; }}
+          style={{
+            position: 'absolute', inset: 0, width: '100%', height: '100%',
+            objectFit: 'cover', opacity: 0,
+            transition: 'opacity 0.25s ease',
+            zIndex: 2,
+          }}
+        />
+      )}
     </div>
   );
 }

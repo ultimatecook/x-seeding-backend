@@ -156,10 +156,10 @@ export const DARK_THEME = `
   --pt-border:        #2A3142;
   --pt-border-light:  #222838;
   --pt-accent:        #7CFF6B;
-  --pt-accent-hover:  #4CD964;
+  --pt-accent-hover:  #5CE84A;
   --pt-accent-light:  #122010;
   --pt-accent-faint:  #0A160A;
-  --pt-accent-text:   #4CD964;
+  --pt-accent-text:   #0A2008;
   --pt-purple:        #A855F7;
   --pt-purple-light:  #C084FC;
   --pt-purple-faint:  #1A0D2E;
