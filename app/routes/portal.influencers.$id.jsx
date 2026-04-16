@@ -45,6 +45,24 @@ export async function action({ request, params }) {
     await audit({ shop, portalUser, action: 'updated_influencer_notes', entityType: 'influencer', entityId: id, detail: 'Updated notes' });
   }
 
+  if (intent === 'updateSizes') {
+    requirePermission(portalUser.role, 'editInfluencer');
+    const categories = ['tops', 'bottoms', 'footwear'];
+    for (const category of categories) {
+      const size = formData.get(`size_${category}`)?.trim() || null;
+      if (size) {
+        await prisma.influencerSavedSize.upsert({
+          where:  { influencerId_category: { influencerId: id, category } },
+          update: { size },
+          create: { influencerId: id, category, size },
+        });
+      } else {
+        await prisma.influencerSavedSize.deleteMany({ where: { influencerId: id, category } });
+      }
+    }
+    await audit({ shop, portalUser, action: 'updated_influencer_sizes', entityType: 'influencer', entityId: id, detail: 'Updated saved sizes' });
+  }
+
   if (intent === 'archive') {
     requirePermission(portalUser.role, 'editInfluencer');
     await prisma.influencer.update({ where: { id }, data: { archived: true } });
@@ -96,9 +114,14 @@ export async function loader({ request, params }) {
 
   if (!influencer) throw new Response('Influencer not found', { status: 404 });
 
+  const savedSizes = await prisma.influencerSavedSize.findMany({
+    where:   { influencerId: id },
+    orderBy: { category: 'asc' },
+  });
+
   const role    = portalUser.role;
   const canEdit = can.editInfluencer(role);
-  return { influencer, canEdit };
+  return { influencer, canEdit, savedSizes };
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -123,7 +146,7 @@ const card = (extra = {}) => ({
 
 // ─── Component ───────────────────────────────────────────────────────────────
 export default function PortalInfluencerDetail() {
-  const { influencer, canEdit } = useLoaderData();
+  const { influencer, canEdit, savedSizes } = useLoaderData();
   const navigation   = useNavigation();
   const isSubmitting = navigation.state === 'submitting';
   const seedings     = influencer.seedings;
@@ -385,6 +408,44 @@ export default function PortalInfluencerDetail() {
           </div>
         )}
       </div>
+
+      {/* Saved Sizes */}
+      {canEdit && (
+        <div style={{ ...card(), marginBottom: '24px' }}>
+          <div style={{ fontSize: '12px', fontWeight: '800', color: D.text, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '14px' }}>
+            👗 Saved Sizes
+          </div>
+          <Form method="post">
+            <input type="hidden" name="intent" value="updateSizes" />
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '12px' }}>
+              {[
+                { category: 'tops',     label: 'Tops',     sizes: ['XS', 'S', 'M', 'L', 'XL', 'XXL'] },
+                { category: 'bottoms',  label: 'Bottoms',  sizes: ['XS', 'S', 'M', 'L', 'XL', 'XXL'] },
+                { category: 'footwear', label: 'Footwear', sizes: ['35','36','37','38','39','40','41','42','43','44','45','5','5.5','6','6.5','7','7.5','8','8.5','9','9.5','10','10.5','11'] },
+              ].map(({ category, label, sizes }) => {
+                const saved = savedSizes.find(s => s.category === category)?.size ?? '';
+                return (
+                  <label key={category} style={{ display: 'flex', flexDirection: 'column', gap: '5px', fontSize: '12px', fontWeight: '600', color: D.textSub }}>
+                    {label}
+                    <select
+                      name={`size_${category}`}
+                      defaultValue={saved}
+                      style={{ padding: '7px 10px', borderRadius: '7px', border: `1px solid ${D.border}`, fontSize: '13px', color: D.text, background: D.surface }}
+                    >
+                      <option value="">— Not set —</option>
+                      {sizes.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </label>
+                );
+              })}
+            </div>
+            <button type="submit" disabled={isSubmitting}
+              style={{ padding: '8px 18px', borderRadius: '7px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: '700', background: `linear-gradient(135deg,${D.accent},${D.accentHover})`, color: '#fff' }}>
+              {isSubmitting ? 'Saving…' : 'Save Sizes'}
+            </button>
+          </Form>
+        </div>
+      )}
 
       {/* Seeding history */}
       <div>
