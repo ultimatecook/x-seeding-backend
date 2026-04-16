@@ -112,6 +112,7 @@ export async function loader({ request }) {
     ? Math.round(((totalSeedings - prevCount) / prevCount) * 100) : null;
 
   const totalUnits = allProductRows.length;
+  const totalCogs  = allProductRows.reduce((s, x) => s + (x.cost ?? 0), 0);
 
   // ── Per-day chart data ─────────────────────────────────────────────────────
   const DAY_MS    = 24 * 60 * 60 * 1000;
@@ -184,6 +185,7 @@ export async function loader({ request }) {
     activeDays:    daysParam ?? null,
     activeCountry: countryParam ?? null,
     activeSeedings: orderedSeedings + shippedSeedings,
+    totalCogs,
     rangeLabel,
     currentMonthShort: now.toLocaleDateString('en-GB', { month: 'short' }),
     chartDays,
@@ -247,13 +249,11 @@ function IconBox() {
     </svg>
   );
 }
-function IconTruck() {
+function IconTag() {
   return (
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="1" y="3" width="15" height="13" rx="1"/>
-      <path d="M16 8h4l3 5v3h-7V8z"/>
-      <circle cx="5.5" cy="18.5" r="2.5"/>
-      <circle cx="18.5" cy="18.5" r="2.5"/>
+      <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
+      <line x1="7" y1="7" x2="7.01" y2="7"/>
     </svg>
   );
 }
@@ -511,7 +511,7 @@ export default function PortalDashboard() {
     topInfluencers, totalSpend, totalUnits,
     spendDelta, countDelta,
     countryPills, activeDays, activeCountry,
-    activeSeedings, chartDays, rangeLabel, currentMonthShort,
+    activeSeedings, totalCogs, chartDays, rangeLabel, currentMonthShort,
   } = useLoaderData();
 
   const TIME_OPTIONS = [
@@ -624,18 +624,18 @@ export default function PortalDashboard() {
         iconBg="rgba(245,158,11,0.1)"
       />
       <StatCard
+        label="Cost of Goods Seeded"
+        value={`€${fmtNum(totalCogs)}`}
+        icon={<IconTag />}
+        iconColor="#7C6FF7"
+        iconBg="rgba(124,111,247,0.1)"
+      />
+      <StatCard
         label="Units Sent"
         value={totalUnits}
         icon={<IconBox />}
         iconColor="#3B82F6"
         iconBg="rgba(59,130,246,0.1)"
-      />
-      <StatCard
-        label="In Transit"
-        value={activeSeedings}
-        icon={<IconTruck />}
-        iconColor="#7C6FF7"
-        iconBg="rgba(124,111,247,0.1)"
       />
       <StatCard
         label="Influencers"
