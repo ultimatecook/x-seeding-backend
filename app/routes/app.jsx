@@ -87,8 +87,8 @@ export default function AppLayout() {
       {/* Top bar */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${C.border}`, paddingBottom: '16px', marginBottom: '32px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div style={{ width: '28px', height: '28px', backgroundColor: C.accent, borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px' }}>✦</div>
-          <h1 style={{ margin: 0, fontSize: '15px', fontWeight: '800', letterSpacing: '-0.3px', color: C.text }}>X – Seeding Manager</h1>
+          <img src="/logoonly.png" alt="Zeedy" style={{ height: '28px', width: 'auto' }} />
+          <img src="/fullname.png" alt="ZEEDY" style={{ height: '20px', width: 'auto' }} />
         </div>
         <nav style={{ display: 'flex', gap: '6px' }}>
           <NavLink to="/app" end style={navLinkStyle}>Dashboard</NavLink>

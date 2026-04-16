@@ -149,17 +149,9 @@ export default function PortalLayout() {
         }}>
 
           {/* Logo + brand */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
-            <div style={{
-              width: '30px', height: '30px',
-              background: 'linear-gradient(135deg, #7C6FF7 0%, #5B4CF0 100%)',
-              borderRadius: '8px',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: '14px', boxShadow: '0 2px 6px rgba(124,111,247,0.35)',
-            }}>✦</div>
-            <span style={{ fontSize: '14px', fontWeight: '800', letterSpacing: '-0.3px', color: D.text }}>
-              X Seeding
-            </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+            <img src="/logoonly.png" alt="Zeedy" style={{ height: '28px', width: 'auto' }} />
+            <img src="/fullname.png" alt="ZEEDY" style={{ height: '22px', width: 'auto' }} />
           </div>
 
           {/* Nav links */}

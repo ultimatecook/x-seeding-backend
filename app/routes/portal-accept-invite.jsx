@@ -99,17 +99,8 @@ const inputStyle = {
 function LogoBlock() {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '32px' }}>
-      <div style={{
-        width: '34px', height: '34px',
-        background: 'linear-gradient(135deg, #7C6FF7 0%, #5B4CF0 100%)',
-        borderRadius: '9px',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: '16px', color: '#fff',
-        boxShadow: '0 2px 8px rgba(124,111,247,0.4)',
-      }}>✦</div>
-      <span style={{ fontSize: '15px', fontWeight: '800', color: P.text, letterSpacing: '-0.3px' }}>
-        X – Seeding Portal
-      </span>
+      <img src="/logoonly.png" alt="Zeedy" style={{ height: '36px', width: 'auto' }} />
+      <img src="/fullname.png" alt="ZEEDY" style={{ height: '28px', width: 'auto' }} />
     </div>
   );
 }
