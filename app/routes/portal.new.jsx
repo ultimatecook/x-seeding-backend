@@ -167,9 +167,9 @@ export async function action({ request }) {
   let invoiceUrl          = null;
 
   try {
-    const session = await prisma.session.findFirst({
-      where: { shop, isOnline: false }, orderBy: { expires: 'desc' },
-    });
+    let session = await prisma.session.findFirst({ where: { shop, isOnline: false, expires: null } });
+    if (!session) session = await prisma.session.findFirst({ where: { shop, isOnline: false }, orderBy: { expires: 'desc' } });
+    if (!session) session = await prisma.session.findFirst({ where: { shop }, orderBy: { expires: 'desc' } });
     if (session?.accessToken) {
       const lineItems = variantIds.filter(v => v && v.length > 0).map(variantId => ({ variantId, quantity: 1 }));
       const mutation  = `mutation DraftOrderCreate($input: DraftOrderInput!) {
@@ -309,22 +309,32 @@ export default function PortalNewSeeding() {
     }
     const category   = guessProductCategory(prod.name);
     const savedSize  = influencerSizeMap[category];
+    const isOneSize  = !prod.variants || prod.variants.length <= 1;
+
     let matchedVariant  = null;
+    let size            = null;
     let sizeUnavailable = false;
-    if (savedSize && prod.variants && prod.variants.length > 1) {
+
+    if (isOneSize) {
+      // Single-variant product — auto-select the only variant, mark as "One Size"
+      matchedVariant = prod.variants?.[0] ?? null;
+      size           = 'One Size';
+    } else if (savedSize) {
       const match = prod.variants.find(v => extractSizeFromVariant(v.title) === savedSize);
       if (match) {
         matchedVariant  = match.available !== false ? match : null;
+        size            = matchedVariant ? extractSizeFromVariant(match.title) : null;
         sizeUnavailable = match.available === false;
       } else {
         sizeUnavailable = true;
       }
     }
+
     setSelectedProducts(prev => [...prev, {
       ...prod,
       selectedVariant: matchedVariant,
       category,
-      size:            matchedVariant ? extractSizeFromVariant(matchedVariant.title) : null,
+      size,
       sizeUnavailable,
     }]);
   }
