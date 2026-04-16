@@ -51,6 +51,7 @@ export async function loader({ request }) {
             featuredImage { url }
             variants(first: 30) { edges { node {
               id title price availableForSale
+              inventoryItem { unitCost { amount } }
             } } }
           } }
         }
@@ -97,11 +98,11 @@ export async function loader({ request }) {
               id:        v.node.id,
               title:     v.node.title,
               price:     parseFloat(v.node.price || 0),
-              cost:      null,
+              cost:      parseFloat(v.node.inventoryItem?.unitCost?.amount || 0) || null,
               available: v.node.availableForSale,
             })),
             price:     parseFloat(vars[0]?.node?.price || 0),
-            cost:      null,
+            cost:      parseFloat(vars[0]?.node?.inventoryItem?.unitCost?.amount || 0) || null,
             variantId: vars[0]?.node?.id ?? null,
           };
         });
