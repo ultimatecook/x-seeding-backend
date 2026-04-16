@@ -219,12 +219,12 @@ export default function PortalInfluencerDetail() {
         {canEdit && (
           <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
             <button type="button" onClick={() => setEditProfile(v => !v)}
-              style={{ padding: '9px 16px', borderRadius: '8px', border: `1.5px solid ${editProfile ? D.accent : D.border}`, cursor: 'pointer', fontSize: '13px', fontWeight: '700', backgroundColor: editProfile ? D.accentLight : 'transparent', color: editProfile ? D.accent : D.textSub }}>
-              ✏️ Edit Profile
+              style={{ padding: '9px 16px', borderRadius: '8px', border: `1px solid ${D.border}`, cursor: 'pointer', fontSize: '13px', fontWeight: '600', backgroundColor: editProfile ? D.accentLight : 'var(--pt-surface-high)', color: editProfile ? D.accent : D.textSub, transition: 'all 0.12s' }}>
+              Edit Profile
             </button>
             <a href={`https://www.instagram.com/${handle}/`} target="_blank" rel="noopener noreferrer"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '9px 16px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: '700', textDecoration: 'none', background: 'linear-gradient(135deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)', color: '#fff' }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="4.5" stroke="white" strokeWidth="2"/><rect x="1.5" y="1.5" width="21" height="21" rx="6" stroke="white" strokeWidth="2"/><circle cx="17.5" cy="6.5" r="1.2" fill="white"/></svg>
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '9px 16px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: '600', textDecoration: 'none', background: 'linear-gradient(135deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)', color: '#fff' }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="4.5" stroke="white" strokeWidth="2"/><rect x="1.5" y="1.5" width="21" height="21" rx="6" stroke="white" strokeWidth="2"/><circle cx="17.5" cy="6.5" r="1.2" fill="white"/></svg>
               Instagram
             </a>
           </div>
@@ -260,11 +260,11 @@ export default function PortalInfluencerDetail() {
           ))}
           <div style={{ gridColumn: '1 / -1', display: 'flex', gap: '8px' }}>
             <button type="submit" disabled={isSubmitting}
-              style={{ padding: '9px 20px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: '700', background: `linear-gradient(135deg,${D.accent},${D.accentHover})`, color: '#fff' }}>
+              style={{ padding: '9px 20px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: '700', background: 'linear-gradient(135deg, #7C6FF7 0%, #6558E8 100%)', color: '#fff', boxShadow: '0 1px 3px rgba(124,111,247,0.25)', opacity: isSubmitting ? 0.7 : 1 }}>
               {isSubmitting ? 'Saving…' : 'Save Changes'}
             </button>
             <button type="button" onClick={() => setEditProfile(false)}
-              style={{ padding: '9px 14px', borderRadius: '8px', border: `1px solid ${D.border}`, cursor: 'pointer', fontSize: '13px', fontWeight: '600', backgroundColor: 'transparent', color: D.textSub }}>
+              style={{ padding: '9px 14px', borderRadius: '8px', border: `1px solid ${D.border}`, cursor: 'pointer', fontSize: '13px', fontWeight: '600', backgroundColor: 'var(--pt-surface-high)', color: D.textSub }}>
               Cancel
             </button>
           </div>
@@ -346,11 +346,11 @@ export default function PortalInfluencerDetail() {
               />
               <div style={{ display: 'flex', gap: '6px' }}>
                 <button type="submit" disabled={isSubmitting}
-                  style={{ padding: '7px 16px', borderRadius: '7px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: '700', background: `linear-gradient(135deg,${D.accent},${D.accentHover})`, color: '#fff' }}>
+                  style={{ padding: '8px 18px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: '700', background: 'linear-gradient(135deg, #7C6FF7 0%, #6558E8 100%)', color: '#fff', boxShadow: '0 1px 3px rgba(124,111,247,0.25)', opacity: isSubmitting ? 0.7 : 1 }}>
                   {isSubmitting ? 'Saving…' : 'Save'}
                 </button>
                 <button type="button" onClick={() => setEditNotes(false)}
-                  style={{ padding: '7px 12px', borderRadius: '7px', border: `1px solid ${D.border}`, cursor: 'pointer', fontSize: '12px', fontWeight: '600', backgroundColor: 'transparent', color: D.textSub }}>
+                  style={{ padding: '8px 12px', borderRadius: '8px', border: `1px solid ${D.border}`, cursor: 'pointer', fontSize: '13px', fontWeight: '600', backgroundColor: 'var(--pt-surface-high)', color: D.textSub }}>
                   Cancel
                 </button>
               </div>
@@ -374,32 +374,32 @@ export default function PortalInfluencerDetail() {
             <Form method="post" style={{ marginBottom: '8px' }}>
               <input type="hidden" name="intent" value={influencer.archived ? 'unarchive' : 'archive'} />
               <button type="submit" disabled={isSubmitting}
-                style={{ width: '100%', padding: '9px 16px', borderRadius: '8px', border: `1px solid ${influencer.archived ? D.accent : D.warningText}`, cursor: 'pointer', fontSize: '13px', fontWeight: '700', backgroundColor: influencer.archived ? D.accentLight : D.warningBg, color: influencer.archived ? D.accent : D.warningText }}>
-                {influencer.archived ? '↩ Unarchive' : '📦 Archive'}
+                style={{ width: '100%', padding: '9px 16px', borderRadius: '8px', border: `1px solid ${D.border}`, cursor: 'pointer', fontSize: '13px', fontWeight: '600', backgroundColor: 'var(--pt-surface-high)', color: D.text, opacity: isSubmitting ? 0.7 : 1 }}>
+                {influencer.archived ? 'Unarchive' : 'Archive'}
               </button>
             </Form>
 
             {/* Delete — requires confirmation */}
             {!confirmDelete ? (
               <button type="button" onClick={() => setConfirmDelete(true)}
-                style={{ width: '100%', padding: '9px 16px', borderRadius: '8px', border: `1px solid ${D.errorText}`, cursor: 'pointer', fontSize: '13px', fontWeight: '700', backgroundColor: 'transparent', color: D.errorText }}>
-                🗑 Delete Influencer
+                style={{ width: '100%', padding: '9px 16px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: '700', background: 'linear-gradient(135deg, #DC2626 0%, #B91C1C 100%)', color: '#fff', boxShadow: '0 1px 3px rgba(220,38,38,0.2)' }}>
+                Delete Influencer
               </button>
             ) : (
-              <div style={{ padding: '12px', borderRadius: '8px', border: `1px solid ${D.errorText}`, backgroundColor: D.errorBg }}>
-                <p style={{ margin: '0 0 10px', fontSize: '13px', color: D.errorText, fontWeight: '600' }}>
-                  This will permanently delete @{handle} and all their seedings. Are you sure?
+              <div style={{ padding: '14px', borderRadius: '10px', border: `1px solid ${D.border}`, backgroundColor: 'var(--pt-surface-high)', marginTop: '4px' }}>
+                <p style={{ margin: '0 0 12px', fontSize: '13px', color: D.text, lineHeight: '1.5' }}>
+                  Permanently delete <strong>@{handle}</strong> and all their seedings?
                 </p>
                 <div style={{ display: 'flex', gap: '6px' }}>
                   <Form method="post" style={{ flex: 1 }}>
                     <input type="hidden" name="intent" value="delete" />
                     <button type="submit" disabled={isSubmitting}
-                      style={{ width: '100%', padding: '8px', borderRadius: '7px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: '700', backgroundColor: D.errorText, color: '#fff' }}>
-                      {isSubmitting ? 'Deleting…' : 'Yes, Delete'}
+                      style={{ width: '100%', padding: '8px', borderRadius: '7px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: '700', background: 'linear-gradient(135deg, #DC2626 0%, #B91C1C 100%)', color: '#fff', opacity: isSubmitting ? 0.7 : 1 }}>
+                      {isSubmitting ? 'Deleting…' : 'Yes, delete'}
                     </button>
                   </Form>
                   <button type="button" onClick={() => setConfirmDelete(false)}
-                    style={{ padding: '8px 14px', borderRadius: '7px', border: `1px solid ${D.border}`, cursor: 'pointer', fontSize: '13px', fontWeight: '600', backgroundColor: 'transparent', color: D.textSub }}>
+                    style={{ padding: '8px 14px', borderRadius: '7px', border: `1px solid ${D.border}`, cursor: 'pointer', fontSize: '13px', fontWeight: '600', backgroundColor: 'var(--pt-surface-high)', color: D.textSub }}>
                     Cancel
                   </button>
                 </div>
@@ -440,7 +440,7 @@ export default function PortalInfluencerDetail() {
               })}
             </div>
             <button type="submit" disabled={isSubmitting}
-              style={{ padding: '8px 18px', borderRadius: '7px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: '700', background: `linear-gradient(135deg,${D.accent},${D.accentHover})`, color: '#fff' }}>
+              style={{ padding: '9px 20px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: '700', background: 'linear-gradient(135deg, #7C6FF7 0%, #6558E8 100%)', color: '#fff', boxShadow: '0 1px 3px rgba(124,111,247,0.25)', opacity: isSubmitting ? 0.7 : 1 }}>
               {isSubmitting ? 'Saving…' : 'Save Sizes'}
             </button>
           </Form>

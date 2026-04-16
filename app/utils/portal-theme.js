@@ -13,14 +13,42 @@
  */
 
 // ── Portal-scoped button + input styles (use these instead of btn/input from theme.js) ──
+// Rules:
+//  primary  → solid purple, ALWAYS white text
+//  danger   → red gradient, ALWAYS white text
+//  neutral  → clean grey surface, dark text (archive, cancel, back)
+//  ghost    → transparent, subtle border, muted text (secondary actions)
 export const Pbtn = {
   primary: {
     padding: '9px 22px',
-    backgroundColor: 'var(--pt-accent)',
-    color: 'var(--pt-accent-text, #000)',
+    background: 'linear-gradient(135deg, #7C6FF7 0%, #6558E8 100%)',
+    color: '#FFFFFF',
     border: 'none',
     cursor: 'pointer',
     fontWeight: '700',
+    fontSize: '13px',
+    borderRadius: '8px',
+    letterSpacing: '-0.1px',
+    boxShadow: '0 1px 3px rgba(124,111,247,0.25)',
+  },
+  danger: {
+    padding: '9px 18px',
+    background: 'linear-gradient(135deg, #DC2626 0%, #B91C1C 100%)',
+    color: '#FFFFFF',
+    border: 'none',
+    cursor: 'pointer',
+    fontWeight: '700',
+    fontSize: '13px',
+    borderRadius: '8px',
+    boxShadow: '0 1px 3px rgba(220,38,38,0.25)',
+  },
+  neutral: {
+    padding: '9px 18px',
+    backgroundColor: 'var(--pt-surface-high)',
+    color: 'var(--pt-text)',
+    border: '1px solid var(--pt-border)',
+    cursor: 'pointer',
+    fontWeight: '600',
     fontSize: '13px',
     borderRadius: '8px',
   },
@@ -42,16 +70,6 @@ export const Pbtn = {
     cursor: 'pointer',
     fontWeight: '600',
     fontSize: '12px',
-    borderRadius: '8px',
-  },
-  danger: {
-    padding: '9px 18px',
-    backgroundColor: 'transparent',
-    color: 'var(--pt-error-text)',
-    border: '1px solid var(--pt-error-text)',
-    cursor: 'pointer',
-    fontWeight: '700',
-    fontSize: '13px',
     borderRadius: '8px',
   },
 };
