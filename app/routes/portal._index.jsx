@@ -362,27 +362,40 @@ export default function PortalDashboard() {
           Overview
         </h1>
 
-        {/* Filter row */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '2px', backgroundColor: 'var(--pt-surface-high)', borderRadius: '99px', padding: '3px', border: '1px solid var(--pt-border)' }}>
-          {TIME_OPTIONS.map(opt => (
-            <button key={opt.value} onClick={() => toggleDays(opt.value)} style={pill(activeDays === opt.value)}>
-              {opt.label}
-            </button>
-          ))}
+        {/* Filters — time and country in separate groups */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+
+          {/* Time */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '2px', backgroundColor: 'var(--pt-surface-high)', borderRadius: '99px', padding: '3px', border: '1px solid var(--pt-border)' }}>
+            {TIME_OPTIONS.map(opt => (
+              <button key={opt.value} onClick={() => toggleDays(opt.value)} style={pill(activeDays === opt.value)}>
+                {opt.label}
+              </button>
+            ))}
+            {activeDays && (
+              <button onClick={() => navigate(buildUrl(null, activeCountry))}
+                style={{ ...pill(false), color: 'var(--pt-text-muted)', padding: '5px 9px' }}>
+                ✕
+              </button>
+            )}
+          </div>
+
+          {/* Country */}
           {countryPills.length > 0 && (
-            <div style={{ width: '1px', height: '16px', backgroundColor: 'var(--pt-border)', margin: '0 2px' }} />
-          )}
-          {countryPills.map(country => (
-            <button key={country} onClick={() => toggleCountry(country)} style={{ ...pill(activeCountry === country), gap: '5px' }}>
-              <FlagImg country={country} size={14} />
-              <span>{country.split(' ')[0]}</span>
-            </button>
-          ))}
-          {(activeDays || activeCountry) && (
-            <button onClick={() => navigate('/portal')}
-              style={{ ...pill(false), color: 'var(--pt-text-muted)', padding: '5px 10px' }}>
-              ✕
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '2px', backgroundColor: 'var(--pt-surface-high)', borderRadius: '99px', padding: '3px', border: '1px solid var(--pt-border)' }}>
+              {countryPills.map(country => (
+                <button key={country} onClick={() => toggleCountry(country)} style={{ ...pill(activeCountry === country), gap: '5px' }}>
+                  <FlagImg country={country} size={14} />
+                  <span>{country.split(' ')[0]}</span>
+                </button>
+              ))}
+              {activeCountry && (
+                <button onClick={() => navigate(buildUrl(activeDays, null))}
+                  style={{ ...pill(false), color: 'var(--pt-text-muted)', padding: '5px 9px' }}>
+                  ✕
+                </button>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -532,32 +545,34 @@ export default function PortalDashboard() {
       <Rule my={36} />
 
       {/* ── Countries + Influencers ───────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '60px', alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: activeCountry ? '1fr' : '1fr 1fr', gap: '60px', alignItems: 'start' }}>
 
-        {/* Countries */}
-        <div>
-          <Label>Top Countries</Label>
-          {countryData.length === 0 ? (
-            <p style={{ margin: 0, fontSize: '13px', color: 'var(--pt-text-muted)' }}>No data yet.</p>
-          ) : (
-            <div>
-              {countryData.slice(0, 5).map((d, i) => (
-                <div key={d.country} style={{
-                  display: 'flex', alignItems: 'center', gap: '12px',
-                  padding: '10px 0',
-                  borderTop: i === 0 ? 'none' : '1px solid var(--pt-border-light)',
-                }}>
-                  <FlagImg country={d.country} size={17} />
-                  <span style={{ flex: 1, fontSize: '13px', fontWeight: '500', color: 'var(--pt-text)' }}>{d.country}</span>
-                  <span style={{ fontSize: '11px', color: 'var(--pt-text-muted)' }}>{d.seedings} seedings</span>
-                  <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--pt-text)', minWidth: '56px', textAlign: 'right' }}>
-                    €{fmtNum(d.spend)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        {/* Countries — hidden when a country filter is active */}
+        {!activeCountry && (
+          <div>
+            <Label>Top Countries</Label>
+            {countryData.length === 0 ? (
+              <p style={{ margin: 0, fontSize: '13px', color: 'var(--pt-text-muted)' }}>No data yet.</p>
+            ) : (
+              <div>
+                {countryData.slice(0, 5).map((d, i) => (
+                  <div key={d.country} style={{
+                    display: 'flex', alignItems: 'center', gap: '12px',
+                    padding: '10px 0',
+                    borderTop: i === 0 ? 'none' : '1px solid var(--pt-border-light)',
+                  }}>
+                    <FlagImg country={d.country} size={17} />
+                    <span style={{ flex: 1, fontSize: '13px', fontWeight: '500', color: 'var(--pt-text)' }}>{d.country}</span>
+                    <span style={{ fontSize: '11px', color: 'var(--pt-text-muted)' }}>{d.seedings} seedings</span>
+                    <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--pt-text)', minWidth: '56px', textAlign: 'right' }}>
+                      €{fmtNum(d.spend)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Top influencers */}
         <div>
