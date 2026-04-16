@@ -13,25 +13,41 @@ export async function loader({ request }) {
   const { shop } = await requirePortalUser(request);
 
   const url          = new URL(request.url);
-  const daysParam    = url.searchParams.get('days');    // '30' | '180' | '365' | null
+  const daysParam    = url.searchParams.get('days');    // '30' | '180' | '365' | null (null = MTD)
   const countryParam = url.searchParams.get('country'); // country name | null
 
-  const now      = new Date();
-  const days     = daysParam ? parseInt(daysParam, 10) : null;
-  const dateStart = days ? new Date(now.getTime() - days * 24 * 60 * 60 * 1000) : null;
-  const prevStart = days && dateStart ? new Date(dateStart.getTime() - days * 24 * 60 * 60 * 1000) : null;
+  const now  = new Date();
+  const days = daysParam ? parseInt(daysParam, 10) : null;
+
+  // Date range — default is month-to-date (April 1 → today)
+  let dateStart, prevWhere;
+  if (!daysParam) {
+    // MTD: 1st of current month → now
+    dateStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    // Compare to same days 1→N in previous month
+    const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const prevMonthEnd   = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate() + 1); // exclusive
+    prevWhere = {
+      shop,
+      createdAt: { gte: prevMonthStart, lt: prevMonthEnd },
+      ...(countryParam ? { influencer: { country: countryParam } } : {}),
+    };
+  } else {
+    dateStart = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+    const prevStart = new Date(dateStart.getTime() - days * 24 * 60 * 60 * 1000);
+    prevWhere = {
+      shop,
+      createdAt: { gte: prevStart, lt: dateStart },
+      ...(countryParam ? { influencer: { country: countryParam } } : {}),
+    };
+  }
 
   // Prisma where clauses
   const seedingWhere = {
     shop,
-    ...(dateStart    ? { createdAt: { gte: dateStart } }    : {}),
+    createdAt: { gte: dateStart },
     ...(countryParam ? { influencer: { country: countryParam } } : {}),
   };
-  const prevWhere = prevStart ? {
-    shop,
-    createdAt: { gte: prevStart, lt: dateStart },
-    ...(countryParam ? { influencer: { country: countryParam } } : {}),
-  } : null;
 
   const [
     allSeedings,
@@ -111,11 +127,10 @@ export async function loader({ request }) {
   // ── Weekly/period buckets for dot chart ───────────────────────────────────
   // Always 12 buckets; bucket size depends on selected period.
   const NUM_BUCKETS  = 12;
-  const periodMs     = days
-    ? days * 24 * 60 * 60 * 1000
-    : 84 * 24 * 60 * 60 * 1000;   // default: 12 weeks
-  const bucketMs     = Math.floor(periodMs / NUM_BUCKETS);
-  const chartStart   = dateStart ?? new Date(now.getTime() - periodMs);
+  // MTD: from 1st of month to now; named periods: from N days ago to now
+  const chartStart   = dateStart;
+  const periodMs     = now - chartStart;
+  const bucketMs     = Math.max(Math.floor(periodMs / NUM_BUCKETS), 1);
 
   const buckets = Array.from({ length: NUM_BUCKETS }, (_, i) => {
     const d = new Date(chartStart.getTime() + i * bucketMs);
@@ -167,11 +182,13 @@ export async function loader({ request }) {
     totalSpend: inf.seedings.reduce((s, x) => s + (x.totalCost ?? 0), 0),
   }));
 
-  // Month this/last for this-month sub-label (always unfiltered for context)
-  const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const thisMonthSeedings = allSeedings.filter(s => new Date(s.createdAt) >= startOfThisMonth);
-  const thisMonthTotal    = thisMonthSeedings.reduce((s, x) => s + (x.totalCost ?? 0), 0);
-  const thisMonthCount    = thisMonthSeedings.length;
+  // Human-readable range label, e.g. "Apr 1–16"
+  const monthName  = dateStart.toLocaleDateString('en-GB', { month: 'short' });
+  const rangeLabel = !daysParam
+    ? `${monthName} 1–${now.getDate()}`
+    : daysParam === '30'  ? 'last 30 days'
+    : daysParam === '180' ? 'last 6 months'
+    :                       'last year';
 
   return {
     totalSeedings, pendingSeedings, orderedSeedings,
@@ -179,11 +196,13 @@ export async function loader({ request }) {
     totalInfluencers, recentSeedings, countryData,
     topInfluencers: topInfluencersData,
     totalSpend, totalUnits,
-    thisMonthTotal, thisMonthCount, spendDelta, countDelta,
+    spendDelta, countDelta,
     countryPills,
     activeDays:    daysParam ?? null,
     activeCountry: countryParam ?? null,
     activeSeedings: orderedSeedings + shippedSeedings,
+    rangeLabel,
+    currentMonthShort: now.toLocaleDateString('en-GB', { month: 'short' }), // e.g. "Apr"
     weeks: buckets.map(b => ({
       label:    fmtBucketLabel(b.bucketStart, days),
       seedings: b.seedings,
@@ -294,12 +313,7 @@ function Rule({ my = 40 }) {
   return <div style={{ borderTop: '1px solid var(--pt-border)', margin: `${my}px 0` }} />;
 }
 
-// ── Time filter options ───────────────────────────────────────────────────────
-const TIME_OPTIONS = [
-  { label: '30d',    value: '30'  },
-  { label: '6mo',    value: '180' },
-  { label: '1yr',    value: '365' },
-];
+// TIME_OPTIONS is built dynamically in the component (first pill uses month name from loader)
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 export default function PortalDashboard() {
@@ -310,8 +324,16 @@ export default function PortalDashboard() {
     topInfluencers, totalSpend, totalUnits,
     spendDelta, countDelta,
     countryPills, activeDays, activeCountry,
-    activeSeedings, weeks,
+    activeSeedings, weeks, rangeLabel, currentMonthShort,
   } = useLoaderData();
+
+  // Time filter pill options — first pill is always the current month (MTD default)
+  const TIME_OPTIONS = [
+    { label: currentMonthShort, value: null  },  // MTD — default state
+    { label: '30d',             value: '30'  },
+    { label: '6mo',             value: '180' },
+    { label: '1yr',             value: '365' },
+  ];
 
   const navigate     = useNavigate();
   const [searchParams] = useSearchParams();
@@ -320,10 +342,7 @@ export default function PortalDashboard() {
   const chartTotal        = weeks.reduce((s, w) => s + w.seedings, 0);
   const peakWeek          = weeks.reduce((best, w) => w.seedings > best.seedings ? w : best, weeks[0] ?? { label: '', seedings: 0 });
 
-  const chartLabel = activeDays === '30'  ? 'last 30 days'
-                   : activeDays === '180' ? 'last 6 months'
-                   : activeDays === '365' ? 'last year'
-                   :                       'last 12 weeks';
+  const chartLabel = rangeLabel;
 
   const pipeline = [
     { label: 'Pending',   count: pendingSeedings,   color: D.statusPending.dot   },
@@ -339,7 +358,8 @@ export default function PortalDashboard() {
     const qs = p.toString();
     return `/portal${qs ? `?${qs}` : ''}`;
   }
-  const toggleDays    = val  => navigate(buildUrl(activeDays === val ? null : val, activeCountry));
+  // val === null means MTD (the default) — clicking it clears the days param
+  const toggleDays = val => navigate(buildUrl(val === activeDays ? null : val, activeCountry));
   const toggleCountry = name => navigate(buildUrl(activeDays, activeCountry === name ? null : name));
 
   // pill button style
@@ -368,7 +388,7 @@ export default function PortalDashboard() {
           {/* Time */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '2px', backgroundColor: 'var(--pt-surface-high)', borderRadius: '99px', padding: '3px', border: '1px solid var(--pt-border)' }}>
             {TIME_OPTIONS.map(opt => (
-              <button key={opt.value} onClick={() => toggleDays(opt.value)} style={pill(activeDays === opt.value)}>
+              <button key={opt.value ?? 'mtd'} onClick={() => toggleDays(opt.value)} style={pill(activeDays === opt.value)}>
                 {opt.label}
               </button>
             ))}
