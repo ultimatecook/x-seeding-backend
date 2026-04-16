@@ -115,7 +115,7 @@ export async function loader({ request }) {
 
   // ── Per-day chart data ─────────────────────────────────────────────────────
   const DAY_MS    = 24 * 60 * 60 * 1000;
-  const totalDays = Math.min(Math.ceil((now - dateStart) / DAY_MS) + 1, 365);
+  const totalDays = Math.min(Math.floor((now - dateStart) / DAY_MS) + 1, 365);
 
   const dayBuckets = Array.from({ length: totalDays }, (_, i) => ({
     date:     new Date(dateStart.getTime() + i * DAY_MS),
@@ -307,70 +307,73 @@ function StatCard({ label, value, delta, icon, iconColor, iconBg }) {
 
 // ── Interactive line chart ─────────────────────────────────────────────────────
 function LineChart({ days }) {
-  const [hover, setHover] = useState(null);
-  const svgRef            = useRef(null);
+  const [hover, setHover] = useState(null); // { idx }
+  const [cw,    setCw]    = useState(800);  // measured container width
+  const wrapRef           = useRef(null);
 
-  const W    = 800;
-  const H    = 130;
-  const PAD  = { top: 10, right: 14, bottom: 28, left: 26 };
-  const CW   = W - PAD.left - PAD.right;
-  const CH   = H - PAD.top  - PAD.bottom;
+  // Measure actual container width so the chart fills it perfectly
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const obs = new ResizeObserver(([entry]) => {
+      const w = Math.floor(entry.contentRect.width);
+      if (w > 0) setCw(w);
+    });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  const W   = cw;
+  const H   = 130;
+  const PAD = { top: 10, right: 14, bottom: 28, left: 28 };
+  const CW  = Math.max(W - PAD.left - PAD.right, 1);
+  const CH  = H - PAD.top - PAD.bottom;
 
   const maxVal = Math.max(...days.map(d => d.seedings), 1);
   const yMax   = maxVal <= 1 ? 2 : Math.ceil(maxVal * 1.15);
 
-  const xScale = useCallback(i =>
-    days.length <= 1
-      ? PAD.left + CW / 2
-      : PAD.left + (i / (days.length - 1)) * CW,
-  [days.length, CW]);
-
-  const yScale = useCallback(v =>
-    PAD.top + CH - (v / yMax) * CH,
-  [yMax, CH]);
+  const xScale = (i) =>
+    days.length <= 1 ? PAD.left + CW / 2 : PAD.left + (i / (days.length - 1)) * CW;
+  const yScale = (v) => PAD.top + CH - (v / yMax) * CH;
 
   const pts   = days.map((d, i) => [xScale(i), yScale(d.seedings)]);
   const pathD = pts.length < 2 ? '' :
-    pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(2)},${p[1].toFixed(2)}`).join(' ');
+    pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
   const areaD = pts.length < 2 ? '' :
-    `${pathD} L${pts.at(-1)[0].toFixed(2)},${(PAD.top + CH).toFixed(2)} L${pts[0][0].toFixed(2)},${(PAD.top + CH).toFixed(2)} Z`;
+    `${pathD} L${pts.at(-1)[0].toFixed(1)},${(PAD.top + CH).toFixed(1)} L${pts[0][0].toFixed(1)},${(PAD.top + CH).toFixed(1)} Z`;
 
   const gridVals   = [0, Math.round(yMax / 2), yMax];
   const labelEvery = Math.max(1, Math.ceil(days.length / 8));
 
+  // Direct pixel math — no scaling factor needed since viewBox matches rendered size
   const handleMouseMove = useCallback((e) => {
-    const svg = svgRef.current;
-    if (!svg) return;
-    const rect   = svg.getBoundingClientRect();
-    const relX   = ((e.clientX - rect.left) / rect.width) * W - PAD.left;
-    const rawIdx = (relX / CW) * (days.length - 1);
-    const idx    = Math.max(0, Math.min(days.length - 1, Math.round(rawIdx)));
-    const svgX   = xScale(idx);
-    const svgY   = yScale(days[idx].seedings);
-    setHover({
-      idx,
-      px: (svgX / W) * rect.width,
-      py: (svgY / H) * rect.height,
-    });
-  }, [days, CW, xScale, yScale]);
+    const el = wrapRef.current;
+    if (!el) return;
+    const rect  = el.getBoundingClientRect();
+    const relX  = e.clientX - rect.left - PAD.left;
+    const idx   = Math.max(0, Math.min(days.length - 1, Math.round((relX / CW) * (days.length - 1))));
+    setHover({ idx });
+  }, [days.length, CW]);
 
-  const hoverData = hover !== null ? days[hover.idx] : null;
-  const hSvgX     = hover !== null ? xScale(hover.idx) : null;
-  const hSvgY     = hover !== null ? yScale(days[hover.idx]?.seedings ?? 0) : null;
+  const hIdx  = hover?.idx ?? null;
+  const hData = hIdx !== null ? days[hIdx] : null;
+  const hX    = hIdx !== null ? xScale(hIdx) : null;
+  const hY    = hIdx !== null ? yScale(days[hIdx].seedings) : null;
+  const ttLeft = hX !== null ? Math.max(4, Math.min(hX - 55, W - 134)) : 0;
 
   return (
-    <div style={{ position: 'relative', userSelect: 'none' }}>
+    <div ref={wrapRef} style={{ position: 'relative', userSelect: 'none' }}>
       <svg
-        ref={svgRef}
+        width={W} height={H}
         viewBox={`0 0 ${W} ${H}`}
-        style={{ width: '100%', height: `${H}px`, display: 'block' }}
+        style={{ display: 'block', width: '100%', overflow: 'visible' }}
         onMouseMove={handleMouseMove}
         onMouseLeave={() => setHover(null)}
       >
         <defs>
           <linearGradient id="lcGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%"   stopColor="#7C6FF7" stopOpacity="0.22" />
-            <stop offset="100%" stopColor="#7C6FF7" stopOpacity="0"    />
+            <stop offset="0%"   stopColor="#7C6FF7" stopOpacity="0.2" />
+            <stop offset="100%" stopColor="#7C6FF7" stopOpacity="0"   />
           </linearGradient>
         </defs>
 
@@ -379,8 +382,8 @@ function LineChart({ days }) {
           <g key={v}>
             <line x1={PAD.left} y1={yScale(v)} x2={PAD.left + CW} y2={yScale(v)}
               stroke="var(--pt-border)" strokeWidth="1" />
-            <text x={PAD.left - 5} y={yScale(v) + 3.5} textAnchor="end"
-              fontSize="9" fill="var(--pt-text-muted)">{v}</text>
+            <text x={PAD.left - 6} y={yScale(v) + 3.5} textAnchor="end"
+              fontSize="10" fill="var(--pt-text-muted)">{v}</text>
           </g>
         ))}
 
@@ -389,7 +392,7 @@ function LineChart({ days }) {
 
         {/* Line */}
         {pathD && (
-          <path d={pathD} fill="none" stroke="#7C6FF7" strokeWidth="1.8"
+          <path d={pathD} fill="none" stroke="#7C6FF7" strokeWidth="2"
             strokeLinecap="round" strokeLinejoin="round" />
         )}
 
@@ -398,27 +401,27 @@ function LineChart({ days }) {
           if (i % labelEvery !== 0 && i !== days.length - 1) return null;
           return (
             <text key={i} x={xScale(i)} y={H - 4} textAnchor="middle"
-              fontSize="9" fill="var(--pt-text-muted)">{d.label}</text>
+              fontSize="10" fill="var(--pt-text-muted)">{d.label}</text>
           );
         })}
 
-        {/* Hover crosshair */}
-        {hover !== null && (
+        {/* Hover crosshair + dot */}
+        {hIdx !== null && (
           <>
-            <line x1={hSvgX} y1={PAD.top} x2={hSvgX} y2={PAD.top + CH}
+            <line x1={hX} y1={PAD.top} x2={hX} y2={PAD.top + CH}
               stroke="#94A3B8" strokeWidth="1" opacity="0.6" />
-            <circle cx={hSvgX} cy={hSvgY} r="4.5"
+            <circle cx={hX} cy={hY} r="4.5"
               fill="#7C6FF7" stroke="white" strokeWidth="2" />
           </>
         )}
       </svg>
 
       {/* Floating tooltip */}
-      {hover !== null && hoverData && (
+      {hIdx !== null && hData && (
         <div style={{
           position:        'absolute',
-          left:            `clamp(0px, ${hover.px - 55}px, calc(100% - 130px))`,
-          top:             `${Math.max(0, hover.py - 72)}px`,
+          left:            `${ttLeft}px`,
+          top:             `${Math.max(0, (hY ?? 0) - 74)}px`,
           backgroundColor: 'var(--pt-surface)',
           border:          '1px solid var(--pt-border)',
           borderRadius:    '10px',
@@ -430,10 +433,10 @@ function LineChart({ days }) {
           minWidth:        '110px',
         }}>
           <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--pt-text)', marginBottom: '4px' }}>
-            {hoverData.label}
+            {hData.label}
           </div>
           <div style={{ fontSize: '12px', fontWeight: '600', color: '#7C6FF7' }}>
-            {hoverData.seedings} seedings
+            {hData.seedings} seedings
           </div>
         </div>
       )}
