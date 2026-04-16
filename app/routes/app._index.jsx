@@ -90,9 +90,8 @@ export default function AppIndex() {
     }}>
 
       {/* Logo */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-        <img src="/logoonly.png" alt="Zeedy" style={{ height: '48px', width: 'auto' }} />
-        <img src="/fullname.png" alt="ZEEDY" style={{ height: '36px', width: 'auto' }} />
+      <div>
+        <img src="/fullname.png" alt="ZEEDY" style={{ height: '40px', width: 'auto', display: 'block' }} />
       </div>
 
       {/* Hero card */}

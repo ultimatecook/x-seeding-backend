@@ -98,9 +98,8 @@ const inputStyle = {
 
 function LogoBlock() {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '32px' }}>
-      <img src="/logoonly.png" alt="Zeedy" style={{ height: '36px', width: 'auto' }} />
-      <img src="/fullname.png" alt="ZEEDY" style={{ height: '28px', width: 'auto' }} />
+    <div style={{ marginBottom: '32px' }}>
+      <img src="/fullname.png" alt="ZEEDY" style={{ height: '32px', width: 'auto', display: 'block' }} />
     </div>
   );
 }

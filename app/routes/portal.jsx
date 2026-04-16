@@ -148,10 +148,9 @@ export default function PortalLayout() {
           gap: '24px',
         }}>
 
-          {/* Logo + brand */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-            <img src="/logoonly.png" alt="Zeedy" style={{ height: '28px', width: 'auto' }} />
-            <img src="/fullname.png" alt="ZEEDY" style={{ height: '22px', width: 'auto' }} />
+          {/* Logo */}
+          <div style={{ flexShrink: 0 }}>
+            <img src="/fullname.png" alt="ZEEDY" style={{ height: '26px', width: 'auto', display: 'block' }} />
           </div>
 
           {/* Nav links */}
