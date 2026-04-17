@@ -1,8 +1,6 @@
-import { useState } from 'react';
 import { useLoaderData, useRouteError } from 'react-router';
 import { boundary } from '@shopify/shopify-app-react-router/server';
 import { authenticate } from '../shopify.server';
-import { generateInviteToken } from '../utils/portal-auth.server';
 import prisma from '../db.server';
 
 const P = {
@@ -27,55 +25,25 @@ const STATUS_META = {
   Posted:    { bg: '#F0FDF4', text: '#15803D', dot: '#4ADE80' },
 };
 
-const APP_URL = process.env.SHOPIFY_APP_URL || 'https://zeedy.xyz';
-
 export async function loader({ request }) {
-  const { session, admin } = await authenticate.admin(request);
+  const { session } = await authenticate.admin(request);
   const shop = session.shop;
 
-  // Fetch owner email from Shopify (not available on session object)
-  let ownerEmail = null;
-  let ownerName  = 'Store Owner';
+  let totalSeedings = 0, totalInfluencers = 0, totalCampaigns = 0, byStatus = {};
   try {
-    const resp = await admin.graphql(`{ shop { email name } }`);
-    const { data } = await resp.json();
-    ownerEmail = data?.shop?.email?.toLowerCase().trim() || null;
-    ownerName  = data?.shop?.name || 'Store Owner';
-  } catch (_) {}
-
-  // Auto-provision Owner portal account on first install
-  let ownerSetup = null;
-  if (ownerEmail) {
-    const existing = await prisma.portalUser.findUnique({
-      where: { shop_email: { shop, email: ownerEmail } },
-    });
-    if (!existing) {
-      const token   = generateInviteToken();
-      const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
-      await prisma.portalUser.create({
-        data: { shop, email: ownerEmail, name: ownerName, role: 'Owner', inviteToken: token, inviteExpires: expires },
-      });
-      ownerSetup = { inviteUrl: `${APP_URL}/portal-accept-invite?token=${token}`, email: ownerEmail, isNew: true };
-    } else if (!existing.acceptedAt) {
-      // Already created but password not set — refresh token so link works
-      const token   = generateInviteToken();
-      const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-      await prisma.portalUser.update({ where: { id: existing.id }, data: { inviteToken: token, inviteExpires: expires } });
-      ownerSetup = { inviteUrl: `${APP_URL}/portal-accept-invite?token=${token}`, email: ownerEmail, isNew: false };
-    }
+    const [s, i, c, statusCounts] = await Promise.all([
+      prisma.seeding.count({ where: { shop } }),
+      prisma.influencer.count({ where: { shop } }),
+      prisma.campaign.count({ where: { shop } }),
+      prisma.seeding.groupBy({ by: ['status'], where: { shop }, _count: { _all: true } }),
+    ]);
+    totalSeedings = s; totalInfluencers = i; totalCampaigns = c;
+    for (const row of statusCounts) byStatus[row.status] = row._count._all;
+  } catch (e) {
+    console.error('[dashboard] db error:', e?.message);
   }
 
-  const [totalSeedings, totalInfluencers, totalCampaigns, statusCounts] = await Promise.all([
-    prisma.seeding.count({ where: { shop } }),
-    prisma.influencer.count({ where: { shop, archived: false } }),
-    prisma.campaign.count({ where: { shop } }),
-    prisma.seeding.groupBy({ by: ['status'], where: { shop }, _count: { _all: true } }),
-  ]);
-
-  const byStatus = {};
-  for (const row of statusCounts) byStatus[row.status] = row._count._all;
-
-  return { shop, totalSeedings, totalInfluencers, totalCampaigns, byStatus, ownerSetup };
+  return { shop, totalSeedings, totalInfluencers, totalCampaigns, byStatus };
 }
 
 function StatCard({ label, value, icon }) {
@@ -109,7 +77,7 @@ function StatCard({ label, value, icon }) {
 }
 
 export default function AppIndex() {
-  const { totalSeedings, totalInfluencers, totalCampaigns, byStatus, ownerSetup } = useLoaderData();
+  const { totalSeedings, totalInfluencers, totalCampaigns, byStatus } = useLoaderData();
 
   const statuses = ['Pending', 'Ordered', 'Shipped', 'Delivered', 'Posted'];
   const activeStatuses = statuses.filter(s => (byStatus[s] || 0) > 0);
@@ -124,56 +92,6 @@ export default function AppIndex() {
       alignItems: 'center',
       gap: '32px',
     }}>
-
-      {/* Owner setup banner — shown until they set their password */}
-      {ownerSetup && (
-        <div style={{
-          width: '100%',
-          backgroundColor: '#FFFBEB',
-          border: '1px solid #FDE68A',
-          borderRadius: '16px',
-          padding: '24px 28px',
-        }}>
-          <div style={{ fontSize: '15px', fontWeight: '800', color: '#92400E', marginBottom: '6px' }}>
-            👋 One more step — set up your portal login
-          </div>
-          <p style={{ margin: '0 0 16px', fontSize: '13px', color: '#B45309', lineHeight: 1.6 }}>
-            An Owner account has been created for <strong>{ownerSetup.email}</strong>.
-            Click below to set your password and access the full Zeedy portal.
-          </p>
-          <a
-            href={ownerSetup.inviteUrl}
-            target="_blank"
-            rel="noreferrer"
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: '6px',
-              padding: '10px 20px', marginBottom: '12px',
-              backgroundColor: '#D97706', color: '#fff',
-              textDecoration: 'none', borderRadius: '10px',
-              fontSize: '14px', fontWeight: '700',
-              boxShadow: '0 2px 8px rgba(217,119,6,0.3)',
-            }}
-          >
-            Set up portal login →
-          </a>
-          <div style={{ fontSize: '11px', fontWeight: '700', color: '#92400E', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-            Or copy this link manually:
-          </div>
-          <input
-            type="text"
-            readOnly
-            value={ownerSetup.inviteUrl}
-            onClick={e => e.target.select()}
-            style={{
-              width: '100%', boxSizing: 'border-box',
-              padding: '8px 12px', fontSize: '12px',
-              border: '1px solid #FDE68A', borderRadius: '8px',
-              backgroundColor: '#FFFDE7', color: '#92400E',
-              fontFamily: 'monospace', cursor: 'text',
-            }}
-          />
-        </div>
-      )}
 
       {/* Logo */}
       <div>
