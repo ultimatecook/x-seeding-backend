@@ -27,7 +27,7 @@ api_version = "2026-07"
   uri = "/webhooks/gdpr/shop-redact"
 
 [access_scopes]
-scopes = "read_inventory,read_products,write_draft_orders,read_draft_orders,read_fulfillments"
+scopes = "read_inventory,read_products,write_draft_orders,read_draft_orders,read_fulfillments,read_locations"
 
 [auth]
 redirect_urls = [ "https://zeedy.xyz/auth/callback" ]
