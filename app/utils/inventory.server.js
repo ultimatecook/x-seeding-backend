@@ -11,43 +11,49 @@ import prisma from '../db.server';
  * Returns an array of { id, name, isActive }.
  */
 export async function fetchShopifyLocations(shop) {
+  const debug = [];
   try {
-    let session = await prisma.session.findFirst({ where: { shop, isOnline: false, expires: null } });
-    if (!session) session = await prisma.session.findFirst({ where: { shop, isOnline: false }, orderBy: { expires: 'desc' } });
-    if (!session) session = await prisma.session.findFirst({ where: { shop }, orderBy: { expires: 'desc' } });
-    if (!session?.accessToken) {
-      console.error('[inventory] no access token found for shop:', shop);
-      return [];
+    const allSessions = await prisma.session.findMany({ where: { shop } });
+    debug.push(`sessions in DB for shop "${shop}": ${allSessions.length}`);
+    if (allSessions.length === 0) {
+      debug.push('NO SESSION FOUND — open the app in Shopify admin first');
+      return { locations: [], debug };
     }
 
-    // Try GraphQL first
+    let session = allSessions.find(s => !s.isOnline && !s.expires)
+      || allSessions.find(s => !s.isOnline)
+      || allSessions[0];
+    debug.push(`using session id=${session.id} isOnline=${session.isOnline} expires=${session.expires} hasToken=${!!session.accessToken}`);
+
+    // Try GraphQL
     const gqlRes  = await fetch(`https://${shop}/admin/api/2025-10/graphql.json`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': session.accessToken },
-      body:    JSON.stringify({
-        // omit includeLegacy to get all location types
-        query: `query { locations(first: 50) { nodes { id name isActive } } }`,
-      }),
+      body:    JSON.stringify({ query: `query { locations(first: 50) { nodes { id name isActive } } }` }),
     });
     const gqlBody = await gqlRes.json();
-    const gqlLocs = gqlBody?.data?.locations?.nodes;
-    if (gqlLocs?.length > 0) return gqlLocs;
+    debug.push(`GraphQL status=${gqlRes.status} errors=${JSON.stringify(gqlBody.errors)} nodeCount=${gqlBody?.data?.locations?.nodes?.length ?? 'null'}`);
 
-    // Fallback: REST API (works even without read_locations scope on older tokens)
-    console.warn('[inventory] GraphQL returned no locations, trying REST fallback');
+    const gqlLocs = gqlBody?.data?.locations?.nodes;
+    if (gqlLocs?.length > 0) return { locations: gqlLocs, debug };
+
+    // Fallback: REST
     const restRes  = await fetch(`https://${shop}/admin/api/2025-10/locations.json?limit=50`, {
       headers: { 'X-Shopify-Access-Token': session.accessToken },
     });
     const restBody = await restRes.json();
-    // Map REST shape { id, name, active } → same shape as GraphQL
-    return (restBody?.locations ?? []).map(l => ({
+    debug.push(`REST status=${restRes.status} count=${restBody?.locations?.length ?? 'null'} errors=${JSON.stringify(restBody?.errors)}`);
+
+    const restLocs = (restBody?.locations ?? []).map(l => ({
       id:       `gid://shopify/Location/${l.id}`,
       name:     l.name,
       isActive: l.active,
     }));
+    return { locations: restLocs, debug };
   } catch (e) {
+    debug.push(`exception: ${e?.message}`);
     console.error('[inventory] fetchShopifyLocations error:', e?.message);
-    return [];
+    return { locations: [], debug };
   }
 }
 
@@ -57,8 +63,8 @@ export async function fetchShopifyLocations(shop) {
  * Returns the DB rows.
  */
 export async function syncLocations(shop) {
-  const shopifyLocs = await fetchShopifyLocations(shop);
-  console.log(`[inventory] syncLocations: found ${shopifyLocs.length} locations from Shopify for ${shop}`);
+  const { locations: shopifyLocs, debug } = await fetchShopifyLocations(shop);
+  console.log(`[inventory] syncLocations debug for ${shop}:`, debug.join(' | '));
   for (const loc of shopifyLocs) {
     await prisma.inventoryLocation.upsert({
       where:  { shop_shopifyLocationId: { shop, shopifyLocationId: loc.id } },
@@ -66,7 +72,7 @@ export async function syncLocations(shop) {
       create: { shop, shopifyLocationId: loc.id, name: loc.name, isEnabled: true, priorityOrder: 999 },
     });
   }
-  return shopifyLocs.length;
+  return { count: shopifyLocs.length, debug };
 }
 
 /**

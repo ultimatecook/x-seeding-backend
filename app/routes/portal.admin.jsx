@@ -34,8 +34,8 @@ export async function action({ request }) {
 
   // ── Sync locations from Shopify ──────────────────────────────────────────
   if (intent === 'syncLocations') {
-    const count = await syncLocations(shop);
-    if (count === 0) return { error: 'No locations found. Make sure your Shopify token has the read_locations scope, then re-install the app from the Shopify admin.' };
+    const { count, debug } = await syncLocations(shop);
+    if (count === 0) return { error: `No locations found. Debug: ${debug.join(' → ')}` };
     return { ok: true, message: `Synced ${count} location${count !== 1 ? 's' : ''} from Shopify.` };
   }
 
