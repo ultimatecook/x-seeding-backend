@@ -272,7 +272,7 @@ export default function PortalLayout() {
                 borderRadius:   '10px',
               }}
             >
-              <img src="/zlogo.svg" alt="Z" style={{ height: '28px', width: 'auto', display: 'block' }} />
+              <img src="/zlogo.svg" alt="Z" style={{ height: '14px', width: 'auto', display: 'block' }} />
             </button>
           ) : (
             <>
