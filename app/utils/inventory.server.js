@@ -76,6 +76,28 @@ export async function syncLocations(shop) {
 }
 
 /**
+ * Sync locations using the authenticated `admin` object from authenticate.admin().
+ * This always has a valid token — call this from Shopify admin routes.
+ */
+export async function syncLocationsWithAdmin(shop, admin) {
+  try {
+    const resp = await admin.graphql(`query { locations(first: 50) { nodes { id name isActive } } }`);
+    const { data } = await resp.json();
+    const locs = data?.locations?.nodes ?? [];
+    for (const loc of locs) {
+      await prisma.inventoryLocation.upsert({
+        where:  { shop_shopifyLocationId: { shop, shopifyLocationId: loc.id } },
+        update: { name: loc.name },
+        create: { shop, shopifyLocationId: loc.id, name: loc.name, isEnabled: true, priorityOrder: 999 },
+      });
+    }
+    console.log(`[inventory] syncLocationsWithAdmin: upserted ${locs.length} locations for ${shop}`);
+  } catch (e) {
+    console.error('[inventory] syncLocationsWithAdmin error:', e?.message);
+  }
+}
+
+/**
  * Get all (or only enabled) inventory locations for a shop, ordered by priority.
  */
 export async function getInventoryLocations(shop, includeDisabled = false) {

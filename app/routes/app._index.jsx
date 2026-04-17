@@ -2,6 +2,7 @@ import { useLoaderData, useRouteError } from 'react-router';
 import { boundary } from '@shopify/shopify-app-react-router/server';
 import { authenticate } from '../shopify.server';
 import prisma from '../db.server';
+import { syncLocationsWithAdmin } from '../utils/inventory.server';
 
 const P = {
   accent:      '#7C6FF7',
@@ -26,8 +27,14 @@ const STATUS_META = {
 };
 
 export async function loader({ request }) {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
   const shop = session.shop;
+
+  // Sync Shopify locations in the background using the authenticated admin session.
+  // This ensures the portal admin always has fresh, valid location data.
+  syncLocationsWithAdmin(shop, admin).catch(e =>
+    console.error('[dashboard] location sync error:', e?.message)
+  );
 
   let totalSeedings = 0, totalInfluencers = 0, totalCampaigns = 0, byStatus = {};
   try {

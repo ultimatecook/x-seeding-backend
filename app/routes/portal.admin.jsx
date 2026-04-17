@@ -35,7 +35,7 @@ export async function action({ request }) {
   // ── Sync locations from Shopify ──────────────────────────────────────────
   if (intent === 'syncLocations') {
     const { count, debug } = await syncLocations(shop);
-    if (count === 0) return { error: `No locations found. Debug: ${debug.join(' → ')}` };
+    if (count === 0) return { error: `Locations are synced automatically when you open the app in Shopify admin. Open your Shopify admin → Apps → your app, then come back here and click Sync again. (Debug: ${debug.join(' → ')})` };
     return { ok: true, message: `Synced ${count} location${count !== 1 ? 's' : ''} from Shopify.` };
   }
 
