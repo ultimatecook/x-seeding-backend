@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { useLoaderData, useRouteError } from 'react-router';
 import { boundary } from '@shopify/shopify-app-react-router/server';
 import { authenticate } from '../shopify.server';
+import { generateInviteToken } from '../utils/portal-auth.server';
 import prisma from '../db.server';
 
 const P = {
@@ -25,9 +27,43 @@ const STATUS_META = {
   Posted:    { bg: '#F0FDF4', text: '#15803D', dot: '#4ADE80' },
 };
 
+const APP_URL = process.env.SHOPIFY_APP_URL || 'https://zeedy.xyz';
+
 export async function loader({ request }) {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
   const shop = session.shop;
+
+  // Fetch owner email from Shopify (not available on session object)
+  let ownerEmail = null;
+  let ownerName  = 'Store Owner';
+  try {
+    const resp = await admin.graphql(`{ shop { email name } }`);
+    const { data } = await resp.json();
+    ownerEmail = data?.shop?.email?.toLowerCase().trim() || null;
+    ownerName  = data?.shop?.name || 'Store Owner';
+  } catch (_) {}
+
+  // Auto-provision Owner portal account on first install
+  let ownerSetup = null;
+  if (ownerEmail) {
+    const existing = await prisma.portalUser.findUnique({
+      where: { shop_email: { shop, email: ownerEmail } },
+    });
+    if (!existing) {
+      const token   = generateInviteToken();
+      const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+      await prisma.portalUser.create({
+        data: { shop, email: ownerEmail, name: ownerName, role: 'Owner', inviteToken: token, inviteExpires: expires },
+      });
+      ownerSetup = { inviteUrl: `${APP_URL}/portal-accept-invite?token=${token}`, email: ownerEmail, isNew: true };
+    } else if (!existing.acceptedAt) {
+      // Already created but password not set — refresh token so link works
+      const token   = generateInviteToken();
+      const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      await prisma.portalUser.update({ where: { id: existing.id }, data: { inviteToken: token, inviteExpires: expires } });
+      ownerSetup = { inviteUrl: `${APP_URL}/portal-accept-invite?token=${token}`, email: ownerEmail, isNew: false };
+    }
+  }
 
   const [totalSeedings, totalInfluencers, totalCampaigns, statusCounts] = await Promise.all([
     prisma.seeding.count({ where: { shop } }),
@@ -39,7 +75,7 @@ export async function loader({ request }) {
   const byStatus = {};
   for (const row of statusCounts) byStatus[row.status] = row._count._all;
 
-  return { shop, totalSeedings, totalInfluencers, totalCampaigns, byStatus };
+  return { shop, totalSeedings, totalInfluencers, totalCampaigns, byStatus, ownerSetup };
 }
 
 function StatCard({ label, value, icon }) {
@@ -73,7 +109,14 @@ function StatCard({ label, value, icon }) {
 }
 
 export default function AppIndex() {
-  const { totalSeedings, totalInfluencers, totalCampaigns, byStatus } = useLoaderData();
+  const { totalSeedings, totalInfluencers, totalCampaigns, byStatus, ownerSetup } = useLoaderData();
+  const [ownerCopied, setOwnerCopied] = useState(false);
+
+  function copy(url) {
+    navigator.clipboard.writeText(url);
+    setOwnerCopied(true);
+    setTimeout(() => setOwnerCopied(false), 2000);
+  }
 
   const statuses = ['Pending', 'Ordered', 'Shipped', 'Delivered', 'Posted'];
   const activeStatuses = statuses.filter(s => (byStatus[s] || 0) > 0);
@@ -88,6 +131,53 @@ export default function AppIndex() {
       alignItems: 'center',
       gap: '32px',
     }}>
+
+      {/* Owner setup banner — shown until they set their password */}
+      {ownerSetup && (
+        <div style={{
+          width: '100%',
+          backgroundColor: '#FFFBEB',
+          border: '1px solid #FDE68A',
+          borderRadius: '16px',
+          padding: '24px 28px',
+        }}>
+          <div style={{ fontSize: '15px', fontWeight: '800', color: '#92400E', marginBottom: '6px' }}>
+            👋 One more step — set up your portal login
+          </div>
+          <p style={{ margin: '0 0 16px', fontSize: '13px', color: '#B45309', lineHeight: 1.6 }}>
+            An Owner account has been created for <strong>{ownerSetup.email}</strong>.
+            Click below to set your password and access the full Zeedy portal.
+          </p>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <a
+              href={ownerSetup.inviteUrl}
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: '6px',
+                padding: '10px 20px',
+                backgroundColor: '#D97706', color: '#fff',
+                textDecoration: 'none', borderRadius: '10px',
+                fontSize: '14px', fontWeight: '700',
+                boxShadow: '0 2px 8px rgba(217,119,6,0.3)',
+              }}
+            >
+              Set up portal login →
+            </a>
+            <button
+              type="button"
+              onClick={() => copy(ownerSetup.inviteUrl)}
+              style={{
+                background: 'transparent', border: '1px solid #FDE68A',
+                borderRadius: '10px', padding: '9px 16px',
+                fontSize: '13px', fontWeight: '600', color: '#92400E', cursor: 'pointer',
+              }}
+            >
+              {ownerCopied ? '✓ Copied' : 'Copy link'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Logo */}
       <div>

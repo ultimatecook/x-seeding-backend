@@ -56,13 +56,21 @@ const APP_URL = process.env.SHOPIFY_APP_URL || 'https://zeedy.xyz';
 
 // ── Loader ────────────────────────────────────────────────────────────────────
 export async function loader({ request }) {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
   const shop = session.shop;
+
+  // Fetch owner email from Shopify Admin API (not on session object)
+  let ownerEmail = null;
+  let ownerName  = 'Store Owner';
+  try {
+    const resp = await admin.graphql(`{ shop { email name } }`);
+    const { data } = await resp.json();
+    ownerEmail = data?.shop?.email?.toLowerCase().trim() || null;
+    ownerName  = data?.shop?.name || 'Store Owner';
+  } catch (_) {}
 
   // Auto-provision Owner account for the Shopify store owner on first visit
   let ownerSetup = null;
-  const ownerEmail = session.email ? String(session.email).toLowerCase().trim() : null;
-  const ownerName  = [session.firstName, session.lastName].filter(Boolean).join(' ') || 'Store Owner';
 
   if (ownerEmail) {
     const existing = await prisma.portalUser.findUnique({
