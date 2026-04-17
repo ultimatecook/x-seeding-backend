@@ -1,4 +1,5 @@
-import { Outlet, NavLink, useRouteError, useLoaderData } from 'react-router';
+import { Outlet, NavLink, useNavigate, useRouteError, useLoaderData } from 'react-router';
+import { useEffect } from 'react';
 import { authenticate } from '../shopify.server';
 import { boundary } from '@shopify/shopify-app-react-router/server';
 import { AppProvider } from '@shopify/shopify-app-react-router/react';
@@ -19,6 +20,23 @@ export async function loader({ request }) {
 
 export default function AppLayout() {
   const { apiKey } = useLoaderData();
+  const navigate = useNavigate();
+
+  // AppProvider's shopify:navigate handler reads event.target which is always `document`
+  // for a CustomEvent — the href is null so navigation silently fails.
+  // We override it by reading event.detail.href (the correct App Bridge format).
+  useEffect(() => {
+    function handleShopifyNavigate(event) {
+      const href = event.detail?.href || event.detail?.path;
+      if (href) {
+        event.stopImmediatePropagation(); // prevent AppProvider's broken handler
+        navigate(href);
+      }
+    }
+    // capture: true so we run before AppProvider's listener
+    document.addEventListener('shopify:navigate', handleShopifyNavigate, true);
+    return () => document.removeEventListener('shopify:navigate', handleShopifyNavigate, true);
+  }, [navigate]);
 
   return (
     <AppProvider embedded apiKey={apiKey}>
@@ -32,7 +50,7 @@ export default function AppLayout() {
         backgroundColor: P.bg,
         minHeight: '100vh',
       }}>
-        {/* In-page tab bar — NavLink uses React Router's fetch so App Bridge injects the session token */}
+        {/* Tab bar uses NavLink for React Router client-side navigation — App Bridge injects JWT on the fetch */}
         <div style={{
           backgroundColor: P.surface,
           borderBottom: `1px solid ${P.border}`,
