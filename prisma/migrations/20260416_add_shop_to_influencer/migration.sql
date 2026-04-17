@@ -2,13 +2,11 @@
 ALTER TABLE "Influencer" ADD COLUMN IF NOT EXISTS "shop" TEXT NOT NULL DEFAULT '';
 
 -- Backfill: assign each influencer to the shop that has seedings for them
+-- COALESCE ensures influencers with no seedings keep '' rather than going NULL
 UPDATE "Influencer" i
-SET shop = (
-  SELECT s.shop
-  FROM "Seeding" s
-  WHERE s."influencerId" = i.id
-  ORDER BY s."createdAt" DESC
-  LIMIT 1
+SET shop = COALESCE(
+  (SELECT s.shop FROM "Seeding" s WHERE s."influencerId" = i.id ORDER BY s."createdAt" DESC LIMIT 1),
+  ''
 )
 WHERE shop = '';
 
