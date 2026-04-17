@@ -1,4 +1,4 @@
-import { Outlet, NavLink, useNavigate, useRouteError, useLoaderData } from 'react-router';
+import { Outlet, useNavigate, useLocation, useRouteError, useLoaderData } from 'react-router';
 import { useEffect } from 'react';
 import { authenticate } from '../shopify.server';
 import { boundary } from '@shopify/shopify-app-react-router/server';
@@ -21,22 +21,31 @@ export async function loader({ request }) {
 export default function AppLayout() {
   const { apiKey } = useLoaderData();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
 
-  // AppProvider's shopify:navigate handler reads event.target which is always `document`
-  // for a CustomEvent — the href is null so navigation silently fails.
-  // We override it by reading event.detail.href (the correct App Bridge format).
+  // Handle shopify:navigate from the admin chrome ui-nav-menu.
+  // Try both event.detail.href (CustomEvent format) and event.target.href (element format).
   useEffect(() => {
     function handleShopifyNavigate(event) {
-      const href = event.detail?.href || event.detail?.path;
-      if (href) {
-        event.stopImmediatePropagation(); // prevent AppProvider's broken handler
+      const href =
+        event.detail?.href ||
+        event.detail?.path ||
+        event.target?.getAttribute?.('href');
+      console.log('[app] shopify:navigate fired, href=', href, 'detail=', event.detail);
+      if (href && href.startsWith('/app')) {
+        event.stopImmediatePropagation();
         navigate(href);
       }
     }
-    // capture: true so we run before AppProvider's listener
     document.addEventListener('shopify:navigate', handleShopifyNavigate, true);
-    return () => document.removeEventListener('shopify:navigate', handleShopifyNavigate, true);
+    window.addEventListener('shopify:navigate', handleShopifyNavigate, true);
+    return () => {
+      document.removeEventListener('shopify:navigate', handleShopifyNavigate, true);
+      window.removeEventListener('shopify:navigate', handleShopifyNavigate, true);
+    };
   }, [navigate]);
+
+  const isSettings = pathname.startsWith('/app/settings');
 
   return (
     <AppProvider embedded apiKey={apiKey}>
@@ -50,7 +59,7 @@ export default function AppLayout() {
         backgroundColor: P.bg,
         minHeight: '100vh',
       }}>
-        {/* Tab bar uses NavLink for React Router client-side navigation — App Bridge injects JWT on the fetch */}
+        {/* Buttons instead of <a> tags so App Bridge doesn't intercept clicks */}
         <div style={{
           backgroundColor: P.surface,
           borderBottom: `1px solid ${P.border}`,
@@ -59,8 +68,8 @@ export default function AppLayout() {
           alignItems: 'center',
           gap: '4px',
         }}>
-          <NavLink to="/app" end style={({ isActive }) => tabStyle(isActive)}>Dashboard</NavLink>
-          <NavLink to="/app/settings" style={({ isActive }) => tabStyle(isActive)}>Team &amp; Access</NavLink>
+          <button onClick={() => navigate('/app')} style={tabStyle(!isSettings)}>Dashboard</button>
+          <button onClick={() => navigate('/app/settings')} style={tabStyle(isSettings)}>Team &amp; Access</button>
         </div>
 
         <Outlet />
