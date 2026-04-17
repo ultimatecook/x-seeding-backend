@@ -56,7 +56,15 @@ const APP_URL = process.env.SHOPIFY_APP_URL || 'https://zeedy.xyz';
 
 // ── Loader ────────────────────────────────────────────────────────────────────
 export async function loader({ request }) {
-  const { session, admin } = await authenticate.admin(request);
+  console.log('[settings] loader start', request.method, request.url);
+  let session, admin;
+  try {
+    ({ session, admin } = await authenticate.admin(request));
+    console.log('[settings] auth ok, shop=', session?.shop);
+  } catch (e) {
+    console.error('[settings] auth failed:', e?.message, e?.status);
+    throw e;
+  }
   const shop = session.shop;
 
   // Fetch owner email from Shopify Admin API (not on session object)
@@ -73,29 +81,39 @@ export async function loader({ request }) {
   let ownerSetup = null;
 
   if (ownerEmail) {
-    const existing = await prisma.portalUser.findUnique({
-      where: { shop_email: { shop, email: ownerEmail } },
-    });
-    if (!existing) {
-      const token   = generateInviteToken();
-      const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-      await prisma.portalUser.create({
-        data: { shop, email: ownerEmail, name: ownerName, role: 'Owner', inviteToken: token, inviteExpires: expires },
+    try {
+      const existing = await prisma.portalUser.findUnique({
+        where: { shop_email: { shop, email: ownerEmail } },
       });
-      ownerSetup = { inviteUrl: `${APP_URL}/portal-accept-invite?token=${token}`, email: ownerEmail, isNew: true };
-    } else if (!existing.acceptedAt) {
-      const token   = generateInviteToken();
-      const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-      await prisma.portalUser.update({ where: { id: existing.id }, data: { inviteToken: token, inviteExpires: expires } });
-      ownerSetup = { inviteUrl: `${APP_URL}/portal-accept-invite?token=${token}`, email: ownerEmail, isNew: false };
+      if (!existing) {
+        const token   = generateInviteToken();
+        const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+        await prisma.portalUser.create({
+          data: { shop, email: ownerEmail, name: ownerName, role: 'Owner', inviteToken: token, inviteExpires: expires },
+        });
+        ownerSetup = { inviteUrl: `${APP_URL}/portal-accept-invite?token=${token}`, email: ownerEmail, isNew: true };
+      } else if (!existing.acceptedAt) {
+        const token   = generateInviteToken();
+        const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+        await prisma.portalUser.update({ where: { id: existing.id }, data: { inviteToken: token, inviteExpires: expires } });
+        ownerSetup = { inviteUrl: `${APP_URL}/portal-accept-invite?token=${token}`, email: ownerEmail, isNew: false };
+      }
+    } catch (e) {
+      console.error('[settings] portalUser provision error:', e?.message);
     }
   }
 
-  const users = await prisma.portalUser.findMany({
-    where:   { shop },
-    orderBy: [{ role: 'asc' }, { createdAt: 'asc' }],
-  });
+  let users = [];
+  try {
+    users = await prisma.portalUser.findMany({
+      where:   { shop },
+      orderBy: [{ role: 'asc' }, { createdAt: 'asc' }],
+    });
+  } catch (e) {
+    console.error('[settings] portalUser findMany error:', e?.message);
+  }
 
+  console.log('[settings] loader done, users=', users.length);
   return { users, ownerSetup, ownerEmail };
 }
 

@@ -1,4 +1,4 @@
-import { Outlet, useRouteError, useLoaderData, useLocation } from 'react-router';
+import { Outlet, NavLink, useRouteError, useLoaderData } from 'react-router';
 import { authenticate } from '../shopify.server';
 import { boundary } from '@shopify/shopify-app-react-router/server';
 import { AppProvider } from '@shopify/shopify-app-react-router/react';
@@ -19,9 +19,6 @@ export async function loader({ request }) {
 
 export default function AppLayout() {
   const { apiKey } = useLoaderData();
-  const { pathname } = useLocation();
-
-  const isSettings = pathname.startsWith('/app/settings');
 
   return (
     <AppProvider embedded apiKey={apiKey}>
@@ -35,7 +32,7 @@ export default function AppLayout() {
         backgroundColor: P.bg,
         minHeight: '100vh',
       }}>
-        {/* In-page tab bar — plain <a> tags so App Bridge handles navigation correctly */}
+        {/* In-page tab bar — NavLink uses React Router's fetch so App Bridge injects the session token */}
         <div style={{
           backgroundColor: P.surface,
           borderBottom: `1px solid ${P.border}`,
@@ -44,8 +41,8 @@ export default function AppLayout() {
           alignItems: 'center',
           gap: '4px',
         }}>
-          <a href="/app" style={tabStyle(!isSettings)}>Dashboard</a>
-          <a href="/app/settings" style={tabStyle(isSettings)}>Team &amp; Access</a>
+          <NavLink to="/app" end style={({ isActive }) => tabStyle(isActive)}>Dashboard</NavLink>
+          <NavLink to="/app/settings" style={({ isActive }) => tabStyle(isActive)}>Team &amp; Access</NavLink>
         </div>
 
         <Outlet />
