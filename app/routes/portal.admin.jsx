@@ -256,7 +256,7 @@ export default function PortalAdmin() {
 
           {locations.length === 0 ? (
             <div style={{ padding: '32px', textAlign: 'center', color: D.textMuted, fontSize: '13px', border: `1px dashed ${D.border}`, borderRadius: '12px' }}>
-              No locations yet. Click "Sync locations from Shopify" to import them.
+              No locations yet. Add one above.
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
