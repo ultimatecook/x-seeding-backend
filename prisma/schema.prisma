@@ -196,6 +196,7 @@ model Campaign {
   shop         String
   title        String
   budget       Float?
+  archived     Boolean            @default(false)
   createdAt    DateTime           @default(now())
   products     CampaignProduct[]
   seedings     Seeding[]

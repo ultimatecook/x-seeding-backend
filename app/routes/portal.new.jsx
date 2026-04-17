@@ -150,7 +150,7 @@ export async function loader({ request }) {
     where: { shop, archived: false }, orderBy: { name: 'asc' },
   });
   const campaigns = await prisma.campaign.findMany({
-    where: { shop }, orderBy: { createdAt: 'desc' }, include: { products: true },
+    where: { shop, archived: false }, orderBy: { createdAt: 'desc' }, include: { products: true },
   });
 
   const since = new Date();

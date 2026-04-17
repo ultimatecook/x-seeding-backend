@@ -12,8 +12,11 @@ export async function loader({ request }) {
   const { shop, portalUser } = await requirePortalUser(request);
   requirePermission(portalUser.role, 'viewCampaigns');
 
+  const url        = new URL(request.url);
+  const showArchived = url.searchParams.get('archived') === '1';
+
   const campaigns = await prisma.campaign.findMany({
-    where:   { shop },
+    where:   { shop, archived: showArchived },
     include: { products: true, _count: { select: { seedings: true } } },
     orderBy: { createdAt: 'desc' },
   });
@@ -48,15 +51,42 @@ export async function loader({ request }) {
     console.error('Portal campaigns: failed to fetch products', e.message);
   }
 
-  return { campaigns, shopifyProducts, canCreate: can.createCampaign(portalUser.role) };
+  return { campaigns, shopifyProducts, showArchived, canCreate: can.createCampaign(portalUser.role), canDelete: can.deleteCampaign(portalUser.role) };
 }
 
 // ── Action ────────────────────────────────────────────────────────────────────
 export async function action({ request }) {
   const { shop, portalUser } = await requirePortalUser(request);
+
+  const formData = await request.formData();
+  const intent   = formData.get('intent');
+
+  // ── Archive / Unarchive ──────────────────────────────────────────────────
+  if (intent === 'archive' || intent === 'unarchive') {
+    requirePermission(portalUser.role, 'editCampaign');
+    const id       = parseInt(formData.get('campaignId'));
+    const archived = intent === 'archive';
+    const existing = await prisma.campaign.findUnique({ where: { id }, select: { shop: true, title: true } });
+    if (!existing || existing.shop !== shop) throw new Response('Not Found', { status: 404 });
+    await prisma.campaign.update({ where: { id }, data: { archived } });
+    await audit({ shop, portalUser, action: `${intent}d_campaign`, entityType: 'campaign', entityId: id, detail: `${archived ? 'Archived' : 'Unarchived'} campaign "${existing.title}"` });
+    return null;
+  }
+
+  // ── Delete ───────────────────────────────────────────────────────────────
+  if (intent === 'delete') {
+    requirePermission(portalUser.role, 'deleteCampaign');
+    const id       = parseInt(formData.get('campaignId'));
+    const existing = await prisma.campaign.findUnique({ where: { id }, select: { shop: true, title: true } });
+    if (!existing || existing.shop !== shop) throw new Response('Not Found', { status: 404 });
+    await prisma.campaign.delete({ where: { id } });
+    await audit({ shop, portalUser, action: 'deleted_campaign', entityType: 'campaign', entityId: id, detail: `Deleted campaign "${existing.title}"` });
+    return null;
+  }
+
+  // ── Create ───────────────────────────────────────────────────────────────
   requirePermission(portalUser.role, 'createCampaign');
 
-  const formData      = await request.formData();
   const title         = String(formData.get('title') || '').trim();
   const budgetRaw     = formData.get('budget');
   const budget        = budgetRaw ? parseFloat(budgetRaw) : null;
@@ -85,7 +115,7 @@ export async function action({ request }) {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function PortalCampaigns() {
-  const { campaigns, shopifyProducts, canCreate } = useLoaderData();
+  const { campaigns, shopifyProducts, showArchived, canCreate, canDelete } = useLoaderData();
   const [showForm,      setShowForm]      = useState(false);
   const [productSearch, setProductSearch] = useState('');
   const [selectedProds, setSelectedProds] = useState([]);
@@ -113,12 +143,17 @@ export default function PortalCampaigns() {
 
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: D.text, letterSpacing: '-0.3px' }}>
-            Campaigns {campaigns.length > 0 && <span style={{ fontSize: '14px', fontWeight: '600', color: D.textMuted }}>({campaigns.length})</span>}
+            {showArchived ? 'Archived Campaigns' : 'Campaigns'}{' '}
+            {campaigns.length > 0 && <span style={{ fontSize: '14px', fontWeight: '600', color: D.textMuted }}>({campaigns.length})</span>}
           </h2>
+          <Link to={showArchived ? '/portal/campaigns' : '/portal/campaigns?archived=1'}
+            style={{ fontSize: '12px', color: D.textMuted, textDecoration: 'none', padding: '4px 10px', border: `1px solid ${D.border}`, borderRadius: '20px', fontWeight: '600' }}>
+            {showArchived ? '← Active' : 'Archived'}
+          </Link>
         </div>
-        {canCreate && (
+        {canCreate && !showArchived && (
           <button type="button" onClick={() => showForm ? handleCancel() : setShowForm(true)}
             style={{ ...btn.primary, padding: '9px 18px', fontSize: '13px' }}>
             {showForm ? 'Cancel' : '+ New Campaign'}
@@ -229,41 +264,60 @@ export default function PortalCampaigns() {
       ) : (
         <div style={{ display: 'grid', gap: '12px' }}>
           {campaigns.map(c => (
-            <Link key={c.id} to={`/portal/campaigns/${c.id}`} style={{ textDecoration: 'none' }}>
-              <div style={{
-                backgroundColor: D.surface, border: `1px solid ${D.border}`,
-                borderRadius: '12px', padding: '18px 20px', boxShadow: D.shadow,
-                display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'center', gap: '16px',
-                transition: 'border-color 0.15s', cursor: 'pointer',
-              }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = D.accent; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = D.border; }}
-              >
-                <div>
-                  <div style={{ fontSize: '15px', fontWeight: '800', color: D.text, marginBottom: '5px' }}>{c.title}</div>
-                  <div style={{ fontSize: '12px', color: D.textSub, display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                    <span>{c._count.seedings} seeding{c._count.seedings !== 1 ? 's' : ''}</span>
-                    <span>{c.products.length} product{c.products.length !== 1 ? 's' : ''}</span>
-                    {c.budget != null && <span style={{ color: D.accent, fontWeight: '700' }}>€{fmtNum(c.budget)} budget</span>}
-                    <span>{fmtDate(c.createdAt, 'medium')}</span>
-                  </div>
-                  {c.products.length > 0 && (
-                    <div style={{ marginTop: '10px', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                      {c.products.map(p => (
-                        <div key={p.id} style={{
-                          display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: D.textSub,
-                          backgroundColor: D.bg, border: `1px solid ${D.borderLight}`, borderRadius: '6px', padding: '3px 8px',
-                        }}>
-                          {p.imageUrl && <img src={p.imageUrl} alt={p.productName} style={{ width: '16px', height: '16px', objectFit: 'cover', borderRadius: '3px' }} />}
-                          {p.productName}
-                        </div>
-                      ))}
-                    </div>
-                  )}
+            <div key={c.id} style={{
+              backgroundColor: D.surface, border: `1px solid ${D.border}`,
+              borderRadius: '12px', padding: '18px 20px', boxShadow: D.shadow,
+              display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'center', gap: '16px',
+              opacity: c.archived ? 0.65 : 1,
+            }}>
+              <Link to={`/portal/campaigns/${c.id}`} style={{ textDecoration: 'none', minWidth: 0 }}>
+                <div style={{ fontSize: '15px', fontWeight: '800', color: D.text, marginBottom: '5px' }}>{c.title}</div>
+                <div style={{ fontSize: '12px', color: D.textSub, display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                  <span>{c._count.seedings} seeding{c._count.seedings !== 1 ? 's' : ''}</span>
+                  <span>{c.products.length} product{c.products.length !== 1 ? 's' : ''}</span>
+                  {c.budget != null && <span style={{ color: D.accent, fontWeight: '700' }}>€{fmtNum(c.budget)} budget</span>}
+                  <span>{fmtDate(c.createdAt, 'medium')}</span>
                 </div>
-                <span style={{ fontSize: '13px', color: D.accent, fontWeight: '700' }}>View →</span>
+                {c.products.length > 0 && (
+                  <div style={{ marginTop: '10px', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                    {c.products.map(p => (
+                      <div key={p.id} style={{
+                        display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: D.textSub,
+                        backgroundColor: D.bg, border: `1px solid ${D.borderLight}`, borderRadius: '6px', padding: '3px 8px',
+                      }}>
+                        {p.imageUrl && <img src={p.imageUrl} alt={p.productName} style={{ width: '16px', height: '16px', objectFit: 'cover', borderRadius: '3px' }} />}
+                        {p.productName}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Link>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                <Link to={`/portal/campaigns/${c.id}`} style={{ fontSize: '13px', color: D.accent, fontWeight: '700', textDecoration: 'none' }}>View →</Link>
+                {canDelete && (
+                  <>
+                    <Form method="post">
+                      <input type="hidden" name="intent" value={c.archived ? 'unarchive' : 'archive'} />
+                      <input type="hidden" name="campaignId" value={c.id} />
+                      <button type="submit" title={c.archived ? 'Unarchive' : 'Archive'}
+                        style={{ background: 'none', border: `1px solid ${D.border}`, borderRadius: '6px', color: D.textMuted, cursor: 'pointer', fontSize: '12px', fontWeight: '600', padding: '4px 10px', whiteSpace: 'nowrap' }}>
+                        {c.archived ? '↩ Restore' : '⬜ Archive'}
+                      </button>
+                    </Form>
+                    {c.archived && (
+                      <Form method="post" onSubmit={e => { if (!confirm(`Permanently delete "${c.title}"? This cannot be undone.`)) e.preventDefault(); }}>
+                        <input type="hidden" name="intent" value="delete" />
+                        <input type="hidden" name="campaignId" value={c.id} />
+                        <button type="submit" title="Delete permanently"
+                          style={{ background: 'none', border: `1px solid ${D.errorText}`, borderRadius: '6px', color: D.errorText, cursor: 'pointer', fontSize: '12px', fontWeight: '600', padding: '4px 10px' }}>
+                          Delete
+                        </button>
+                      </Form>
+                    )}
+                  </>
+                )}
               </div>
-            </Link>
+            </div>
           ))}
         </div>
       )}

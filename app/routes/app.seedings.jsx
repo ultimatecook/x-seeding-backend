@@ -55,7 +55,7 @@ export async function loader({ request }) {
     }),
     prisma.seeding.count({ where }),
     prisma.seeding.groupBy({ by: ['status'], where: { shop }, _count: { _all: true } }),
-    prisma.campaign.findMany({ where: { shop }, select: { id: true, title: true }, orderBy: { createdAt: 'desc' } }),
+    prisma.campaign.findMany({ where: { shop, archived: false }, select: { id: true, title: true }, orderBy: { createdAt: 'desc' } }),
     // Distinct countries across seedings for this shop
     prisma.influencer.findMany({
       where:    { shop, seedings: { some: { shop } } },

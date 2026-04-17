@@ -1,4 +1,4 @@
-import { useLoaderData, Form, Link, useSearchParams } from 'react-router';
+import { useLoaderData, Form, Link, useSearchParams, redirect } from 'react-router';
 import prisma from '../db.server';
 import { requirePortalUser } from '../utils/portal-auth.server';
 import { can, requirePermission } from '../utils/portal-permissions';
@@ -54,7 +54,7 @@ export async function loader({ request, params }) {
     },
   });
   if (!campaign || campaign.shop !== shop) throw new Response('Not Found', { status: 404 });
-  return { campaign, role: portalUser.role };
+  return { campaign, role: portalUser.role, canDelete: can.deleteCampaign(portalUser.role) };
 }
 
 export async function action({ request, params }) {
@@ -87,11 +87,32 @@ export async function action({ request, params }) {
     await audit({ shop, portalUser, action: 'deleted_seeding', entityType: 'seeding', entityId: id, detail: `Deleted seeding for ${seeding?.influencer?.handle ?? id}` });
   }
 
+  if (intent === 'archive' || intent === 'unarchive') {
+    requirePermission(portalUser.role, 'editCampaign');
+    const id       = parseInt(params.id);
+    const archived = intent === 'archive';
+    const existing = await prisma.campaign.findUnique({ where: { id }, select: { shop: true, title: true } });
+    if (!existing || existing.shop !== shop) throw new Response('Not Found', { status: 404 });
+    await prisma.campaign.update({ where: { id }, data: { archived } });
+    await audit({ shop, portalUser, action: `${intent}d_campaign`, entityType: 'campaign', entityId: id, detail: `${archived ? 'Archived' : 'Unarchived'} campaign "${existing.title}"` });
+    if (archived) throw redirect('/portal/campaigns');
+  }
+
+  if (intent === 'deleteCampaign') {
+    requirePermission(portalUser.role, 'deleteCampaign');
+    const id       = parseInt(params.id);
+    const existing = await prisma.campaign.findUnique({ where: { id }, select: { shop: true, title: true } });
+    if (!existing || existing.shop !== shop) throw new Response('Not Found', { status: 404 });
+    await prisma.campaign.delete({ where: { id } });
+    await audit({ shop, portalUser, action: 'deleted_campaign', entityType: 'campaign', entityId: id, detail: `Deleted campaign "${existing.title}"` });
+    throw redirect('/portal/campaigns');
+  }
+
   return null;
 }
 
 export default function PortalCampaignDetail() {
-  const { campaign, role } = useLoaderData();
+  const { campaign, role, canDelete: canDeleteCampaign } = useLoaderData();
   const canEdit   = can.updateSeeding(role);
   const canDelete = can.deleteSeeding(role);
   const canCreate = can.createSeeding(role);
@@ -117,25 +138,54 @@ export default function PortalCampaignDetail() {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
-          <h2 style={{ margin: '0 0 6px', fontSize: '22px', fontWeight: '800', color: D.text, letterSpacing: '-0.3px' }}>
-            {campaign.title}
-          </h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+            <h2 style={{ margin: 0, fontSize: '22px', fontWeight: '800', color: D.text, letterSpacing: '-0.3px' }}>
+              {campaign.title}
+            </h2>
+            {campaign.archived && (
+              <span style={{ fontSize: '11px', fontWeight: '700', color: D.textMuted, backgroundColor: D.surfaceHigh, border: `1px solid ${D.border}`, borderRadius: '20px', padding: '2px 10px' }}>
+                Archived
+              </span>
+            )}
+          </div>
           <div style={{ fontSize: '13px', color: D.textSub, display: 'flex', gap: '14px' }}>
             <span>Created {fmtDate(campaign.createdAt, 'medium')}</span>
             {campaign.budget != null && <span style={{ fontWeight: '700', color: D.accent }}>Budget: €{fmtNum(campaign.budget)}</span>}
           </div>
         </div>
-        {canCreate && (
-          <Link to="/portal/new" style={{
-            padding: '8px 18px',
-            background: 'linear-gradient(135deg, #7C6FF7 0%, #9C8FFF 100%)',
-            color: '#fff', borderRadius: '8px', textDecoration: 'none',
-            fontSize: '13px', fontWeight: '700',
-            boxShadow: '0 2px 6px rgba(124,111,247,0.35)',
-          }}>
-            + Add Seeding
-          </Link>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {canDeleteCampaign && (
+            <>
+              <Form method="post">
+                <input type="hidden" name="intent" value={campaign.archived ? 'unarchive' : 'archive'} />
+                <button type="submit"
+                  style={{ padding: '8px 14px', borderRadius: '8px', border: `1px solid ${D.border}`, backgroundColor: 'transparent', color: D.textSub, cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>
+                  {campaign.archived ? '↩ Restore' : '⬜ Archive'}
+                </button>
+              </Form>
+              {campaign.archived && (
+                <Form method="post" onSubmit={e => { if (!confirm(`Permanently delete "${campaign.title}"? This cannot be undone.`)) e.preventDefault(); }}>
+                  <input type="hidden" name="intent" value="deleteCampaign" />
+                  <button type="submit"
+                    style={{ padding: '8px 14px', borderRadius: '8px', border: `1px solid ${D.errorText}`, backgroundColor: 'transparent', color: D.errorText, cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>
+                    Delete
+                  </button>
+                </Form>
+              )}
+            </>
+          )}
+          {canCreate && !campaign.archived && (
+            <Link to="/portal/new" style={{
+              padding: '8px 18px',
+              background: 'linear-gradient(135deg, #7C6FF7 0%, #9C8FFF 100%)',
+              color: '#fff', borderRadius: '8px', textDecoration: 'none',
+              fontSize: '13px', fontWeight: '700',
+              boxShadow: '0 2px 6px rgba(124,111,247,0.35)',
+            }}>
+              + Add Seeding
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* KPI cards */}
