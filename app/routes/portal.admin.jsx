@@ -7,7 +7,7 @@ import { Form, useLoaderData, useActionData, useNavigation } from 'react-router'
 import prisma from '../db.server';
 import { requirePortalUser } from '../utils/portal-auth.server';
 import { requirePermission } from '../utils/portal-permissions';
-import { syncLocations, getInventoryLocations } from '../utils/inventory.server';
+import { getInventoryLocations } from '../utils/inventory.server';
 import { getPoolStats } from '../utils/discount-codes.server';
 import { D, Pbtn as btn, Pinput as input } from '../utils/portal-theme';
 
@@ -32,11 +32,18 @@ export async function action({ request }) {
   const formData = await request.formData();
   const intent   = formData.get('intent');
 
-  // ── Sync locations from Shopify ──────────────────────────────────────────
-  if (intent === 'syncLocations') {
-    const { count, debug } = await syncLocations(shop);
-    if (count === 0) return { error: `Locations are synced automatically when you open the app in Shopify admin. Open your Shopify admin → Apps → your app, then come back here and click Sync again. (Debug: ${debug.join(' → ')})` };
-    return { ok: true, message: `Synced ${count} location${count !== 1 ? 's' : ''} from Shopify.` };
+  // ── Add location manually ────────────────────────────────────────────────
+  if (intent === 'addLocation') {
+    const name = String(formData.get('name') || '').trim();
+    if (!name) return { error: 'Location name is required.' };
+    // Use the name as the shopifyLocationId placeholder if no real GID available
+    const shopifyLocationId = String(formData.get('shopifyLocationId') || '').trim() || `manual_${Date.now()}`;
+    await prisma.inventoryLocation.upsert({
+      where:  { shop_shopifyLocationId: { shop, shopifyLocationId } },
+      update: { name },
+      create: { shop, shopifyLocationId, name, isEnabled: true, priorityOrder: 999 },
+    });
+    return { ok: true, message: `Location "${name}" added.` };
   }
 
   // ── Toggle location enabled ──────────────────────────────────────────────
@@ -90,6 +97,13 @@ export async function action({ request }) {
       } catch (_) {}
     }
     return { ok: true, message: `Imported ${inserted} ${poolType.toLowerCase()} codes.` };
+  }
+
+  // ── Delete location ──────────────────────────────────────────────────────
+  if (intent === 'deleteLocation') {
+    const id = parseInt(formData.get('locationId'));
+    await prisma.inventoryLocation.deleteMany({ where: { id, shop } });
+    return { ok: true, message: 'Location removed.' };
   }
 
   // ── Delete available codes from a pool ───────────────────────────────────
@@ -217,15 +231,26 @@ export default function PortalAdmin() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
           <p style={{ margin: 0, fontSize: '13px', color: D.textSub, lineHeight: 1.6 }}>
-            Enable or disable Shopify locations, then drag them into priority order.
-            When creating a seeding, the top-priority enabled location is used first.
+            Add your Shopify fulfilment locations, then enable/disable and set their priority order.
+            When a seeding is created, the top-priority enabled location is used.
           </p>
 
-          {/* Sync button */}
-          <Form method="post">
-            <input type="hidden" name="intent" value="syncLocations" />
-            <button type="submit" disabled={busy} style={{ ...btn.primary, fontSize: '13px' }}>
-              {busy ? 'Syncing…' : '↻ Sync locations from Shopify'}
+          {/* Add location form */}
+          <Form method="post" style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
+            <input type="hidden" name="intent" value="addLocation" />
+            <div style={{ flex: 1 }}>
+              <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: D.textSub, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '5px' }}>
+                Location name
+              </label>
+              <input
+                name="name"
+                placeholder="e.g. Main Warehouse"
+                required
+                style={{ ...input.base, width: '100%', boxSizing: 'border-box' }}
+              />
+            </div>
+            <button type="submit" disabled={busy} style={{ ...btn.primary, whiteSpace: 'nowrap' }}>
+              + Add location
             </button>
           </Form>
 
@@ -305,6 +330,13 @@ export default function PortalAdmin() {
                       >
                         {loc.isEnabled ? 'Enabled' : 'Disabled'}
                       </button>
+                    </Form>
+
+                    {/* Delete */}
+                    <Form method="post" onSubmit={e => { if (!confirm(`Remove "${loc.name}"?`)) e.preventDefault(); }}>
+                      <input type="hidden" name="intent"     value="deleteLocation" />
+                      <input type="hidden" name="locationId" value={String(loc.id)} />
+                      <button type="submit" disabled={busy} style={{ background: 'none', border: 'none', color: D.textMuted, cursor: 'pointer', fontSize: '18px', lineHeight: 1, padding: '0 4px' }}>×</button>
                     </Form>
                   </div>
                 ))}
