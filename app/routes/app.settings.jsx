@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Form, useLoaderData, useActionData, useRouteError } from 'react-router';
+import { Form, useLoaderData, useActionData, useRouteError, useRouteLoaderData } from 'react-router';
 import { boundary } from '@shopify/shopify-app-react-router/server';
 import { authenticate } from '../shopify.server';
 import { generateInviteToken } from '../utils/portal-auth.server';
@@ -59,7 +59,7 @@ export async function loader({ request }) {
   const { session } = await authenticate.admin(request);
   const shop = session.shop;
 
-  // Auto-provision the shop owner's portal account on first load
+  // Auto-provision Owner account for the Shopify store owner on first visit
   let ownerSetup = null;
   const ownerEmail = session.email ? String(session.email).toLowerCase().trim() : null;
   const ownerName  = [session.firstName, session.lastName].filter(Boolean).join(' ') || 'Store Owner';
@@ -68,16 +68,14 @@ export async function loader({ request }) {
     const existing = await prisma.portalUser.findUnique({
       where: { shop_email: { shop, email: ownerEmail } },
     });
-
     if (!existing) {
       const token   = generateInviteToken();
-      const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+      const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
       await prisma.portalUser.create({
         data: { shop, email: ownerEmail, name: ownerName, role: 'Owner', inviteToken: token, inviteExpires: expires },
       });
       ownerSetup = { inviteUrl: `${APP_URL}/portal-accept-invite?token=${token}`, email: ownerEmail, isNew: true };
     } else if (!existing.acceptedAt) {
-      // Refresh token so they can always get in from here
       const token   = generateInviteToken();
       const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
       await prisma.portalUser.update({ where: { id: existing.id }, data: { inviteToken: token, inviteExpires: expires } });

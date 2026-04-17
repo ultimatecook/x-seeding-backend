@@ -1,4 +1,4 @@
-import { Outlet, useRouteError, NavLink } from 'react-router';
+import { Outlet, useRouteError, useLocation } from 'react-router';
 import { authenticate } from '../shopify.server';
 import { boundary } from '@shopify/shopify-app-react-router/server';
 
@@ -17,13 +17,26 @@ export async function loader({ request }) {
 }
 
 export default function AppLayout() {
+  const loc = useLocation();
+  const isSettings = loc.pathname.startsWith('/app/settings');
+
   return (
     <div style={{
       fontFamily: '-apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif',
       backgroundColor: P.bg,
       minHeight: '100vh',
     }}>
-      {/* ── Top nav tabs ─────────────────────────────────────── */}
+      {/*
+        ui-nav-menu tells Shopify admin to render navigation items in its own
+        chrome. Shopify handles the full-page navigation (with session token),
+        so authenticate.admin works correctly on each page load.
+      */}
+      <ui-nav-menu>
+        <a href="/app" rel="home">Dashboard</a>
+        <a href="/app/settings">Team &amp; Access</a>
+      </ui-nav-menu>
+
+      {/* In-page tab bar — purely visual, reflects current route */}
       <div style={{
         backgroundColor: P.surface,
         borderBottom: `1px solid ${P.border}`,
@@ -33,22 +46,22 @@ export default function AppLayout() {
         gap: '4px',
       }}>
         {[
-          { to: '/app',          label: 'Dashboard',    end: true },
-          { to: '/app/settings', label: 'Team & Access' },
-        ].map(({ to, label, end }) => (
-          <NavLink key={to} to={to} end={end} style={({ isActive }) => ({
+          { href: '/app',          label: 'Dashboard',    active: !isSettings },
+          { href: '/app/settings', label: 'Team & Access', active: isSettings },
+        ].map(({ href, label, active }) => (
+          <a key={href} href={href} style={{
             padding: '14px 16px',
             fontSize: '13px',
-            fontWeight: isActive ? '700' : '500',
-            color: isActive ? P.accent : P.textSub,
+            fontWeight: active ? '700' : '500',
+            color: active ? P.accent : P.textSub,
             textDecoration: 'none',
-            borderBottom: isActive ? `2px solid ${P.accent}` : '2px solid transparent',
+            borderBottom: active ? `2px solid ${P.accent}` : '2px solid transparent',
             marginBottom: '-1px',
             transition: 'color 0.12s',
             whiteSpace: 'nowrap',
-          })}>
+          }}>
             {label}
-          </NavLink>
+          </a>
         ))}
       </div>
 
