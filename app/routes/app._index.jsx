@@ -2,6 +2,7 @@ import { useLoaderData, useRouteError } from 'react-router';
 import { boundary } from '@shopify/shopify-app-react-router/server';
 import { authenticate } from '../shopify.server';
 import prisma from '../db.server';
+import { generateInviteToken } from '../utils/portal-auth.server';
 
 const P = {
   accent:      '#7C6FF7',
@@ -39,7 +40,41 @@ export async function loader({ request }) {
   const byStatus = {};
   for (const row of statusCounts) byStatus[row.status] = row._count._all;
 
-  return { shop, totalSeedings, totalInfluencers, totalCampaigns, byStatus };
+  // ── Auto-provision a portal Owner account for the Shopify store owner ──────
+  // The embedded app is the only way to bootstrap the first Owner, so we
+  // create (or re-invite) a PortalUser here using the authenticated session.
+  let portalSetup = null; // { inviteUrl, email, isNew } — shown in UI when action needed
+
+  const ownerEmail = session.email ? String(session.email).toLowerCase().trim() : null;
+  const ownerName  = [session.firstName, session.lastName].filter(Boolean).join(' ') || 'Store Owner';
+
+  if (ownerEmail) {
+    const existing = await prisma.portalUser.findUnique({
+      where: { shop_email: { shop, email: ownerEmail } },
+    });
+
+    if (!existing) {
+      // First time — create Owner account and show the invite link
+      const token   = generateInviteToken();
+      const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+      await prisma.portalUser.create({
+        data: { shop, email: ownerEmail, name: ownerName, role: 'Owner', inviteToken: token, inviteExpires: expires },
+      });
+      const base = process.env.SHOPIFY_APP_URL || 'https://zeedy.xyz';
+      portalSetup = { inviteUrl: `${base}/portal-accept-invite?token=${token}`, email: ownerEmail, isNew: true };
+    } else if (!existing.acceptedAt) {
+      // Account exists but password never set — resurface the invite link
+      // Regenerate token in case it expired
+      const token   = generateInviteToken();
+      const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      await prisma.portalUser.update({ where: { id: existing.id }, data: { inviteToken: token, inviteExpires: expires } });
+      const base = process.env.SHOPIFY_APP_URL || 'https://zeedy.xyz';
+      portalSetup = { inviteUrl: `${base}/portal-accept-invite?token=${token}`, email: ownerEmail, isNew: false };
+    }
+    // If existing.acceptedAt is set → they're good, no action needed
+  }
+
+  return { shop, totalSeedings, totalInfluencers, totalCampaigns, byStatus, portalSetup };
 }
 
 function StatCard({ label, value, icon }) {
@@ -73,7 +108,7 @@ function StatCard({ label, value, icon }) {
 }
 
 export default function AppIndex() {
-  const { totalSeedings, totalInfluencers, totalCampaigns, byStatus } = useLoaderData();
+  const { totalSeedings, totalInfluencers, totalCampaigns, byStatus, portalSetup } = useLoaderData();
 
   const statuses = ['Pending', 'Ordered', 'Shipped', 'Delivered', 'Posted'];
   const activeStatuses = statuses.filter(s => (byStatus[s] || 0) > 0);
@@ -168,6 +203,54 @@ export default function AppIndex() {
           <span style={{ fontSize: '16px' }}>→</span>
         </a>
       </div>
+
+      {/* ── Portal account setup banner ───────────────────────── */}
+      {portalSetup && (
+        <div style={{
+          width: '100%',
+          backgroundColor: portalSetup.isNew ? '#FFFBEB' : '#FFF7ED',
+          border: `1px solid ${portalSetup.isNew ? '#FDE68A' : '#FED7AA'}`,
+          borderRadius: '16px',
+          padding: '24px 28px',
+          boxShadow: P.shadow,
+        }}>
+          <div style={{ fontSize: '15px', fontWeight: '800', color: '#92400E', marginBottom: '6px' }}>
+            {portalSetup.isNew ? '👋 One more step — set up your portal login' : '⚠️ Your portal login isn\'t set up yet'}
+          </div>
+          <p style={{ margin: '0 0 16px', fontSize: '13px', color: '#B45309', lineHeight: 1.6 }}>
+            {portalSetup.isNew
+              ? <>An Owner account has been created for <strong>{portalSetup.email}</strong>. Click the link below to set your password and access the portal.</>
+              : <>Your portal account ({portalSetup.email}) exists but you haven't set a password yet. Use this link to complete setup.</>
+            }
+          </p>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <a
+              href={portalSetup.inviteUrl}
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: '6px',
+                padding: '10px 20px',
+                background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',
+                color: '#fff', textDecoration: 'none', borderRadius: '10px',
+                fontSize: '13px', fontWeight: '700',
+                boxShadow: '0 3px 10px rgba(245,158,11,0.35)',
+              }}
+            >
+              Set up portal login →
+            </a>
+            <div style={{
+              flex: 1, minWidth: 0,
+              fontSize: '11px', color: '#92400E',
+              backgroundColor: '#FEF3C7', border: '1px solid #FDE68A',
+              borderRadius: '8px', padding: '8px 12px',
+              wordBreak: 'break-all', fontFamily: 'monospace',
+            }}>
+              {portalSetup.inviteUrl}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Stats row */}
       <div style={{ width: '100%', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
