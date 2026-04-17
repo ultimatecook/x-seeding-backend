@@ -45,7 +45,7 @@ export async function loader({ request }) {
       productsError = 'No Shopify session found. Please open the app in Shopify admin once to authorize it.';
     } else {
       const GQL_QUERY = `query GetProducts {
-        products(first: 100, sortKey: TITLE) {
+        products(first: 100, sortKey: TITLE, query: "status:active") {
           edges { node {
             id title
             featuredImage { url }
