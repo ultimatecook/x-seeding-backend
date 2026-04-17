@@ -1,4 +1,4 @@
-import { Outlet, useRouteError, NavLink, useLoaderData } from 'react-router';
+import { Outlet, useRouteError, useLoaderData, useLocation } from 'react-router';
 import { authenticate } from '../shopify.server';
 import { boundary } from '@shopify/shopify-app-react-router/server';
 import { AppProvider } from '@shopify/shopify-app-react-router/react';
@@ -19,14 +19,12 @@ export async function loader({ request }) {
 
 export default function AppLayout() {
   const { apiKey } = useLoaderData();
+  const { pathname } = useLocation();
+
+  const isSettings = pathname.startsWith('/app/settings');
 
   return (
     <AppProvider embedded apiKey={apiKey}>
-      {/*
-        ui-nav-menu registers these pages in Shopify's admin chrome.
-        AppProvider intercepts shopify:navigate events and routes them
-        through React Router (with the App Bridge session token).
-      */}
       <ui-nav-menu>
         <a href="/app" rel="home">Dashboard</a>
         <a href="/app/settings">Team &amp; Access</a>
@@ -37,7 +35,7 @@ export default function AppLayout() {
         backgroundColor: P.bg,
         minHeight: '100vh',
       }}>
-        {/* In-page tab bar */}
+        {/* In-page tab bar — plain <a> tags so App Bridge handles navigation correctly */}
         <div style={{
           backgroundColor: P.surface,
           borderBottom: `1px solid ${P.border}`,
@@ -46,8 +44,8 @@ export default function AppLayout() {
           alignItems: 'center',
           gap: '4px',
         }}>
-          <NavLink to="/app" end style={({ isActive }) => tabStyle(isActive)}>Dashboard</NavLink>
-          <NavLink to="/app/settings" style={({ isActive }) => tabStyle(isActive)}>Team &amp; Access</NavLink>
+          <a href="/app" style={tabStyle(!isSettings)}>Dashboard</a>
+          <a href="/app/settings" style={tabStyle(isSettings)}>Team &amp; Access</a>
         </div>
 
         <Outlet />
