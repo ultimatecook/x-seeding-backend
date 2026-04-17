@@ -84,11 +84,14 @@ function tabStyle(isActive) {
     fontSize: '13px',
     fontWeight: isActive ? '700' : '500',
     color: isActive ? P.accent : P.textSub,
-    textDecoration: 'none',
+    background: 'none',
+    border: 'none',
     borderBottom: isActive ? `2px solid ${P.accent}` : '2px solid transparent',
     marginBottom: '-1px',
+    cursor: 'pointer',
     transition: 'color 0.12s',
     whiteSpace: 'nowrap',
+    fontFamily: 'inherit',
   };
 }
 
