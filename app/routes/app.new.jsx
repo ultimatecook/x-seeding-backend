@@ -42,7 +42,6 @@ export async function loader({ request }) {
   }
 
   // Load all saved sizes upfront — keyed by influencerId → { category: size }
-  // Avoids client-side fetch which breaks inside Shopify's embedded iframe
   let allSavedSizes = {};
   try {
     const savedSizes = await prisma.influencerSavedSize.findMany({
@@ -53,7 +52,6 @@ export async function loader({ request }) {
       allSavedSizes[ss.influencerId][ss.category] = ss.size;
     }
   } catch (e) {
-    // Table may not exist yet if migration hasn't run
     console.warn('influencerSavedSize table not ready:', e.message);
   }
 
@@ -180,38 +178,31 @@ function fmtF(n) {
 
 // ── Stepper ───────────────────────────────────────────────────────────────────
 function Stepper({ step }) {
-  const steps = [
-    { n: 1, label: 'Influencer', icon: '👤' },
-    { n: 2, label: 'Products',   icon: '📦' },
-    { n: 3, label: 'Review',     icon: '✨' },
-  ];
+  const steps = ['Influencer', 'Products', 'Confirm'];
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-start', marginBottom: '40px' }}>
-      {steps.map(({ n, label, icon }, i) => {
+    <div style={{ display: 'flex', alignItems: 'center', marginBottom: '28px' }}>
+      {steps.map((label, i) => {
+        const n      = i + 1;
         const done   = step > n;
         const active = step === n;
         return (
-          <div key={n} style={{ display: 'flex', alignItems: 'flex-start', flex: i < steps.length - 1 ? 1 : 0 }}>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+          <div key={n} style={{ display: 'flex', alignItems: 'center', flex: i < steps.length - 1 ? 1 : 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '7px', flexShrink: 0 }}>
               <div style={{
-                width: '42px', height: '42px', borderRadius: '50%',
-                backgroundColor: done ? C.accent : active ? C.accent : '#F3F4F6',
+                width: '26px', height: '26px', borderRadius: '50%',
+                backgroundColor: done || active ? C.accent : '#F3F4F6',
                 color: done || active ? '#fff' : '#9CA3AF',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: done ? '18px' : '16px',
-                fontWeight: '900',
-                border: `3px solid ${done || active ? C.accent : '#E5E7EB'}`,
-                boxShadow: active ? `0 0 0 6px rgba(217, 119, 87, 0.12)` : 'none',
-                transition: 'all 0.3s ease',
-                flexShrink: 0,
+                fontSize: done ? '12px' : '11px', fontWeight: '800',
+                transition: 'all 0.2s ease',
               }}>
-                {done ? '✓' : icon}
+                {done ? '✓' : n}
               </div>
               <span style={{
-                fontSize: '11px',
+                fontSize: '12px',
                 fontWeight: active ? '700' : '500',
-                color: active ? C.text : done ? C.accent : '#9CA3AF',
-                whiteSpace: 'nowrap',
+                color: active ? '#1A1A1A' : done ? C.accent : '#9CA3AF',
+                transition: 'color 0.2s ease',
               }}>
                 {label}
               </span>
@@ -219,11 +210,10 @@ function Stepper({ step }) {
             {i < steps.length - 1 && (
               <div style={{
                 flex: 1,
-                height: '3px',
+                height: '1px',
                 backgroundColor: done ? C.accent : '#E5E7EB',
-                margin: '19px 6px 0',
-                borderRadius: '2px',
-                transition: 'background-color 0.4s ease',
+                margin: '0 10px',
+                transition: 'background-color 0.3s ease',
               }} />
             )}
           </div>
@@ -258,18 +248,16 @@ export default function NewSeeding() {
   const INF_TIERS = [
     { key: 'all',   label: 'All' },
     { key: 'micro', label: '🌱 Micro' },
-    { key: 'mid',   label: '⭐ Influencer' },
+    { key: 'mid',   label: '⭐ Mid' },
     { key: 'celeb', label: '🏆 Celebrity' },
   ];
 
   const allCountries = [...new Set(influencers.map(i => i.country).filter(Boolean))].sort();
 
-  // Products recently seeded to the selected influencer: { [productId]: Date }
   const recentlySeedMapForInfluencer = selectedInfluencer
     ? (recentlySeededMap[selectedInfluencer.id] ?? {})
     : {};
 
-  // Sizes are pre-loaded in the loader — derive from allSavedSizes instead of fetching
   const influencerSizeMap = selectedInfluencer?.id
     ? (allSavedSizes[selectedInfluencer.id] ?? {})
     : {};
@@ -281,7 +269,7 @@ export default function NewSeeding() {
     if (Object.keys(sizeMap).length === 0) return;
     setSelectedProducts(prev =>
       prev.map(p => {
-        if (p.size) return p; // Don't override if already set
+        if (p.size) return p;
         const savedSize = sizeMap[p.category];
         return savedSize ? { ...p, size: savedSize } : p;
       })
@@ -367,7 +355,6 @@ export default function NewSeeding() {
       setTimeout(() => setShakeId(null), 500);
       return;
     }
-    // Block if already seeded to this influencer recently
     if (recentlySeedMapForInfluencer[prod.id]) {
       setShakeId(prod.id);
       setTimeout(() => setShakeId(null), 500);
@@ -377,25 +364,15 @@ export default function NewSeeding() {
     const category   = guessProductCategory(prod.name);
     const savedSize  = influencerSizeMap[category];
 
-    // Try to find a variant that matches the influencer's saved size
-    let matchedVariant    = null;
-    let sizeUnavailable   = false;
+    let matchedVariant  = null;
+    let sizeUnavailable = false;
 
     if (savedSize && prod.variants && prod.variants.length > 1) {
-      // Find variant whose title contains the saved size
-      const match = prod.variants.find(v => {
-        const extracted = extractSizeFromVariant(v.title);
-        return extracted === savedSize;
-      });
+      const match = prod.variants.find(v => extractSizeFromVariant(v.title) === savedSize);
       if (match) {
-        if (match.available !== false) {
-          matchedVariant = match;
-        } else {
-          // Size exists but out of stock
-          sizeUnavailable = true;
-        }
+        if (match.available !== false) matchedVariant = match;
+        else sizeUnavailable = true;
       } else {
-        // Saved size doesn't exist in this product's variants
         sizeUnavailable = true;
       }
     }
@@ -412,132 +389,110 @@ export default function NewSeeding() {
     ]);
   };
 
-  const totalRetail = selectedProducts.reduce((s, p) => s + (p.selectedVariant?.price ?? p.price), 0);
-  const totalCost   = selectedProducts.reduce((s, p) => s + (p.selectedVariant?.cost ?? p.cost ?? 0), 0);
+  const totalRetail  = selectedProducts.reduce((s, p) => s + (p.selectedVariant?.price ?? p.price), 0);
+  const totalCost    = selectedProducts.reduce((s, p) => s + (p.selectedVariant?.cost ?? p.cost ?? 0), 0);
+  const missingSizes = getProductsWithoutSize(selectedProducts);
 
   return (
     <div>
-      {/* Animations */}
       <style>{`
-        @keyframes fadeInUp {
-          from { opacity: 0; transform: translateY(10px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes shake {
-          0%, 100% { transform: translateX(0); }
-          20%       { transform: translateX(-5px); }
-          40%       { transform: translateX(5px); }
-          60%       { transform: translateX(-4px); }
-          80%       { transform: translateX(4px); }
-        }
-        @keyframes popIn {
-          0%   { transform: scale(0.7); opacity: 0; }
-          70%  { transform: scale(1.08); }
-          100% { transform: scale(1);   opacity: 1; }
-        }
-        @keyframes slideIn {
-          from { opacity: 0; transform: translateX(12px); }
-          to   { opacity: 1; transform: translateX(0); }
-        }
-        .inf-card { transition: all 0.18s ease !important; }
-        .inf-card:hover { transform: translateY(-2px) !important; box-shadow: 0 6px 20px rgba(0,0,0,0.09) !important; }
-        .prod-card { transition: all 0.15s ease !important; }
-        .prod-card:not([data-out]):hover { transform: scale(1.03) !important; }
-        .bag-item  { animation: slideIn 0.2s ease; }
-        .remove-btn:hover { color: #EF4444 !important; }
+        @keyframes fadeIn  { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes shake   { 0%,100% { transform: translateX(0); } 20% { transform: translateX(-4px); } 40% { transform: translateX(4px); } 60% { transform: translateX(-3px); } 80% { transform: translateX(3px); } }
+        @keyframes popIn   { 0% { transform: scale(0.7); opacity: 0; } 80% { transform: scale(1.06); } 100% { transform: scale(1); opacity: 1; } }
+        .inf-card:hover    { background: #FAFAFA !important; }
+        .inf-active:hover  { background: ${C.accentFaint} !important; }
+        .prod-card         { transition: transform 0.12s ease, box-shadow 0.12s ease; }
+        .prod-card:not([data-out]):hover { transform: scale(1.025); box-shadow: 0 4px 14px rgba(0,0,0,0.09); }
+        .bag-item          { animation: fadeIn 0.18s ease; }
+        .rm-btn:hover      { color: #EF4444 !important; }
       `}</style>
 
-      <Form method="post">
-        {/* Page header */}
-        <div style={{ marginBottom: '32px' }}>
-          <h2 style={{ margin: '0 0 4px', color: '#1A1A1A', fontSize: '22px', fontWeight: '800' }}>New Seeding</h2>
-          <p style={{ margin: 0, fontSize: '13px', color: '#9CA3AF' }}>
-            Send products to an influencer and generate a free checkout link.
-          </p>
+      {/* ── Page header ── */}
+      <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px' }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '800', color: '#1A1A1A' }}>New Seeding</h2>
+          <p style={{ margin: '3px 0 0', fontSize: '13px', color: '#9CA3AF' }}>Send products to an influencer</p>
         </div>
 
-        <Stepper step={step} />
+        {/* Campaign selector — compact pill row in header */}
+        {campaigns.length > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '11px', fontWeight: '600', color: '#C4C4C4' }}>Campaign:</span>
+            {campaigns.map(c => {
+              const active = selectedCampaign?.id === c.id;
+              return (
+                <button key={c.id} type="button" onClick={() => handleCampaignSelect(active ? null : c)} style={{
+                  padding: '4px 12px', fontSize: '12px', fontWeight: '600',
+                  border: `1.5px solid ${active ? C.accent : '#E5E7EB'}`,
+                  cursor: 'pointer', borderRadius: '20px',
+                  backgroundColor: active ? C.accentFaint : 'transparent',
+                  color: active ? C.accent : '#6B7280',
+                  transition: 'all 0.15s ease',
+                }}>
+                  {active && <span style={{ marginRight: '3px' }}>✓</span>}{c.title}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
-        {/* Hidden inputs for form submission */}
+      <Form method="post">
+        {/* Hidden inputs */}
         <input type="hidden" name="shop" value={shop} />
         {selectedInfluencer && <input type="hidden" name="influencerId" value={selectedInfluencer.id} />}
         {selectedCampaign   && <input type="hidden" name="campaignId"   value={selectedCampaign.id} />}
         {selectedProducts.map(p => (
           <span key={p.id}>
-            <input type="hidden" name="productIds"    value={p.id} />
-            <input type="hidden" name="variantIds"    value={p.selectedVariant?.id ?? p.variantId ?? ''} />
-            <input type="hidden" name="productNames"  value={`${p.name}${p.selectedVariant && p.selectedVariant.title !== 'Default Title' ? ` – ${p.selectedVariant.title}` : ''}`} />
-            <input type="hidden" name="productPrices" value={p.selectedVariant?.price ?? p.price} />
-            <input type="hidden" name="productCosts"  value={p.selectedVariant?.cost ?? p.cost ?? ''} />
-            <input type="hidden" name="productImages" value={p.image ?? ''} />
-            <input type="hidden" name="productSizes"  value={p.size ?? ''} />
-            <input type="hidden" name="productCategories" value={p.category ?? ''} />
+            <input type="hidden" name="productIds"          value={p.id} />
+            <input type="hidden" name="variantIds"          value={p.selectedVariant?.id ?? p.variantId ?? ''} />
+            <input type="hidden" name="productNames"        value={`${p.name}${p.selectedVariant && p.selectedVariant.title !== 'Default Title' ? ` – ${p.selectedVariant.title}` : ''}`} />
+            <input type="hidden" name="productPrices"       value={p.selectedVariant?.price ?? p.price} />
+            <input type="hidden" name="productCosts"        value={p.selectedVariant?.cost ?? p.cost ?? ''} />
+            <input type="hidden" name="productImages"       value={p.image ?? ''} />
+            <input type="hidden" name="productSizes"        value={p.size ?? ''} />
+            <input type="hidden" name="productCategories"   value={p.category ?? ''} />
           </span>
         ))}
 
+        <Stepper step={step} />
+
         {/* ══════════════════ STEP 1 — INFLUENCER ══════════════════ */}
         {step === 1 && (
-          <div style={{ animation: 'fadeInUp 0.3s ease' }}>
-
-            {/* Campaign selector */}
-            {campaigns.length > 0 && (
-              <div style={{ marginBottom: '32px' }}>
-                <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.7px', color: '#6B7280', marginBottom: '10px' }}>
-                  📁 Campaign <span style={{ fontWeight: '400', textTransform: 'none', color: '#9CA3AF', marginLeft: '4px' }}>— optional</span>
-                </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                  {campaigns.map(c => {
-                    const active = selectedCampaign?.id === c.id;
-                    return (
-                      <button key={c.id} type="button" onClick={() => handleCampaignSelect(active ? null : c)} style={{
-                        padding: '7px 16px', fontSize: '13px', fontWeight: '600',
-                        border: `1.5px solid ${active ? C.accent : '#E3E3E3'}`,
-                        cursor: 'pointer', borderRadius: '20px',
-                        backgroundColor: active ? C.accentFaint : 'transparent',
-                        color: active ? C.accent : '#6B7280',
-                        transition: 'all 0.15s ease',
-                      }}>
-                        {active ? '✓ ' : ''}{c.title}
-                        {c.budget != null && <span style={{ fontWeight: '400', opacity: 0.6, marginLeft: '6px', fontSize: '11px' }}>€{fmtNum(c.budget)}</span>}
-                      </button>
-                    );
-                  })}
-                </div>
-                {selectedCampaign && (
-                  <p style={{ margin: '8px 0 0', fontSize: '12px', color: '#9CA3AF' }}>
-                    Products will be filtered to this campaign's {selectedCampaign.products.length} item{selectedCampaign.products.length !== 1 ? 's' : ''}.
-                  </p>
-                )}
-              </div>
-            )}
-
-            <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.7px', color: '#6B7280', marginBottom: '14px' }}>
-              👤 Select Influencer
-            </div>
+          <div style={{ animation: 'fadeIn 0.25s ease' }}>
 
             {influencers.length === 0 ? (
-              <div style={{ padding: '48px', textAlign: 'center', border: `2px dashed #E3E3E3`, color: '#9CA3AF', borderRadius: '12px' }}>
-                <div style={{ fontSize: '36px', marginBottom: '12px' }}>👥</div>
-                <p style={{ margin: '0 0 12px', fontSize: '15px', color: '#6B7280' }}>No influencers yet.</p>
+              <div style={{ padding: '48px', textAlign: 'center', border: `2px dashed #E5E7EB`, color: '#9CA3AF', borderRadius: '12px' }}>
+                <div style={{ fontSize: '32px', marginBottom: '10px' }}>👥</div>
+                <p style={{ margin: '0 0 12px', fontSize: '14px', color: '#6B7280' }}>No influencers yet.</p>
                 <a href="/app/influencers" style={{ color: C.accent, fontWeight: '700', textDecoration: 'none' }}>Add influencers first →</a>
               </div>
             ) : (
               <>
+                {/* Search + country */}
                 <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', flexWrap: 'wrap' }}>
-                  <input type="text" placeholder="🔍  Search by name or @handle…" value={infSearch} onChange={e => setInfSearch(e.target.value)}
-                    style={{ ...input.base, flex: '1', minWidth: '200px', fontSize: '13px' }} />
-                  <select value={infCountry} onChange={e => setInfCountry(e.target.value)}
-                    style={{ ...input.base, fontSize: '13px', minWidth: '140px', width: 'auto' }}>
-                    <option value="">🌍 All countries</option>
-                    {allCountries.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
+                  <input
+                    type="text"
+                    placeholder="Search by name or @handle…"
+                    value={infSearch}
+                    onChange={e => setInfSearch(e.target.value)}
+                    style={{ ...input.base, flex: '1', minWidth: '180px', fontSize: '13px' }}
+                  />
+                  {allCountries.length > 0 && (
+                    <select value={infCountry} onChange={e => setInfCountry(e.target.value)}
+                      style={{ ...input.base, fontSize: '13px', minWidth: '130px', width: 'auto' }}>
+                      <option value="">All countries</option>
+                      {allCountries.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  )}
                 </div>
 
-                <div style={{ display: 'flex', gap: '6px', marginBottom: '16px', flexWrap: 'wrap' }}>
+                {/* Tier filters */}
+                <div style={{ display: 'flex', gap: '5px', marginBottom: '16px', flexWrap: 'wrap' }}>
                   {INF_TIERS.map(t => (
                     <button key={t.key} type="button" onClick={() => setInfTier(t.key)} style={{
-                      padding: '5px 14px', borderRadius: '16px',
-                      border: `1.5px solid ${infTier === t.key ? C.accent : '#E3E3E3'}`,
+                      padding: '4px 12px', borderRadius: '16px',
+                      border: `1.5px solid ${infTier === t.key ? C.accent : '#E5E7EB'}`,
                       backgroundColor: infTier === t.key ? C.accentFaint : 'transparent',
                       color: infTier === t.key ? C.accent : '#6B7280',
                       fontSize: '12px', fontWeight: infTier === t.key ? '700' : '500',
@@ -547,7 +502,7 @@ export default function NewSeeding() {
                 </div>
 
                 {/* Influencer grid */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: '10px', maxHeight: '480px', overflowY: 'auto', paddingRight: '4px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(175px, 1fr))', gap: '8px', maxHeight: '480px', overflowY: 'auto', paddingRight: '2px' }}>
                   {filteredInfluencers.length === 0 ? (
                     <div style={{ gridColumn: '1/-1', padding: '32px', textAlign: 'center', color: '#9CA3AF', fontSize: '13px' }}>
                       No influencers match your search.
@@ -557,32 +512,39 @@ export default function NewSeeding() {
                     const tier   = tierInfo(inf.followers);
                     const bg     = avatarBg(inf.handle);
                     return (
-                      <button key={inf.id} type="button" className="inf-card" onClick={() => setSelectedInfluencer(active ? null : inf)} style={{
-                        padding: '16px',
-                        backgroundColor: active ? C.accentFaint : '#FFFFFF',
-                        border: `2px solid ${active ? C.accent : '#E3E3E3'}`,
-                        borderRadius: '12px', cursor: 'pointer', textAlign: 'left',
-                        boxShadow: active ? `0 0 0 3px rgba(217,119,87,0.12)` : '0 1px 4px rgba(0,0,0,0.04)',
-                        position: 'relative',
-                      }}>
+                      <button
+                        key={inf.id}
+                        type="button"
+                        className={active ? 'inf-card inf-active' : 'inf-card'}
+                        onClick={() => setSelectedInfluencer(active ? null : inf)}
+                        style={{
+                          padding: '12px',
+                          backgroundColor: active ? C.accentFaint : '#FFFFFF',
+                          border: `${active ? '2px' : '1px'} solid ${active ? C.accent : '#F0F0F0'}`,
+                          borderRadius: '10px', cursor: 'pointer', textAlign: 'left',
+                          boxShadow: active ? `0 0 0 3px rgba(217,119,87,0.1)` : '0 1px 3px rgba(0,0,0,0.04)',
+                          transition: 'all 0.15s ease',
+                          position: 'relative',
+                        }}
+                      >
                         {active && (
-                          <div style={{ position: 'absolute', top: '10px', right: '10px', width: '20px', height: '20px', borderRadius: '50%', backgroundColor: C.accent, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '900', animation: 'popIn 0.2s ease' }}>✓</div>
+                          <div style={{ position: 'absolute', top: '8px', right: '8px', width: '18px', height: '18px', borderRadius: '50%', backgroundColor: C.accent, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: '900', animation: 'popIn 0.2s ease' }}>✓</div>
                         )}
-                        <div style={{ width: '44px', height: '44px', borderRadius: '50%', backgroundColor: bg, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', fontWeight: '800', marginBottom: '10px', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>
-                          {initials(inf.name || inf.handle)}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '9px', marginBottom: '8px' }}>
+                          <div style={{ width: '34px', height: '34px', borderRadius: '50%', backgroundColor: bg, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: '800', flexShrink: 0 }}>
+                            {initials(inf.name || inf.handle)}
+                          </div>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: '13px', fontWeight: '700', color: '#1A1A1A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{inf.handle}</div>
+                            {inf.name && <div style={{ fontSize: '11px', color: '#9CA3AF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{inf.name}</div>}
+                          </div>
                         </div>
-                        <div style={{ fontSize: '14px', fontWeight: '800', color: '#1A1A1A', marginBottom: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {inf.handle}
-                        </div>
-                        {inf.name && (
-                          <div style={{ fontSize: '12px', color: '#6B7280', marginBottom: '8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{inf.name}</div>
-                        )}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: '10px', fontWeight: '700', padding: '2px 7px', borderRadius: '8px', backgroundColor: tier.bg, color: tier.color }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '10px', fontWeight: '700', padding: '1px 6px', borderRadius: '5px', backgroundColor: tier.bg, color: tier.color }}>
                             {tier.emoji} {tier.label}
                           </span>
-                          {inf.followers > 0 && <span style={{ fontSize: '11px', color: '#9CA3AF', fontWeight: '600' }}>{fmtF(inf.followers)}</span>}
-                          {inf.country && <span style={{ fontSize: '11px', color: '#9CA3AF', marginLeft: 'auto' }}>{inf.country}</span>}
+                          {inf.followers > 0 && <span style={{ fontSize: '10px', color: '#9CA3AF', fontWeight: '600' }}>{fmtF(inf.followers)}</span>}
+                          {inf.country && <span style={{ fontSize: '10px', color: '#9CA3AF', marginLeft: 'auto' }}>{inf.country}</span>}
                         </div>
                       </button>
                     );
@@ -591,20 +553,25 @@ export default function NewSeeding() {
               </>
             )}
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '28px', paddingTop: '20px', borderTop: '1px solid #E3E3E3' }}>
+            {/* Footer */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px', paddingTop: '16px', borderTop: '1px solid #F3F4F6' }}>
               <button type="button" onClick={() => navigate('/app')} style={{ ...btn.secondary }}>Cancel</button>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 {selectedInfluencer && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#6B7280' }}>
-                    <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: avatarBg(selectedInfluencer.handle), color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '800' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <div style={{ width: '22px', height: '22px', borderRadius: '50%', backgroundColor: avatarBg(selectedInfluencer.handle), color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px', fontWeight: '800' }}>
                       {initials(selectedInfluencer.name || selectedInfluencer.handle)}
                     </div>
-                    <strong style={{ color: '#1A1A1A' }}>{selectedInfluencer.handle}</strong>
+                    <span style={{ fontSize: '13px', fontWeight: '700', color: '#1A1A1A' }}>{selectedInfluencer.handle}</span>
                   </div>
                 )}
-                <button type="button" onClick={() => setStep(2)} disabled={!selectedInfluencer}
-                  style={{ ...btn.primary, opacity: selectedInfluencer ? 1 : 0.35, cursor: selectedInfluencer ? 'pointer' : 'not-allowed', fontSize: '14px', padding: '10px 24px' }}>
-                  Next: Products →
+                <button
+                  type="button"
+                  onClick={() => setStep(2)}
+                  disabled={!selectedInfluencer}
+                  style={{ ...btn.primary, opacity: selectedInfluencer ? 1 : 0.35, cursor: selectedInfluencer ? 'pointer' : 'not-allowed' }}
+                >
+                  Products →
                 </button>
               </div>
             </div>
@@ -613,26 +580,32 @@ export default function NewSeeding() {
 
         {/* ══════════════════ STEP 2 — PRODUCTS ══════════════════ */}
         {step === 2 && (
-          <>
-            <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start', animation: 'fadeInUp 0.3s ease' }}>
+          <div style={{ animation: 'fadeIn 0.25s ease' }}>
+            <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
 
               {/* Left: Product browser */}
               <div style={{ flex: '1 1 0', minWidth: 0 }}>
-                {selectedCampaign && (
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '5px 14px', backgroundColor: C.accentFaint, color: C.accent, fontSize: '12px', fontWeight: '700', marginBottom: '12px', borderRadius: '20px', border: `1px solid ${C.accent}` }}>
-                    📁 {selectedCampaign.title} <span style={{ fontWeight: '400', opacity: 0.7 }}>· {selectedCampaign.products.length} products</span>
-                  </div>
-                )}
-
-                <input type="text" placeholder="🔍  Search products…" value={search} onChange={e => setSearch(e.target.value)}
-                  style={{ ...input.base, marginBottom: '10px' }} />
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', alignItems: 'center' }}>
+                  <input
+                    type="text"
+                    placeholder="Search products…"
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    style={{ ...input.base, flex: 1, fontSize: '13px' }}
+                  />
+                  {selectedCampaign && (
+                    <span style={{ fontSize: '12px', fontWeight: '600', color: C.accent, backgroundColor: C.accentFaint, padding: '5px 12px', borderRadius: '20px', border: `1px solid ${C.accent}`, whiteSpace: 'nowrap' }}>
+                      📁 {selectedCampaign.title}
+                    </span>
+                  )}
+                </div>
 
                 {allCollections.length > 1 && (
-                  <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', marginBottom: '14px' }}>
+                  <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '12px' }}>
                     {allCollections.map(col => (
                       <button key={col} type="button" onClick={() => setActiveCollection(col)} style={{
-                        padding: '4px 12px', fontSize: '11px', fontWeight: '600',
-                        border: `1.5px solid ${activeCollection === col ? C.accent : '#E3E3E3'}`,
+                        padding: '3px 11px', fontSize: '11px', fontWeight: '600',
+                        border: `1.5px solid ${activeCollection === col ? C.accent : '#E5E7EB'}`,
                         cursor: 'pointer', borderRadius: '20px',
                         backgroundColor: activeCollection === col ? C.accentFaint : 'transparent',
                         color: activeCollection === col ? C.accent : '#6B7280',
@@ -642,22 +615,16 @@ export default function NewSeeding() {
                   </div>
                 )}
 
-                {/* Drag hint */}
-                <p style={{ fontSize: '12px', color: '#9CA3AF', margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                  <span>⠿</span> Drag to bag or click to add
-                </p>
-
                 {/* Product grid */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: '8px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(108px, 1fr))', gap: '7px' }}>
                   {filteredProducts.map(prod => {
-                    const selected      = selectedProducts.find(p => p.id === prod.id);
-                    const outOfStock    = prod.stock <= 0;
-                    const isExpanded    = expandedProductId === prod.id;
-                    const isSingle      = prod.variants.length === 1 && prod.variants[0].title === 'Default Title';
-                    const isDragging    = dragProductId === prod.id;
-                    const isShaking     = shakeId === prod.id;
-                    const recentDate    = recentlySeedMapForInfluencer[prod.id];
-                    const recentlySent  = !!recentDate;
+                    const selected     = selectedProducts.find(p => p.id === prod.id);
+                    const outOfStock   = prod.stock <= 0;
+                    const isExpanded   = expandedProductId === prod.id;
+                    const isSingle     = prod.variants.length === 1 && prod.variants[0].title === 'Default Title';
+                    const isDragging   = dragProductId === prod.id;
+                    const isShaking    = shakeId === prod.id;
+                    const recentlySent = !!recentlySeedMapForInfluencer[prod.id];
 
                     return (
                       <div key={prod.id} style={{ display: 'flex', flexDirection: 'column' }}>
@@ -675,55 +642,49 @@ export default function NewSeeding() {
                             setExpandedProductId(isExpanded ? null : prod.id);
                           }}
                           style={{
-                            backgroundColor: outOfStock ? '#F9FAFB' : selected ? C.accentFaint : recentlySent ? '#FFFBEB' : isExpanded ? '#F9FAFB' : '#FFFFFF',
-                            border: `2px solid ${outOfStock ? '#E5E7EB' : selected ? C.accent : recentlySent ? '#FCD34D' : isExpanded ? C.accent : '#E3E3E3'}`,
-                            cursor: outOfStock ? 'not-allowed' : recentlySent && !selected ? 'not-allowed' : 'grab',
+                            backgroundColor: outOfStock ? '#F9FAFB' : selected ? C.accentFaint : recentlySent ? '#FFFBEB' : '#FFFFFF',
+                            border: `${selected ? '2px' : '1px'} solid ${outOfStock ? '#F0F0F0' : selected ? C.accent : recentlySent ? '#FCD34D' : isExpanded ? C.accent : '#F0F0F0'}`,
+                            cursor: outOfStock ? 'not-allowed' : (recentlySent && !selected) ? 'not-allowed' : 'grab',
                             borderRadius: isExpanded ? '8px 8px 0 0' : '8px',
                             overflow: 'hidden',
                             position: 'relative',
-                            opacity: outOfStock ? 0.45 : isDragging ? 0.4 : 1,
+                            opacity: outOfStock ? 0.4 : isDragging ? 0.35 : 1,
                             animation: isShaking ? 'shake 0.4s ease' : 'none',
                             userSelect: 'none',
-                          }}>
+                          }}
+                        >
                           {prod.image ? (
-                            <div style={{ width: '100%', aspectRatio: '1/1', overflow: 'hidden', backgroundColor: '#F1F1F1' }}>
+                            <div style={{ width: '100%', aspectRatio: '1/1', overflow: 'hidden', backgroundColor: '#F7F7F7' }}>
                               <img src={prod.image} alt={prod.name} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
                             </div>
                           ) : (
-                            <div style={{ width: '100%', aspectRatio: '1/1', backgroundColor: '#F1F1F1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px' }}>📦</div>
+                            <div style={{ width: '100%', aspectRatio: '1/1', backgroundColor: '#F7F7F7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '26px' }}>📦</div>
                           )}
                           {selected && (
-                            <div style={{ position: 'absolute', top: '5px', right: '5px', width: '20px', height: '20px', borderRadius: '50%', backgroundColor: C.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 'bold', color: '#fff', animation: 'popIn 0.2s ease' }}>✓</div>
+                            <div style={{ position: 'absolute', top: '4px', right: '4px', width: '18px', height: '18px', borderRadius: '50%', backgroundColor: C.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: '900', color: '#fff', animation: 'popIn 0.2s ease' }}>✓</div>
                           )}
                           {outOfStock && (
-                            <div style={{ position: 'absolute', top: '5px', left: '5px', backgroundColor: '#DC2626', color: '#fff', fontSize: '9px', fontWeight: '800', padding: '2px 5px', borderRadius: '3px', textTransform: 'uppercase' }}>No stock</div>
+                            <div style={{ position: 'absolute', top: '4px', left: '4px', backgroundColor: '#DC2626', color: '#fff', fontSize: '8px', fontWeight: '800', padding: '2px 4px', borderRadius: '3px', textTransform: 'uppercase' }}>No stock</div>
                           )}
                           {recentlySent && !outOfStock && (
-                            <div style={{ position: 'absolute', top: '5px', left: '5px', backgroundColor: '#D97706', color: '#fff', fontSize: '9px', fontWeight: '800', padding: '2px 5px', borderRadius: '3px', textTransform: 'uppercase', lineHeight: '1.3' }}>
-                              Already sent
-                            </div>
+                            <div style={{ position: 'absolute', top: '4px', left: '4px', backgroundColor: '#D97706', color: '#fff', fontSize: '8px', fontWeight: '800', padding: '2px 4px', borderRadius: '3px', textTransform: 'uppercase' }}>Sent</div>
                           )}
-                          <div style={{ padding: '6px 8px', backgroundColor: selected ? C.accentFaint : '#FFFFFF' }}>
-                            <div style={{ fontWeight: '600', fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: selected ? C.accent : '#1A1A1A' }}>{prod.name}</div>
-                            <div style={{ fontSize: '10px', color: '#9CA3AF', marginTop: '1px' }}>
-                              €{prod.price.toFixed(2)}
-                              {selected?.selectedVariant && selected.selectedVariant.title !== 'Default Title' && (
-                                <span style={{ color: C.accent, fontWeight: '700', marginLeft: '3px' }}>· {selected.selectedVariant.title}</span>
-                              )}
-                            </div>
+                          <div style={{ padding: '5px 7px', backgroundColor: selected ? C.accentFaint : '#FFFFFF' }}>
+                            <div style={{ fontWeight: '600', fontSize: '10px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: selected ? C.accent : '#1A1A1A' }}>{prod.name}</div>
+                            <div style={{ fontSize: '10px', color: '#9CA3AF', marginTop: '1px' }}>€{prod.price.toFixed(2)}</div>
                           </div>
                         </div>
 
-                        {/* Variant picker dropdown */}
+                        {/* Variant picker */}
                         {isExpanded && !isSingle && (
-                          <div style={{ border: `2px solid ${C.accent}`, borderTop: 'none', borderRadius: '0 0 8px 8px', padding: '8px', backgroundColor: '#FFFFFF', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                            <div style={{ width: '100%', fontSize: '10px', fontWeight: '700', color: '#9CA3AF', textTransform: 'uppercase', marginBottom: '3px' }}>Pick a size</div>
+                          <div style={{ border: `2px solid ${C.accent}`, borderTop: 'none', borderRadius: '0 0 8px 8px', padding: '7px', backgroundColor: '#fff', display: 'flex', flexWrap: 'wrap', gap: '3px' }}>
+                            <div style={{ width: '100%', fontSize: '9px', fontWeight: '700', color: '#9CA3AF', textTransform: 'uppercase', marginBottom: '3px' }}>Pick a size</div>
                             {prod.variants.map(v => (
                               <button key={v.id} type="button" onClick={() => v.available && selectVariant(prod, v)} style={{
-                                padding: '3px 8px', fontSize: '11px', fontWeight: '700',
+                                padding: '3px 7px', fontSize: '11px', fontWeight: '700',
                                 border: `1.5px solid ${v.available ? '#E3E3E3' : '#F3F4F6'}`,
-                                borderRadius: '5px', cursor: v.available ? 'pointer' : 'not-allowed',
-                                backgroundColor: v.available ? '#FFFFFF' : '#F9FAFB',
+                                borderRadius: '4px', cursor: v.available ? 'pointer' : 'not-allowed',
+                                backgroundColor: v.available ? '#fff' : '#F9FAFB',
                                 color: v.available ? '#1A1A1A' : '#D1D5DB',
                                 textDecoration: !v.available ? 'line-through' : 'none',
                               }}>{v.title}</button>
@@ -736,127 +697,111 @@ export default function NewSeeding() {
                 </div>
               </div>
 
-              {/* Right: Seeding Bag (drop zone) */}
+              {/* Right: Selected items panel */}
               <div
                 onDragOver={handleBagDragOver}
                 onDragLeave={handleBagDragLeave}
                 onDrop={handleBagDrop}
                 style={{
-                  width: '252px', flexShrink: 0,
-                  position: 'sticky', top: '16px',
-                  minHeight: '400px',
-                  border: `2px ${dragOver ? 'solid' : 'dashed'} ${dragOver ? C.accent : '#E3E3E3'}`,
-                  borderRadius: '14px',
+                  width: '232px',
+                  flexShrink: 0,
+                  position: 'sticky',
+                  top: '16px',
+                  borderRadius: '12px',
+                  border: `1.5px solid ${dragOver ? C.accent : '#E8E8E8'}`,
                   backgroundColor: dragOver ? C.accentFaint : '#FAFAFA',
-                  transition: 'all 0.2s ease',
-                  display: 'flex', flexDirection: 'column', overflow: 'hidden',
-                  boxShadow: dragOver ? `0 0 0 4px rgba(217,119,87,0.12)` : 'none',
-                }}>
-
-                {/* Bag header */}
-                <div style={{ padding: '14px 16px 10px', borderBottom: selectedProducts.length > 0 ? '1px solid #F3F4F6' : 'none', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontSize: '20px' }}>🎁</span>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: '13px', fontWeight: '800', color: '#1A1A1A' }}>Seeding Bag</div>
-                    <div style={{ fontSize: '11px', color: '#9CA3AF' }}>
-                      {selectedProducts.length === 0 ? 'Drag products here' : `${selectedProducts.length} item${selectedProducts.length !== 1 ? 's' : ''} selected`}
-                    </div>
-                  </div>
+                  overflow: 'hidden',
+                  transition: 'border-color 0.15s, background-color 0.15s',
+                  boxShadow: dragOver ? `0 0 0 3px rgba(217,119,87,0.1)` : 'none',
+                }}
+              >
+                {/* Panel header */}
+                <div style={{ padding: '11px 13px', borderBottom: `1px solid ${selectedProducts.length > 0 ? '#EFEFEF' : 'transparent'}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '12px', fontWeight: '700', color: '#1A1A1A' }}>Selected items</span>
                   {selectedProducts.length > 0 && (
-                    <div style={{ width: '22px', height: '22px', borderRadius: '50%', backgroundColor: C.accent, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '900', animation: 'popIn 0.2s ease' }}>
+                    <span style={{ fontSize: '11px', fontWeight: '700', backgroundColor: C.accent, color: '#fff', borderRadius: '10px', padding: '1px 8px', animation: 'popIn 0.2s ease' }}>
                       {selectedProducts.length}
-                    </div>
+                    </span>
                   )}
                 </div>
 
                 {/* Items / empty state */}
-                <div style={{ flex: 1, padding: '10px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div style={{
+                  minHeight: selectedProducts.length === 0 ? '150px' : undefined,
+                  maxHeight: '360px',
+                  overflowY: 'auto',
+                  padding: selectedProducts.length === 0 ? '0' : '8px',
+                }}>
                   {selectedProducts.length === 0 ? (
-                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '10px', padding: '20px 0', color: '#D1D5DB' }}>
-                      <div style={{ fontSize: '40px', opacity: dragOver ? 1 : 0.45, transform: dragOver ? 'scale(1.25) rotate(-5deg)' : 'scale(1)', transition: 'all 0.25s ease' }}>📦</div>
-                      <div style={{ fontSize: '12px', textAlign: 'center', color: dragOver ? C.accent : '#9CA3AF', fontWeight: dragOver ? '700' : '400', transition: 'color 0.2s' }}>
-                        {dragOver ? '✨ Drop it!' : 'Drag products here\nor click to select'}
-                      </div>
+                    <div style={{ height: '150px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px', color: dragOver ? C.accent : '#C8C8C8', transition: 'color 0.15s' }}>
+                      <div style={{ fontSize: '26px', transform: dragOver ? 'scale(1.2)' : 'scale(1)', transition: 'transform 0.2s ease' }}>📦</div>
+                      <span style={{ fontSize: '12px', fontWeight: dragOver ? '600' : '400', textAlign: 'center' }}>
+                        {dragOver ? 'Drop here' : 'Drag or click products'}
+                      </span>
                     </div>
                   ) : (
-                    selectedProducts.map(p => {
-                      const hasSize    = !!p.size;
-                      const sizeWarning = !hasSize;
-                      const cardBg    = sizeWarning ? '#FEF3F2' : '#FFFFFF';
-                      const cardBorder = sizeWarning ? '#FCA5A5' : '#F3F4F6';
-                      return (
-                        <div key={p.id} className="bag-item" style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '8px', backgroundColor: cardBg, border: `1px solid ${cardBorder}`, borderRadius: '8px' }}>
-                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-                            {p.image ? (
-                              <img src={p.image} alt={p.name} style={{ width: '34px', height: '34px', objectFit: 'contain', borderRadius: '5px', backgroundColor: '#F9FAFB', flexShrink: 0 }} />
-                            ) : (
-                              <div style={{ width: '34px', height: '34px', backgroundColor: '#E5E7EB', borderRadius: '5px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', flexShrink: 0 }}>📦</div>
-                            )}
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontSize: '11px', fontWeight: '700', color: '#1A1A1A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
-                              <div style={{ fontSize: '10px', color: '#9CA3AF' }}>
-                                €{(p.selectedVariant?.price ?? p.price).toFixed(2)}
-                                {p.selectedVariant && p.selectedVariant.title !== 'Default Title' && (
-                                  <span style={{ color: C.accent, fontWeight: '600', marginLeft: '3px' }}>· {p.selectedVariant.title}</span>
-                                )}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                      {selectedProducts.map(p => {
+                        const sizeWarn = !p.size;
+                        return (
+                          <div key={p.id} className="bag-item" style={{ backgroundColor: sizeWarn ? '#FEF3F2' : '#fff', border: `1px solid ${sizeWarn ? '#FCA5A5' : '#EFEFEF'}`, borderRadius: '8px', padding: '7px 7px 5px' }}>
+                            <div style={{ display: 'flex', gap: '7px', alignItems: 'flex-start' }}>
+                              {p.image
+                                ? <img src={p.image} alt={p.name} style={{ width: '28px', height: '28px', objectFit: 'contain', borderRadius: '4px', backgroundColor: '#F7F7F7', flexShrink: 0 }} />
+                                : <div style={{ width: '28px', height: '28px', backgroundColor: '#F3F4F6', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', flexShrink: 0 }}>📦</div>
+                              }
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: '11px', fontWeight: '700', color: '#1A1A1A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
+                                <div style={{ fontSize: '10px', color: '#9CA3AF' }}>
+                                  €{(p.selectedVariant?.price ?? p.price).toFixed(2)}
+                                  {p.selectedVariant && p.selectedVariant.title !== 'Default Title' && (
+                                    <span style={{ color: C.accent, fontWeight: '600', marginLeft: '3px' }}>· {p.selectedVariant.title}</span>
+                                  )}
+                                </div>
                               </div>
+                              <button type="button" className="rm-btn" onClick={() => removeProduct(p.id)}
+                                style={{ background: 'none', border: 'none', color: '#D1D5DB', cursor: 'pointer', fontSize: '16px', lineHeight: 1, padding: '1px', flexShrink: 0, transition: 'color 0.12s' }}>×</button>
                             </div>
-                            <button type="button" className="remove-btn" onClick={() => removeProduct(p.id)}
-                              style={{ background: 'none', border: 'none', color: '#D1D5DB', cursor: 'pointer', fontSize: '18px', lineHeight: 1, padding: '2px', flexShrink: 0, transition: 'color 0.15s' }}>
-                              ×
-                            </button>
-                          </div>
-                          {/* Size selector - only show if variants exist */}
-                          {p.variants && p.variants.length > 1 && (
-                            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', paddingTop: '2px' }}>
-                              {p.variants.map(v => {
-                                const vSize = extractSizeFromVariant(v.title);
-                                const isSelected = p.size === vSize;
-                                if (!vSize) return null;
-                                return (
-                                  <button
-                                    key={v.id}
-                                    type="button"
-                                    onClick={() => updateProductSize(p.id, vSize)}
-                                    style={{
-                                      padding: '3px 7px',
-                                      fontSize: '9px',
-                                      fontWeight: isSelected ? '700' : '600',
-                                      border: `1.5px solid ${isSelected ? C.accent : '#E3E3E3'}`,
-                                      backgroundColor: isSelected ? C.accentFaint : '#FFFFFF',
-                                      color: isSelected ? C.accent : '#6B7280',
+
+                            {/* Size selector */}
+                            {p.variants && p.variants.length > 1 && (
+                              <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap', marginTop: '5px' }}>
+                                {p.variants.map(v => {
+                                  const vSize = extractSizeFromVariant(v.title);
+                                  const isSel = p.size === vSize;
+                                  if (!vSize) return null;
+                                  return (
+                                    <button key={v.id} type="button" onClick={() => updateProductSize(p.id, vSize)} style={{
+                                      padding: '2px 6px', fontSize: '9px', fontWeight: isSel ? '700' : '600',
+                                      border: `1.5px solid ${isSel ? C.accent : '#E3E3E3'}`,
+                                      backgroundColor: isSel ? C.accentFaint : '#fff',
+                                      color: isSel ? C.accent : '#6B7280',
                                       borderRadius: '4px',
                                       cursor: v.available ? 'pointer' : 'not-allowed',
                                       opacity: v.available ? 1 : 0.5,
-                                      transition: 'all 0.15s ease',
-                                    }}
-                                  >
-                                    {vSize}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          )}
-                          {p.sizeUnavailable && (
-                            <div style={{ fontSize: '9px', color: '#DC2626', fontWeight: '600', marginTop: '2px' }}>
-                              ⚠️ Influencer's size not in stock — pick manually
-                            </div>
-                          )}
-                          {!p.sizeUnavailable && sizeWarning && (
-                            <div style={{ fontSize: '9px', color: '#DC2626', fontWeight: '600', marginTop: '2px' }}>
-                              ⚠️ Size required
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })
+                                      transition: 'all 0.12s ease',
+                                    }}>{vSize}</button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                            {p.sizeUnavailable && (
+                              <div style={{ fontSize: '9px', color: '#DC2626', fontWeight: '600', marginTop: '3px' }}>⚠️ Saved size out of stock</div>
+                            )}
+                            {!p.sizeUnavailable && sizeWarn && (
+                              <div style={{ fontSize: '9px', color: '#DC2626', fontWeight: '600', marginTop: '3px' }}>⚠️ Size required</div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   )}
                 </div>
 
                 {/* Totals */}
                 {selectedProducts.length > 0 && (
-                  <div style={{ padding: '12px 16px', borderTop: '1px solid #F3F4F6', backgroundColor: '#F9FAFB' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#6B7280', marginBottom: '3px' }}>
+                  <div style={{ padding: '9px 13px', borderTop: '1px solid #EFEFEF', backgroundColor: '#fff' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#6B7280', marginBottom: '2px' }}>
                       <span>Retail value</span>
                       <strong style={{ color: '#1A1A1A' }}>€{totalRetail.toFixed(2)}</strong>
                     </div>
@@ -871,106 +816,130 @@ export default function NewSeeding() {
               </div>
             </div>
 
-            {/* Step 2 footer nav */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px', paddingTop: '20px', borderTop: '1px solid #E3E3E3', flexWrap: 'wrap', gap: '12px' }}>
+            {/* Step 2 footer */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '20px', paddingTop: '16px', borderTop: '1px solid #F3F4F6', gap: '10px', flexWrap: 'wrap' }}>
               <button type="button" onClick={() => setStep(1)} style={{ ...btn.secondary }}>← Back</button>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                {getProductsWithoutSize(selectedProducts).length > 0 && (
-                  <div style={{ fontSize: '12px', color: '#DC2626', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    ⚠️ {getProductsWithoutSize(selectedProducts).length} item{getProductsWithoutSize(selectedProducts).length !== 1 ? 's' : ''} need{getProductsWithoutSize(selectedProducts).length === 1 ? 's' : ''} sizes
-                  </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                {missingSizes.length > 0 && (
+                  <span style={{ fontSize: '12px', color: '#DC2626', fontWeight: '600' }}>
+                    ⚠️ {missingSizes.length} item{missingSizes.length !== 1 ? 's' : ''} need{missingSizes.length === 1 ? 's' : ''} a size
+                  </span>
                 )}
-                <button type="button" onClick={() => setStep(3)} disabled={selectedProducts.length === 0 || getProductsWithoutSize(selectedProducts).length > 0}
-                  style={{ ...btn.primary, opacity: selectedProducts.length > 0 && getProductsWithoutSize(selectedProducts).length === 0 ? 1 : 0.35, cursor: selectedProducts.length > 0 && getProductsWithoutSize(selectedProducts).length === 0 ? 'pointer' : 'not-allowed', fontSize: '14px', padding: '10px 24px' }}>
-                  Next: Review →
+                <button
+                  type="button"
+                  onClick={() => setStep(3)}
+                  disabled={selectedProducts.length === 0 || missingSizes.length > 0}
+                  style={{ ...btn.primary, opacity: selectedProducts.length > 0 && missingSizes.length === 0 ? 1 : 0.35, cursor: selectedProducts.length > 0 && missingSizes.length === 0 ? 'pointer' : 'not-allowed' }}
+                >
+                  Review →
                 </button>
               </div>
             </div>
-          </>
+          </div>
         )}
 
-        {/* ══════════════════ STEP 3 — REVIEW ══════════════════ */}
+        {/* ══════════════════ STEP 3 — CONFIRM ══════════════════ */}
         {step === 3 && (
-          <div style={{ animation: 'fadeInUp 0.3s ease', maxWidth: '600px' }}>
+          <div style={{ animation: 'fadeIn 0.25s ease', maxWidth: '560px' }}>
 
             {/* Summary card */}
-            <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E3E3E3', borderRadius: '14px', padding: '20px', marginBottom: '18px' }}>
-              {/* Influencer row */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', paddingBottom: '16px', borderBottom: '1px solid #F3F4F6' }}>
-                <div style={{ width: '46px', height: '46px', borderRadius: '50%', backgroundColor: avatarBg(selectedInfluencer?.handle || ''), color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: '800', flexShrink: 0 }}>
+            <div style={{ backgroundColor: '#fff', border: '1px solid #F0F0F0', borderRadius: '14px', padding: '20px', marginBottom: '14px', boxShadow: '0 1px 6px rgba(0,0,0,0.04)' }}>
+              {/* Influencer */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', paddingBottom: '14px', borderBottom: '1px solid #F5F5F5' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: avatarBg(selectedInfluencer?.handle || ''), color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '15px', fontWeight: '800', flexShrink: 0 }}>
                   {initials(selectedInfluencer?.name || selectedInfluencer?.handle || '')}
                 </div>
                 <div>
-                  <div style={{ fontSize: '16px', fontWeight: '800', color: '#1A1A1A' }}>{selectedInfluencer?.handle}</div>
-                  {selectedInfluencer?.name && <div style={{ fontSize: '12px', color: '#6B7280' }}>{selectedInfluencer.name}</div>}
+                  <div style={{ fontSize: '15px', fontWeight: '800', color: '#1A1A1A' }}>{selectedInfluencer?.handle}</div>
+                  {selectedInfluencer?.name && <div style={{ fontSize: '12px', color: '#9CA3AF' }}>{selectedInfluencer.name}</div>}
                 </div>
                 {selectedCampaign && (
-                  <div style={{ marginLeft: 'auto', padding: '5px 12px', backgroundColor: C.accentFaint, color: C.accent, fontSize: '12px', fontWeight: '700', borderRadius: '20px' }}>
+                  <div style={{ marginLeft: 'auto', padding: '4px 11px', backgroundColor: C.accentFaint, color: C.accent, fontSize: '12px', fontWeight: '700', borderRadius: '20px' }}>
                     📁 {selectedCampaign.title}
                   </div>
                 )}
               </div>
 
               {/* Products */}
-              <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.6px', color: '#9CA3AF', marginBottom: '10px' }}>
-                🎁 Products ({selectedProducts.length})
+              <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#B0B0B0', marginBottom: '8px' }}>
+                Products ({selectedProducts.length})
               </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '7px', marginBottom: '18px' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginBottom: '16px' }}>
                 {selectedProducts.map(p => (
-                  <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 10px 5px 6px', border: '1px solid #E3E3E3', backgroundColor: '#F9FAFB', borderRadius: '8px' }}>
-                    {p.image && <img src={p.image} alt={p.name} style={{ width: '24px', height: '24px', objectFit: 'contain', borderRadius: '3px' }} />}
+                  <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 9px 4px 5px', border: '1px solid #F0F0F0', backgroundColor: '#FAFAFA', borderRadius: '7px' }}>
+                    {p.image && <img src={p.image} alt={p.name} style={{ width: '20px', height: '20px', objectFit: 'contain', borderRadius: '3px' }} />}
                     <span style={{ fontSize: '12px', fontWeight: '600', color: '#1A1A1A' }}>{p.name}</span>
                     {p.selectedVariant && p.selectedVariant.title !== 'Default Title' && (
                       <span style={{ fontSize: '11px', color: C.accent, fontWeight: '700' }}>{p.selectedVariant.title}</span>
                     )}
                     {p.size && (
-                      <span style={{ fontSize: '10px', fontWeight: '600', backgroundColor: '#EDE9FE', color: '#7C3AED', padding: '1px 6px', borderRadius: '4px' }}>
-                        {p.size}
-                      </span>
+                      <span style={{ fontSize: '10px', fontWeight: '700', backgroundColor: '#EDE9FE', color: '#7C3AED', padding: '1px 5px', borderRadius: '4px' }}>{p.size}</span>
                     )}
                   </div>
                 ))}
               </div>
 
               {/* Totals */}
-              <div style={{ display: 'flex', gap: '24px' }}>
+              <div style={{ display: 'flex', gap: '24px', paddingTop: '12px', borderTop: '1px solid #F5F5F5' }}>
                 <div>
-                  <div style={{ fontSize: '11px', color: '#9CA3AF', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>Retail Value</div>
+                  <div style={{ fontSize: '10px', color: '#B0B0B0', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>Retail Value</div>
                   <div style={{ fontSize: '22px', fontWeight: '900', color: C.accent }}>€{totalRetail.toFixed(2)}</div>
                 </div>
                 {totalCost > 0 && (
                   <div>
-                    <div style={{ fontSize: '11px', color: '#9CA3AF', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>Your Cost</div>
+                    <div style={{ fontSize: '10px', color: '#B0B0B0', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>Your Cost</div>
                     <div style={{ fontSize: '22px', fontWeight: '900', color: '#1A1A1A' }}>€{totalCost.toFixed(2)}</div>
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Timeline */}
-            <div style={{ backgroundColor: '#FFFBF9', border: `1px solid rgba(217,119,87,0.25)`, borderRadius: '12px', padding: '16px', marginBottom: '18px' }}>
-              <div style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.7px', color: C.accent, marginBottom: '12px' }}>
-                ✨ What happens next
-              </div>
-              {[['🛒','A Shopify draft order is created with 100% discount'],['🔗','You get a checkout link to share with the influencer'],['📦','They fill their own address and check out for free'],['✅','Your fulfillment center receives the order automatically']].map(([icon, text]) => (
-                <div key={text} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '8px' }}>
-                  <span style={{ fontSize: '16px', flexShrink: 0, lineHeight: '20px' }}>{icon}</span>
-                  <span style={{ fontSize: '13px', color: '#6B7280', lineHeight: '20px' }}>{text}</span>
+            {/* What happens next */}
+            <div style={{ backgroundColor: '#FFFBF9', border: `1px solid rgba(217,119,87,0.18)`, borderRadius: '10px', padding: '13px 15px', marginBottom: '14px' }}>
+              <div style={{ fontSize: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.7px', color: C.accent, marginBottom: '9px' }}>What happens next</div>
+              {[
+                ['🛒', 'A Shopify draft order is created with 100% discount'],
+                ['🔗', 'You get a checkout link to share with the influencer'],
+                ['📦', 'They fill their own address and check out for free'],
+                ['✅', 'Your fulfillment center receives the order automatically'],
+              ].map(([icon, text]) => (
+                <div key={text} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '5px' }}>
+                  <span style={{ fontSize: '13px', flexShrink: 0, lineHeight: '18px' }}>{icon}</span>
+                  <span style={{ fontSize: '12px', color: '#6B7280', lineHeight: '18px' }}>{text}</span>
                 </div>
               ))}
             </div>
 
             {/* Notes */}
-            <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.6px', color: '#6B7280', marginBottom: '6px' }}>
-              Notes / Brief <span style={{ fontWeight: '400', textTransform: 'none', color: '#9CA3AF', marginLeft: '4px' }}>— optional</span>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#B0B0B0', marginBottom: '5px' }}>
+              Notes <span style={{ fontWeight: '400', textTransform: 'none', color: '#D0D0D0', marginLeft: '3px' }}>— optional</span>
             </label>
-            <textarea name="notes" rows={3} placeholder="Campaign notes, content directions, what to post…"
-              style={{ display: 'block', width: '100%', padding: '10px 12px', border: '1px solid #E3E3E3', backgroundColor: '#FAFAFA', color: '#1A1A1A', fontSize: '13px', borderRadius: '8px', fontFamily: 'system-ui', resize: 'vertical', boxSizing: 'border-box', marginBottom: '24px', outline: 'none' }} />
+            <textarea
+              name="notes"
+              rows={2}
+              placeholder="Campaign notes, content direction, what to post…"
+              style={{ display: 'block', width: '100%', padding: '10px 12px', border: '1px solid #E5E7EB', backgroundColor: '#FAFAFA', color: '#1A1A1A', fontSize: '13px', borderRadius: '8px', fontFamily: 'system-ui', resize: 'vertical', boxSizing: 'border-box', marginBottom: '18px', outline: 'none' }}
+            />
 
             {/* Actions */}
-            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-              <button type="button" onClick={() => setStep(2)} style={{ ...btn.secondary }}>← Back</button>
-              <button type="submit" style={{ ...btn.primary, fontSize: '14px', padding: '12px 28px', borderRadius: '8px', background: `linear-gradient(135deg, ${C.accent} 0%, #C86845 100%)`, boxShadow: '0 4px 16px rgba(217,119,87,0.35)', border: 'none' }}>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'stretch' }}>
+              <button type="button" onClick={() => setStep(2)} style={{ ...btn.secondary, flexShrink: 0 }}>← Back</button>
+              <button
+                type="submit"
+                style={{
+                  flex: 1,
+                  padding: '14px 20px',
+                  borderRadius: '10px',
+                  border: 'none',
+                  background: `linear-gradient(135deg, ${C.accent} 0%, #C86845 100%)`,
+                  color: '#fff',
+                  fontSize: '15px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 18px rgba(217,119,87,0.35)',
+                  letterSpacing: '-0.1px',
+                }}
+              >
                 🚀 Create Seeding + Generate Link
               </button>
             </div>
