@@ -62,6 +62,16 @@ export default function AppLayout() {
 
   const isSettings = pathname.startsWith('/app/settings');
 
+  // Use App Bridge native navigation when available — it handles token refresh automatically.
+  // Fall back to React Router navigate if App Bridge isn't ready.
+  function go(path) {
+    if (window.shopify?.navigate) {
+      window.shopify.navigate(path);
+    } else {
+      navigate(path);
+    }
+  }
+
   return (
     <AppProvider embedded apiKey={apiKey}>
       <ui-nav-menu>
@@ -74,7 +84,6 @@ export default function AppLayout() {
         backgroundColor: P.bg,
         minHeight: '100vh',
       }}>
-        {/* Buttons instead of <a> tags so App Bridge doesn't intercept clicks */}
         <div style={{
           backgroundColor: P.surface,
           borderBottom: `1px solid ${P.border}`,
@@ -83,8 +92,8 @@ export default function AppLayout() {
           alignItems: 'center',
           gap: '4px',
         }}>
-          <button onClick={() => navigate('/app')} style={tabStyle(!isSettings)}>Dashboard</button>
-          <button onClick={() => navigate('/app/settings')} style={tabStyle(isSettings)}>Team &amp; Access</button>
+          <button onClick={() => go('/app')} style={tabStyle(!isSettings)}>Dashboard</button>
+          <button onClick={() => go('/app/settings')} style={tabStyle(isSettings)}>Team &amp; Access</button>
         </div>
 
         <Outlet />
