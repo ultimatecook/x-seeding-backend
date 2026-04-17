@@ -91,7 +91,7 @@ export default function PortalLogin() {
 
         {/* Logo */}
         <div style={{ marginBottom: '32px' }}>
-          <img src="/fullname.png" alt="ZEEDY" style={{ height: '32px', width: 'auto', display: 'block' }} />
+          <img src="/namelogo.svg" alt="ZEEDY" style={{ height: '32px', width: 'auto', display: 'block' }} />
         </div>
 
         <h2 style={{ margin: '0 0 6px', fontSize: '20px', fontWeight: '800', color: P.text, letterSpacing: '-0.3px' }}>

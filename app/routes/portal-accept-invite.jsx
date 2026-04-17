@@ -99,7 +99,7 @@ const inputStyle = {
 function LogoBlock() {
   return (
     <div style={{ marginBottom: '32px' }}>
-      <img src="/fullname.png" alt="ZEEDY" style={{ height: '32px', width: 'auto', display: 'block' }} />
+      <img src="/namelogo.svg" alt="ZEEDY" style={{ height: '32px', width: 'auto', display: 'block' }} />
     </div>
   );
 }

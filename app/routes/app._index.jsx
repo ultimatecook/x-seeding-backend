@@ -91,7 +91,7 @@ export default function AppIndex() {
 
       {/* Logo */}
       <div>
-        <img src="/fullname.png" alt="ZEEDY" style={{ height: '40px', width: 'auto', display: 'block' }} />
+        <img src="/namelogo.svg" alt="ZEEDY" style={{ height: '40px', width: 'auto', display: 'block' }} />
       </div>
 
       {/* Hero card */}

@@ -272,13 +272,13 @@ export default function PortalLayout() {
                 borderRadius:   '10px',
               }}
             >
-              <img src="/logonly.png" alt="Z" style={{ height: '28px', width: 'auto', display: 'block' }} />
+              <img src="/zlogo.svg" alt="Z" style={{ height: '28px', width: 'auto', display: 'block' }} />
             </button>
           ) : (
             <>
               {/* Full logo */}
               <img
-                src="/fullname.png"
+                src="/namelogo.svg"
                 alt="ZEEDY"
                 style={{ height: '30px', width: 'auto', display: 'block' }}
               />

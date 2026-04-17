@@ -53,7 +53,7 @@ export default function Index() {
         padding: '0 40px', height: '60px',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
-        <img src="/fullname.png" alt="ZEEDY" style={{ height: '26px', width: 'auto', display: 'block' }} />
+        <img src="/namelogo.svg" alt="ZEEDY" style={{ height: '26px', width: 'auto', display: 'block' }} />
         <a href="/portal-login" style={{
           fontSize: '13px', fontWeight: '700', color: P.accent,
           textDecoration: 'none', padding: '7px 16px',
@@ -164,7 +164,7 @@ export default function Index() {
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         flexWrap: 'wrap', gap: '12px',
       }}>
-        <img src="/fullname.png" alt="ZEEDY" style={{ height: '20px', width: 'auto', display: 'block' }} />
+        <img src="/namelogo.svg" alt="ZEEDY" style={{ height: '20px', width: 'auto', display: 'block' }} />
         <span style={{ fontSize: '12px', color: P.textMuted }}>
           © {new Date().getFullYear()} Zeedy · Shopify influencer seeding
         </span>
