@@ -1,76 +1,115 @@
 import { useState } from 'react';
-import { Form, useLoaderData, useRouteLoaderData, useRouteError, useActionData } from 'react-router';
+import { Form, useLoaderData, useActionData, useRouteError } from 'react-router';
 import { boundary } from '@shopify/shopify-app-react-router/server';
-import prisma from '../db.server';
+import { authenticate } from '../shopify.server';
 import { generateInviteToken } from '../utils/portal-auth.server';
-import { C, btn, card, input, section } from '../theme';
+import prisma from '../db.server';
+
+const P = {
+  accent:      '#7C6FF7',
+  accentFaint: '#F4F2FF',
+  border:      '#E5E3F0',
+  borderLight: '#F0EEF8',
+  bg:          '#F7F6FB',
+  surface:     '#FFFFFF',
+  surfaceHigh: '#F3F2F8',
+  text:        '#1A1523',
+  textSub:     '#6B6880',
+  textMuted:   '#A09CB8',
+  errorText:   '#DC2626',
+  shadow:      '0 1px 4px rgba(124,111,247,0.08), 0 4px 16px rgba(0,0,0,0.04)',
+};
+
+const btnPrimary = {
+  backgroundColor: P.accent, color: '#fff',
+  border: 'none', borderRadius: '8px',
+  padding: '8px 16px', fontSize: '13px', fontWeight: '700',
+  cursor: 'pointer',
+};
+const btnSecondary = {
+  backgroundColor: 'transparent', color: P.textSub,
+  border: `1px solid ${P.border}`, borderRadius: '8px',
+  padding: '7px 14px', fontSize: '12px', fontWeight: '600',
+  cursor: 'pointer',
+};
+const inputBase = {
+  width: '100%', boxSizing: 'border-box',
+  padding: '8px 12px', fontSize: '13px',
+  border: `1px solid ${P.border}`, borderRadius: '8px',
+  backgroundColor: P.surface, color: P.text,
+  outline: 'none',
+};
 
 const ROLES = ['Owner', 'Editor', 'Viewer'];
+const ROLE_DESC = {
+  Owner:  'Full access including team management.',
+  Editor: 'Can create and edit seedings, campaigns, influencers.',
+  Viewer: 'Read-only access.',
+};
+const ROLE_BADGE = {
+  Owner:  { bg: '#EDE9FE', color: '#5B21B6' },
+  Editor: { bg: '#DBEAFE', color: '#1D4ED8' },
+  Viewer: { bg: P.surfaceHigh, color: P.textSub },
+};
 
-export async function loader() {
-  let members = [];
-  try {
-    const memberships = await prisma.appMembership.findMany({
-      include: { user: true },
-      orderBy: [{ role: 'asc' }, { createdAt: 'asc' }],
+const APP_URL = process.env.SHOPIFY_APP_URL || 'https://zeedy.xyz';
+
+// ── Loader ────────────────────────────────────────────────────────────────────
+export async function loader({ request }) {
+  const { session } = await authenticate.admin(request);
+  const shop = session.shop;
+
+  // Auto-provision the shop owner's portal account on first load
+  let ownerSetup = null;
+  const ownerEmail = session.email ? String(session.email).toLowerCase().trim() : null;
+  const ownerName  = [session.firstName, session.lastName].filter(Boolean).join(' ') || 'Store Owner';
+
+  if (ownerEmail) {
+    const existing = await prisma.portalUser.findUnique({
+      where: { shop_email: { shop, email: ownerEmail } },
     });
-    members = memberships.map(m => ({
-      id:             m.id,
-      shop:           m.shop,
-      role:           m.role,
-      userId:         m.userId,
-      email:          m.user.email,
-      firstName:      m.user.firstName,
-      lastName:       m.user.lastName,
-      isShopifyOwner: m.user.isShopifyOwner,
-    }));
-  } catch (e) {
-    console.warn('Settings: RBAC tables not yet migrated —', e.message);
+
+    if (!existing) {
+      const token   = generateInviteToken();
+      const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+      await prisma.portalUser.create({
+        data: { shop, email: ownerEmail, name: ownerName, role: 'Owner', inviteToken: token, inviteExpires: expires },
+      });
+      ownerSetup = { inviteUrl: `${APP_URL}/portal-accept-invite?token=${token}`, email: ownerEmail, isNew: true };
+    } else if (!existing.acceptedAt) {
+      // Refresh token so they can always get in from here
+      const token   = generateInviteToken();
+      const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      await prisma.portalUser.update({ where: { id: existing.id }, data: { inviteToken: token, inviteExpires: expires } });
+      ownerSetup = { inviteUrl: `${APP_URL}/portal-accept-invite?token=${token}`, email: ownerEmail, isNew: false };
+    }
   }
 
-  let portalUsers = [];
-  try {
-    portalUsers = await prisma.portalUser.findMany({
-      orderBy: [{ createdAt: 'asc' }],
-    });
-  } catch (e) {
-    console.warn('Settings: portalUser table not yet migrated —', e.message);
-  }
+  const users = await prisma.portalUser.findMany({
+    where:   { shop },
+    orderBy: [{ role: 'asc' }, { createdAt: 'asc' }],
+  });
 
-  return { members, portalUsers };
+  return { users, ownerSetup, ownerEmail };
 }
 
+// ── Action ────────────────────────────────────────────────────────────────────
 export async function action({ request }) {
+  const { session } = await authenticate.admin(request);
+  const shop = session.shop;
+
   const formData = await request.formData();
   const intent   = formData.get('intent');
 
-  if (intent === 'updateRole') {
-    const membershipId = parseInt(formData.get('membershipId'));
-    const role         = String(formData.get('role') || '');
-    if (!membershipId || !ROLES.includes(role)) return null;
-    try {
-      await prisma.appMembership.update({
-        where: { id: membershipId },
-        data:  { role },
-      });
-    } catch (e) {
-      console.warn('Settings action: RBAC tables not yet migrated —', e.message);
-    }
-    return null;
-  }
-
-  if (intent === 'invitePortalUser') {
+  if (intent === 'invite') {
     const email = String(formData.get('email') || '').toLowerCase().trim();
     const name  = String(formData.get('name')  || '').trim();
-    const role  = String(formData.get('role')  || 'Viewer');
-    const shop  = String(formData.get('shop')  || '');
-
-    if (!email || !name || !shop) return { error: 'Email, name, and shop are required.' };
-    if (!ROLES.includes(role))    return { error: 'Invalid role.' };
+    const role  = String(formData.get('role')  || 'Editor');
+    if (!email || !name)       return { error: 'Name and email are required.' };
+    if (!ROLES.includes(role)) return { error: 'Invalid role.' };
 
     const token   = generateInviteToken();
     const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
-
     try {
       await prisma.portalUser.upsert({
         where:  { shop_email: { shop, email } },
@@ -80,255 +119,330 @@ export async function action({ request }) {
     } catch (e) {
       return { error: 'Could not create invite: ' + e.message };
     }
-
-    const inviteUrl = `${process.env.SHOPIFY_APP_URL || ''}/portal-accept-invite?token=${token}`;
-    return { inviteUrl, invitedEmail: email };
+    return { inviteUrl: `${APP_URL}/portal-accept-invite?token=${token}`, invitedEmail: email, invitedName: name };
   }
 
-  if (intent === 'updatePortalUserRole') {
-    const id   = parseInt(formData.get('portalUserId'));
+  if (intent === 'resend') {
+    const id  = parseInt(formData.get('userId'));
+    const row = await prisma.portalUser.findUnique({ where: { id } });
+    if (!row || row.shop !== shop) return { error: 'User not found.' };
+    const token   = generateInviteToken();
+    const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    await prisma.portalUser.update({ where: { id }, data: { inviteToken: token, inviteExpires: expires } });
+    return { inviteUrl: `${APP_URL}/portal-accept-invite?token=${token}`, invitedEmail: row.email, invitedName: row.name };
+  }
+
+  if (intent === 'updateRole') {
+    const id   = parseInt(formData.get('userId'));
     const role = String(formData.get('role') || '');
-    if (!id || !ROLES.includes(role)) return null;
-    try {
-      await prisma.portalUser.update({ where: { id }, data: { role } });
-    } catch (e) {
-      console.warn('Could not update portal user role:', e.message);
-    }
+    if (!ROLES.includes(role)) return null;
+    const row = await prisma.portalUser.findUnique({ where: { id } });
+    if (!row || row.shop !== shop) return null;
+    await prisma.portalUser.update({ where: { id }, data: { role } });
     return null;
   }
 
-  if (intent === 'revokePortalUser') {
-    const id = parseInt(formData.get('portalUserId'));
-    try {
-      await prisma.portalUser.delete({ where: { id } });
-    } catch (e) {
-      console.warn('Could not delete portal user:', e.message);
-    }
+  if (intent === 'revoke') {
+    const id  = parseInt(formData.get('userId'));
+    const row = await prisma.portalUser.findUnique({ where: { id } });
+    if (!row || row.shop !== shop) return null;
+    await prisma.portalUser.delete({ where: { id } });
     return null;
   }
 
   return null;
 }
 
-export default function SettingsPage() {
-  const { members: allMembers, portalUsers: allPortalUsers } = useLoaderData();
+// ── Sub-components ────────────────────────────────────────────────────────────
+function RoleBadge({ role }) {
+  const s = ROLE_BADGE[role] || ROLE_BADGE.Viewer;
+  return (
+    <span style={{ fontSize: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.5px',
+      backgroundColor: s.bg, color: s.color, borderRadius: '20px', padding: '2px 8px', flexShrink: 0 }}>
+      {role}
+    </span>
+  );
+}
+
+function SectionHeader({ children, count }) {
+  return (
+    <div style={{ padding: '14px 20px', borderBottom: `1px solid ${P.border}`,
+      fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.8px', color: P.textMuted }}>
+      {children}{count != null && <span style={{ marginLeft: '6px', fontWeight: '600' }}>({count})</span>}
+    </div>
+  );
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+export default function AppSettings() {
+  const { users, ownerSetup, ownerEmail } = useLoaderData();
   const actionData = useActionData();
-  const { shop }   = useRouteLoaderData('routes/app') ?? {};
 
-  const members     = shop ? allMembers.filter(m => m.shop === shop) : allMembers;
-  const portalUsers = shop ? allPortalUsers.filter(u => u.shop === shop) : allPortalUsers;
+  const [showForm,     setShowForm]     = useState(false);
+  const [copied,       setCopied]       = useState(false);
+  const [ownerCopied,  setOwnerCopied]  = useState(false);
 
-  const [showInviteForm, setShowInviteForm] = useState(false);
-  const [copiedUrl,      setCopiedUrl]      = useState(false);
+  const inviteUrl = actionData?.inviteUrl;
 
-  function copyInviteUrl() {
-    if (actionData?.inviteUrl) {
-      navigator.clipboard.writeText(actionData.inviteUrl);
-      setCopiedUrl(true);
-      setTimeout(() => setCopiedUrl(false), 2000);
-    }
+  function copy(url, setter) {
+    navigator.clipboard.writeText(url);
+    setter(true);
+    setTimeout(() => setter(false), 2000);
   }
 
+  const active  = users.filter(u =>  u.acceptedAt);
+  const pending = users.filter(u => !u.acceptedAt);
+
   return (
-    <div style={{ display: 'grid', gap: '20px', maxWidth: '680px' }}>
-      <div style={card.base}>
-        <h2 style={{ margin: '0 0 6px', color: C.text }}>Settings</h2>
-        <p style={{ margin: 0, color: C.textSub, fontSize: '13px' }}>
-          Manage team access to the seeding portal.
+    <div style={{ maxWidth: '700px', margin: '0 auto', padding: '32px 24px', display: 'grid', gap: '24px' }}>
+
+      {/* Title */}
+      <div>
+        <h2 style={{ margin: '0 0 4px', fontSize: '20px', fontWeight: '800', color: P.text, letterSpacing: '-0.3px' }}>
+          Team &amp; Access
+        </h2>
+        <p style={{ margin: 0, fontSize: '13px', color: P.textMuted }}>
+          Manage who can log into the Zeedy portal at{' '}
+          <a href={`${APP_URL}/portal`} target="_blank" rel="noreferrer"
+            style={{ color: P.accent, fontWeight: '600', textDecoration: 'none' }}>
+            zeedy.xyz/portal
+          </a>
         </p>
       </div>
 
-      {/* ── Portal Users ───────────────────────────────────── */}
-      <section style={card.base}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <h3 style={{ margin: 0, ...section.title }}>Portal Users</h3>
-          <button type="button" onClick={() => setShowInviteForm(v => !v)}
-            style={{ ...btn.primary, fontSize: '12px', padding: '6px 14px' }}>
-            {showInviteForm ? 'Cancel' : '+ Invite user'}
+      {/* ── Owner setup banner ──────────────────────────────── */}
+      {ownerSetup && (
+        <div style={{ backgroundColor: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: '14px', padding: '20px 24px' }}>
+          <div style={{ fontSize: '14px', fontWeight: '800', color: '#92400E', marginBottom: '6px' }}>
+            {ownerSetup.isNew ? '👋 Set up your portal login' : '⚠️ Portal login not yet activated'}
+          </div>
+          <p style={{ margin: '0 0 14px', fontSize: '13px', color: '#B45309', lineHeight: 1.6 }}>
+            {ownerSetup.isNew
+              ? <>An Owner account has been created for <strong>{ownerSetup.email}</strong>. Click below to set your password.</>
+              : <>Your portal account (<strong>{ownerSetup.email}</strong>) exists but no password has been set yet.</>
+            }
+          </p>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <a href={ownerSetup.inviteUrl} target="_blank" rel="noreferrer"
+              style={{ ...btnPrimary, backgroundColor: '#D97706', textDecoration: 'none',
+                display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+              Set up portal login →
+            </a>
+            <button type="button" onClick={() => copy(ownerSetup.inviteUrl, setOwnerCopied)}
+              style={{ ...btnSecondary, borderColor: '#FDE68A', color: '#92400E' }}>
+              {ownerCopied ? '✓ Copied' : 'Copy link'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Invite card ─────────────────────────────────────── */}
+      <div style={{ backgroundColor: P.surface, border: `1px solid ${P.border}`,
+        borderRadius: '14px', overflow: 'hidden', boxShadow: P.shadow }}>
+
+        <div style={{ padding: '18px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          borderBottom: showForm || inviteUrl || actionData?.error ? `1px solid ${P.border}` : 'none' }}>
+          <div>
+            <div style={{ fontSize: '14px', fontWeight: '700', color: P.text }}>Invite a team member</div>
+            <div style={{ fontSize: '12px', color: P.textMuted, marginTop: '2px' }}>
+              Generates a setup link you share with them directly.
+            </div>
+          </div>
+          <button type="button" onClick={() => setShowForm(v => !v)} style={{ ...btnPrimary, flexShrink: 0 }}>
+            {showForm ? 'Cancel' : '+ Invite'}
           </button>
         </div>
 
-        <p style={{ margin: '0 0 14px', fontSize: '13px', color: C.textSub }}>
-          Portal users can access the app at{' '}
-          <a href="/portal-login" target="_blank" rel="noopener noreferrer"
-            style={{ color: C.accent, fontWeight: '700' }}>
-            /portal-login
-          </a>
-          {' '}without needing a Shopify account.
-        </p>
-
-        {/* Invite form */}
-        {showInviteForm && (
-          <Form method="post" style={{ display: 'grid', gap: '10px', padding: '14px', backgroundColor: C.surfaceHigh, borderRadius: '8px', marginBottom: '16px', border: `1px solid ${C.borderLight}` }}>
-            <input type="hidden" name="intent" value="invitePortalUser" />
-            <input type="hidden" name="shop"   value={shop || ''} />
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '8px', alignItems: 'end' }}>
-              <div style={{ display: 'grid', gap: '4px' }}>
-                <label style={{ fontSize: '11px', fontWeight: '700', color: C.textSub, textTransform: 'uppercase' }}>Name</label>
-                <input name="name" type="text" placeholder="Jane Smith" required
-                  style={{ ...input.base, fontSize: '13px' }} />
-              </div>
-              <div style={{ display: 'grid', gap: '4px' }}>
-                <label style={{ fontSize: '11px', fontWeight: '700', color: C.textSub, textTransform: 'uppercase' }}>Email</label>
-                <input name="email" type="email" placeholder="jane@brand.com" required
-                  style={{ ...input.base, fontSize: '13px' }} />
-              </div>
-              <div style={{ display: 'grid', gap: '4px' }}>
-                <label style={{ fontSize: '11px', fontWeight: '700', color: C.textSub, textTransform: 'uppercase' }}>Role</label>
-                <select name="role" style={{ ...input.base, fontSize: '13px' }}>
-                  {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
-                </select>
-              </div>
+        {/* Generated link */}
+        {inviteUrl && (
+          <div style={{ padding: '16px 20px', backgroundColor: '#F0FDF4', borderBottom: `1px solid #BBF7D0` }}>
+            <div style={{ fontSize: '13px', fontWeight: '700', color: '#065F46', marginBottom: '4px' }}>
+              ✓ Invite created for {actionData.invitedName}
             </div>
-            <button type="submit" style={{ ...btn.primary, justifySelf: 'start', fontSize: '13px' }}>
-              Generate invite link
-            </button>
-          </Form>
-        )}
-
-        {/* Show generated invite link */}
-        {actionData?.inviteUrl && (
-          <div style={{ padding: '12px 14px', backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '8px', marginBottom: '16px' }}>
-            <div style={{ fontSize: '13px', fontWeight: '700', color: '#065F46', marginBottom: '6px' }}>
-              ✓ Invite created for {actionData.invitedEmail}
-            </div>
-            <div style={{ fontSize: '12px', color: '#065F46', marginBottom: '8px' }}>
-              Share this link with them — it expires in 7 days:
+            <div style={{ fontSize: '12px', color: '#065F46', marginBottom: '10px' }}>
+              Share this link — expires in 7 days:
             </div>
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              <code style={{ fontSize: '11px', backgroundColor: '#DCFCE7', padding: '6px 10px', borderRadius: '4px', flex: 1, wordBreak: 'break-all', color: '#065F46' }}>
-                {actionData.inviteUrl}
+              <code style={{ fontSize: '11px', backgroundColor: '#DCFCE7', padding: '7px 10px', borderRadius: '6px',
+                flex: 1, wordBreak: 'break-all', color: '#065F46', border: '1px solid #BBF7D0' }}>
+                {inviteUrl}
               </code>
-              <button type="button" onClick={copyInviteUrl}
-                style={{ ...btn.primary, fontSize: '12px', padding: '6px 12px', whiteSpace: 'nowrap' }}>
-                {copiedUrl ? '✓ Copied!' : 'Copy link'}
+              <button type="button" onClick={() => copy(inviteUrl, setCopied)}
+                style={{ ...btnPrimary, fontSize: '12px', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                {copied ? '✓ Copied' : 'Copy'}
               </button>
             </div>
           </div>
         )}
 
+        {/* Error */}
         {actionData?.error && (
-          <div style={{ padding: '10px 14px', backgroundColor: '#FEF2F2', color: '#DC2626', borderRadius: '6px', fontSize: '13px', fontWeight: '600', marginBottom: '16px' }}>
+          <div style={{ padding: '12px 20px', backgroundColor: '#FEF2F2', color: P.errorText,
+            fontSize: '13px', fontWeight: '600', borderBottom: `1px solid #FECACA` }}>
             {actionData.error}
           </div>
         )}
 
-        {/* Portal users list */}
-        {portalUsers.length === 0 ? (
-          <p style={{ margin: 0, color: C.textSub, fontSize: '13px' }}>
-            No portal users yet. Invite your team above.
-          </p>
-        ) : (
-          <div style={{ display: 'grid', gap: '8px' }}>
-            {portalUsers.map(user => (
-              <div key={user.id} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: '10px', alignItems: 'center', padding: '10px 12px', border: `1px solid ${C.border}`, borderRadius: '6px' }}>
-                <div>
-                  <div style={{ fontWeight: '700', color: C.text, fontSize: '13px' }}>
-                    {user.name}
-                    {!user.acceptedAt && (
-                      <span style={{ marginLeft: '6px', fontSize: '10px', backgroundColor: '#FEF3C7', color: '#92400E', borderRadius: '4px', padding: '1px 6px', fontWeight: '700' }}>
-                        Pending
-                      </span>
-                    )}
-                  </div>
-                  <div style={{ fontSize: '12px', color: C.textSub, marginTop: '2px' }}>{user.email}</div>
-                </div>
+        {/* Invite form */}
+        {showForm && (
+          <Form method="post" style={{ padding: '20px' }} onSubmit={() => setShowForm(false)}>
+            <input type="hidden" name="intent" value="invite" />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '16px' }}>
+              <div>
+                <label style={{ fontSize: '11px', fontWeight: '700', color: P.textMuted, textTransform: 'uppercase',
+                  letterSpacing: '0.6px', display: 'block', marginBottom: '6px' }}>Full Name *</label>
+                <input name="name" type="text" required placeholder="Jane Smith" autoFocus style={inputBase} />
+              </div>
+              <div>
+                <label style={{ fontSize: '11px', fontWeight: '700', color: P.textMuted, textTransform: 'uppercase',
+                  letterSpacing: '0.6px', display: 'block', marginBottom: '6px' }}>Email *</label>
+                <input name="email" type="email" required placeholder="jane@brand.com" style={inputBase} />
+              </div>
+            </div>
+            <div style={{ marginBottom: '18px' }}>
+              <label style={{ fontSize: '11px', fontWeight: '700', color: P.textMuted, textTransform: 'uppercase',
+                letterSpacing: '0.6px', display: 'block', marginBottom: '8px' }}>Role</label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                {ROLES.map(r => (
+                  <label key={r} style={{ display: 'flex', flexDirection: 'column', gap: '4px',
+                    padding: '10px 14px', border: `1px solid ${P.border}`, borderRadius: '8px', cursor: 'pointer' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px',
+                      fontSize: '13px', fontWeight: '700', color: P.text }}>
+                      <input type="radio" name="role" value={r} defaultChecked={r === 'Editor'}
+                        style={{ accentColor: P.accent }} />
+                      {r}
+                    </div>
+                    <div style={{ fontSize: '11px', color: P.textMuted, lineHeight: 1.4, paddingLeft: '20px' }}>
+                      {ROLE_DESC[r]}
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button type="submit" style={{ ...btnPrimary, padding: '9px 22px' }}>
+                Generate invite link
+              </button>
+            </div>
+          </Form>
+        )}
+      </div>
 
-                {/* Role dropdown + save */}
-                <Form method="post" style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                  <input type="hidden" name="intent"       value="updatePortalUserRole" />
-                  <input type="hidden" name="portalUserId" value={user.id} />
-                  <select name="role" defaultValue={user.role}
-                    style={{ ...input.base, fontSize: '12px', padding: '4px 8px' }}>
+      {/* ── Active members ──────────────────────────────────── */}
+      <div style={{ backgroundColor: P.surface, border: `1px solid ${P.border}`,
+        borderRadius: '14px', overflow: 'hidden', boxShadow: P.shadow }}>
+        <SectionHeader count={active.length}>Active Members</SectionHeader>
+        {active.length === 0 ? (
+          <div style={{ padding: '20px', fontSize: '13px', color: P.textMuted }}>No active members yet.</div>
+        ) : active.map((user, i) => (
+          <div key={user.id} style={{
+            display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'center',
+            gap: '12px', padding: '14px 20px',
+            borderTop: i > 0 ? `1px solid ${P.borderLight}` : 'none',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+              <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: P.accentFaint,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '14px', fontWeight: '800', color: P.accent, flexShrink: 0 }}>
+                {user.name?.charAt(0).toUpperCase() || '?'}
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: '13px', fontWeight: '700', color: P.text,
+                  display: 'flex', alignItems: 'center', gap: '7px', flexWrap: 'wrap' }}>
+                  {user.name}
+                  {user.email === ownerEmail && (
+                    <span style={{ fontSize: '10px', color: P.textMuted, fontWeight: '600' }}>(you)</span>
+                  )}
+                  <RoleBadge role={user.role} />
+                </div>
+                <div style={{ fontSize: '12px', color: P.textMuted, marginTop: '2px',
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {user.email}
+                </div>
+              </div>
+            </div>
+            {user.email !== ownerEmail && (
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }}>
+                <Form method="post">
+                  <input type="hidden" name="intent" value="updateRole" />
+                  <input type="hidden" name="userId" value={user.id} />
+                  <select name="role" defaultValue={user.role} onChange={e => e.target.form.requestSubmit()}
+                    style={{ ...inputBase, width: 'auto', padding: '5px 8px', fontSize: '12px' }}>
                     {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
                   </select>
-                  <button type="submit" style={{ ...btn.secondary, fontSize: '12px', padding: '4px 10px' }}>
-                    Save
+                </Form>
+                <Form method="post"
+                  onSubmit={e => { if (!confirm(`Remove ${user.name}?`)) e.preventDefault(); }}>
+                  <input type="hidden" name="intent" value="revoke" />
+                  <input type="hidden" name="userId" value={user.id} />
+                  <button type="submit" title="Remove"
+                    style={{ background: 'none', border: 'none', color: P.textMuted,
+                      cursor: 'pointer', fontSize: '20px', lineHeight: 1, padding: '2px 4px' }}>
+                    ×
                   </button>
                 </Form>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
 
-                {/* Resend invite if pending */}
-                {!user.acceptedAt && (
-                  <Form method="post">
-                    <input type="hidden" name="intent" value="invitePortalUser" />
-                    <input type="hidden" name="shop"  value={shop || ''} />
-                    <input type="hidden" name="email" value={user.email} />
-                    <input type="hidden" name="name"  value={user.name} />
-                    <input type="hidden" name="role"  value={user.role} />
-                    <button type="submit" style={{ ...btn.ghost, fontSize: '11px', padding: '4px 10px' }}>
-                      Resend
-                    </button>
-                  </Form>
-                )}
-
-                {/* Remove */}
-                <Form method="post" onSubmit={e => { if (!confirm(`Remove ${user.name}?`)) e.preventDefault(); }}>
-                  <input type="hidden" name="intent"       value="revokePortalUser" />
-                  <input type="hidden" name="portalUserId" value={user.id} />
-                  <button type="submit" style={{ background: 'none', border: 'none', color: C.textMuted, cursor: 'pointer', fontSize: '18px', lineHeight: 1 }}>×</button>
+      {/* ── Pending invites ─────────────────────────────────── */}
+      {pending.length > 0 && (
+        <div style={{ backgroundColor: P.surface, border: `1px solid ${P.border}`,
+          borderRadius: '14px', overflow: 'hidden', boxShadow: P.shadow }}>
+          <SectionHeader count={pending.length}>Pending Invites</SectionHeader>
+          {pending.map((user, i) => (
+            <div key={user.id} style={{
+              display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'center',
+              gap: '12px', padding: '14px 20px',
+              borderTop: i > 0 ? `1px solid ${P.borderLight}` : 'none',
+            }}>
+              <div>
+                <div style={{ fontSize: '13px', fontWeight: '700', color: P.textSub,
+                  display: 'flex', alignItems: 'center', gap: '7px', flexWrap: 'wrap' }}>
+                  {user.name}
+                  <RoleBadge role={user.role} />
+                  <span style={{ fontSize: '10px', fontWeight: '700', backgroundColor: '#FEF3C7',
+                    color: '#92400E', borderRadius: '20px', padding: '2px 8px' }}>Pending</span>
+                </div>
+                <div style={{ fontSize: '12px', color: P.textMuted, marginTop: '2px', display: 'flex', gap: '10px' }}>
+                  <span>{user.email}</span>
+                  {user.inviteExpires && (
+                    <span style={{ color: new Date() > new Date(user.inviteExpires) ? P.errorText : P.textMuted }}>
+                      · expires {new Date(user.inviteExpires).toLocaleDateString()}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+                <Form method="post">
+                  <input type="hidden" name="intent" value="resend" />
+                  <input type="hidden" name="userId" value={user.id} />
+                  <button type="submit" style={btnSecondary}>Resend</button>
+                </Form>
+                <Form method="post"
+                  onSubmit={e => { if (!confirm(`Cancel invite for ${user.name}?`)) e.preventDefault(); }}>
+                  <input type="hidden" name="intent" value="revoke" />
+                  <input type="hidden" name="userId" value={user.id} />
+                  <button type="submit" title="Cancel invite"
+                    style={{ background: 'none', border: 'none', color: P.textMuted,
+                      cursor: 'pointer', fontSize: '20px', lineHeight: 1, padding: '2px 4px' }}>
+                    ×
+                  </button>
                 </Form>
               </div>
-            ))}
-          </div>
-        )}
-      </section>
+            </div>
+          ))}
+        </div>
+      )}
 
-      {/* ── Shopify Members ────────────────────────────────── */}
-      <section style={card.base}>
-        <h3 style={{ margin: '0 0 16px', ...section.title }}>Shopify Admin Members</h3>
-        {members.length === 0 ? (
-          <p style={{ margin: 0, color: C.textSub, fontSize: '13px' }}>
-            No members yet. Members appear automatically when Shopify staff log into the app.
-          </p>
-        ) : (
-          <div style={{ display: 'grid', gap: '10px' }}>
-            {members.map(member => (
-              <Form key={member.id} method="post"
-                style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '10px', alignItems: 'center', padding: '12px', border: `1px solid ${C.border}`, borderRadius: '6px' }}>
-                <input type="hidden" name="intent"       value="updateRole" />
-                <input type="hidden" name="membershipId" value={member.id} />
-                <div>
-                  <div style={{ fontWeight: 700, color: C.text, fontSize: '13px' }}>
-                    {member.firstName || ''} {member.lastName || ''}
-                    {member.isShopifyOwner && (
-                      <span style={{ marginLeft: '6px', fontSize: '10px', backgroundColor: C.accentFaint, color: C.accent, borderRadius: '4px', padding: '1px 6px', fontWeight: '700' }}>
-                        Owner
-                      </span>
-                    )}
-                  </div>
-                  <div style={{ fontSize: '12px', color: C.textSub, marginTop: '2px' }}>
-                    {member.email || 'No email'}
-                  </div>
-                </div>
-                <select name="role" defaultValue={member.role}
-                  style={{ ...input.base, minWidth: '110px', fontSize: '13px' }}>
-                  {ROLES.map(r => (
-                    <option key={r} value={r}>{r}</option>
-                  ))}
-                </select>
-                <button type="submit" style={{ ...btn.secondary, fontSize: '12px', padding: '6px 14px' }}>
-                  Save
-                </button>
-              </Form>
-            ))}
-          </div>
-        )}
-      </section>
     </div>
   );
 }
 
 export function ErrorBoundary() {
-  const error = useRouteError();
-  if (error instanceof Response) {
-    return boundary.error(error);
-  }
-  return (
-    <div style={{ padding: 20 }}>
-      <h2>Something went wrong</h2>
-      <pre style={{ fontSize: 12, color: '#dc2626' }}>
-        {error?.message || String(error)}
-      </pre>
-    </div>
-  );
+  return boundary.error(useRouteError());
 }
+
+export const headers = (headersArgs) => boundary.headers(headersArgs);
