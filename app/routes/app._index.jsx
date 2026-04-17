@@ -110,23 +110,6 @@ function StatCard({ label, value, icon }) {
 
 export default function AppIndex() {
   const { totalSeedings, totalInfluencers, totalCampaigns, byStatus, ownerSetup } = useLoaderData();
-  const [ownerCopied, setOwnerCopied] = useState(false);
-
-  function copy(url) {
-    // navigator.clipboard is blocked in the Shopify iframe — use execCommand fallback
-    try {
-      const ta = document.createElement('textarea');
-      ta.value = url;
-      ta.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
-      document.body.appendChild(ta);
-      ta.focus();
-      ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
-      setOwnerCopied(true);
-      setTimeout(() => setOwnerCopied(false), 2000);
-    } catch (_) {}
-  }
 
   const statuses = ['Pending', 'Ordered', 'Shipped', 'Delivered', 'Posted'];
   const activeStatuses = statuses.filter(s => (byStatus[s] || 0) > 0);
@@ -158,34 +141,37 @@ export default function AppIndex() {
             An Owner account has been created for <strong>{ownerSetup.email}</strong>.
             Click below to set your password and access the full Zeedy portal.
           </p>
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-            <a
-              href={ownerSetup.inviteUrl}
-              target="_blank"
-              rel="noreferrer"
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: '6px',
-                padding: '10px 20px',
-                backgroundColor: '#D97706', color: '#fff',
-                textDecoration: 'none', borderRadius: '10px',
-                fontSize: '14px', fontWeight: '700',
-                boxShadow: '0 2px 8px rgba(217,119,6,0.3)',
-              }}
-            >
-              Set up portal login →
-            </a>
-            <button
-              type="button"
-              onClick={() => copy(ownerSetup.inviteUrl)}
-              style={{
-                background: 'transparent', border: '1px solid #FDE68A',
-                borderRadius: '10px', padding: '9px 16px',
-                fontSize: '13px', fontWeight: '600', color: '#92400E', cursor: 'pointer',
-              }}
-            >
-              {ownerCopied ? '✓ Copied' : 'Copy link'}
-            </button>
+          <a
+            href={ownerSetup.inviteUrl}
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '6px',
+              padding: '10px 20px', marginBottom: '12px',
+              backgroundColor: '#D97706', color: '#fff',
+              textDecoration: 'none', borderRadius: '10px',
+              fontSize: '14px', fontWeight: '700',
+              boxShadow: '0 2px 8px rgba(217,119,6,0.3)',
+            }}
+          >
+            Set up portal login →
+          </a>
+          <div style={{ fontSize: '11px', fontWeight: '700', color: '#92400E', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            Or copy this link manually:
           </div>
+          <input
+            type="text"
+            readOnly
+            value={ownerSetup.inviteUrl}
+            onClick={e => e.target.select()}
+            style={{
+              width: '100%', boxSizing: 'border-box',
+              padding: '8px 12px', fontSize: '12px',
+              border: '1px solid #FDE68A', borderRadius: '8px',
+              backgroundColor: '#FFFDE7', color: '#92400E',
+              fontFamily: 'monospace', cursor: 'text',
+            }}
+          />
         </div>
       )}
 

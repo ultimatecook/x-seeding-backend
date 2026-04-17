@@ -184,27 +184,9 @@ export default function AppSettings() {
   const { users, ownerSetup, ownerEmail } = useLoaderData();
   const actionData = useActionData();
 
-  const [showForm,     setShowForm]     = useState(false);
-  const [copied,       setCopied]       = useState(false);
-  const [ownerCopied,  setOwnerCopied]  = useState(false);
+  const [showForm, setShowForm] = useState(false);
 
   const inviteUrl = actionData?.inviteUrl;
-
-  function copy(url, setter) {
-    // navigator.clipboard is blocked in the Shopify iframe — use execCommand fallback
-    try {
-      const ta = document.createElement('textarea');
-      ta.value = url;
-      ta.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
-      document.body.appendChild(ta);
-      ta.focus();
-      ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
-    } catch (_) {}
-    setter(true);
-    setTimeout(() => setter(false), 2000);
-  }
 
   const active  = users.filter(u =>  u.acceptedAt);
   const pending = users.filter(u => !u.acceptedAt);
@@ -238,17 +220,27 @@ export default function AppSettings() {
               : <>Your portal account (<strong>{ownerSetup.email}</strong>) exists but no password has been set yet.</>
             }
           </p>
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-            <a href={ownerSetup.inviteUrl} target="_blank" rel="noreferrer"
-              style={{ ...btnPrimary, backgroundColor: '#D97706', textDecoration: 'none',
-                display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-              Set up portal login →
-            </a>
-            <button type="button" onClick={() => copy(ownerSetup.inviteUrl, setOwnerCopied)}
-              style={{ ...btnSecondary, borderColor: '#FDE68A', color: '#92400E' }}>
-              {ownerCopied ? '✓ Copied' : 'Copy link'}
-            </button>
+          <a href={ownerSetup.inviteUrl} target="_blank" rel="noreferrer"
+            style={{ ...btnPrimary, backgroundColor: '#D97706', textDecoration: 'none',
+              display: 'inline-flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
+            Set up portal login →
+          </a>
+          <div style={{ fontSize: '11px', fontWeight: '700', color: '#92400E', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            Or copy manually:
           </div>
+          <input
+            type="text"
+            readOnly
+            value={ownerSetup.inviteUrl}
+            onClick={e => e.target.select()}
+            style={{
+              width: '100%', boxSizing: 'border-box',
+              padding: '7px 10px', fontSize: '11px',
+              border: '1px solid #FDE68A', borderRadius: '6px',
+              backgroundColor: '#FFFDE7', color: '#92400E',
+              fontFamily: 'monospace', cursor: 'text',
+            }}
+          />
         </div>
       )}
 
@@ -278,16 +270,19 @@ export default function AppSettings() {
             <div style={{ fontSize: '12px', color: '#065F46', marginBottom: '10px' }}>
               Share this link — expires in 7 days:
             </div>
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              <code style={{ fontSize: '11px', backgroundColor: '#DCFCE7', padding: '7px 10px', borderRadius: '6px',
-                flex: 1, wordBreak: 'break-all', color: '#065F46', border: '1px solid #BBF7D0' }}>
-                {inviteUrl}
-              </code>
-              <button type="button" onClick={() => copy(inviteUrl, setCopied)}
-                style={{ ...btnPrimary, fontSize: '12px', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                {copied ? '✓ Copied' : 'Copy'}
-              </button>
-            </div>
+            <input
+              type="text"
+              readOnly
+              value={inviteUrl}
+              onClick={e => e.target.select()}
+              style={{
+                width: '100%', boxSizing: 'border-box',
+                padding: '7px 10px', fontSize: '11px',
+                border: '1px solid #BBF7D0', borderRadius: '6px',
+                backgroundColor: '#DCFCE7', color: '#065F46',
+                fontFamily: 'monospace', cursor: 'text',
+              }}
+            />
           </div>
         )}
 
