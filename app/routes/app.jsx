@@ -23,15 +23,28 @@ export default function AppLayout() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
 
-  // Handle shopify:navigate from the admin chrome ui-nav-menu.
-  // Try both event.detail.href (CustomEvent format) and event.target.href (element format).
   useEffect(() => {
+    // App Bridge 4.x doesn't automatically inject its JWT into React Router's
+    // client-side data fetches. Patch window.fetch so every same-origin request
+    // gets an Authorization header with the current session token.
+    const orig = window.fetch.bind(window);
+    window.fetch = async function (input, init = {}) {
+      try {
+        const url = typeof input === 'string' ? input : input?.url ?? '';
+        const isSameOrigin = url.startsWith('/') || url.startsWith(window.location.origin);
+        if (isSameOrigin && window.shopify?.idToken) {
+          const token = await window.shopify.idToken();
+          if (token) {
+            init = { ...init, headers: { Authorization: `Bearer ${token}`, ...init.headers } };
+          }
+        }
+      } catch (_) {}
+      return orig(input, init);
+    };
+
+    // Handle shopify:navigate from admin chrome
     function handleShopifyNavigate(event) {
-      const href =
-        event.detail?.href ||
-        event.detail?.path ||
-        event.target?.getAttribute?.('href');
-      console.log('[app] shopify:navigate fired, href=', href, 'detail=', event.detail);
+      const href = event.detail?.href || event.detail?.path || event.target?.getAttribute?.('href');
       if (href && href.startsWith('/app')) {
         event.stopImmediatePropagation();
         navigate(href);
@@ -39,7 +52,9 @@ export default function AppLayout() {
     }
     document.addEventListener('shopify:navigate', handleShopifyNavigate, true);
     window.addEventListener('shopify:navigate', handleShopifyNavigate, true);
+
     return () => {
+      window.fetch = orig;
       document.removeEventListener('shopify:navigate', handleShopifyNavigate, true);
       window.removeEventListener('shopify:navigate', handleShopifyNavigate, true);
     };
