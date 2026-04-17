@@ -14,45 +14,44 @@ export async function fetchShopifyLocations(shop) {
   const debug = [];
   try {
     const allSessions = await prisma.session.findMany({ where: { shop } });
-    debug.push(`sessions in DB for shop "${shop}": ${allSessions.length}`);
+    debug.push(`sessions in DB: ${allSessions.length}`);
     if (allSessions.length === 0) {
-      debug.push('NO SESSION FOUND — open the app in Shopify admin first');
+      debug.push('NO SESSION — open the app in Shopify admin first');
       return { locations: [], debug };
     }
 
     let session = allSessions.find(s => !s.isOnline && !s.expires)
       || allSessions.find(s => !s.isOnline)
       || allSessions[0];
-    debug.push(`using session id=${session.id} isOnline=${session.isOnline} expires=${session.expires} hasToken=${!!session.accessToken}`);
+    debug.push(`session isOnline=${session.isOnline} hasToken=${!!session.accessToken}`);
 
-    // Try GraphQL
-    const gqlRes  = await fetch(`https://${shop}/admin/api/2025-10/graphql.json`, {
+    // Use inventory levels to discover locations (requires only read_inventory scope)
+    const res  = await fetch(`https://${shop}/admin/api/2025-10/graphql.json`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': session.accessToken },
-      body:    JSON.stringify({ query: `query { locations(first: 50) { nodes { id name isActive } } }` }),
+      body:    JSON.stringify({
+        query: `query {
+          inventoryItems(first: 10, query: "tracked:true") {
+            edges { node { inventoryLevels(first: 50) { edges { node { location { id name isActive } } } } } }
+          }
+        }`,
+      }),
     });
-    const gqlBody = await gqlRes.json();
-    debug.push(`GraphQL status=${gqlRes.status} errors=${JSON.stringify(gqlBody.errors)} nodeCount=${gqlBody?.data?.locations?.nodes?.length ?? 'null'}`);
+    const body = await res.json();
+    debug.push(`GraphQL status=${res.status} errors=${body.errors ? 'yes' : 'none'}`);
 
-    const gqlLocs = gqlBody?.data?.locations?.nodes;
-    if (gqlLocs?.length > 0) return { locations: gqlLocs, debug };
-
-    // Fallback: REST
-    const restRes  = await fetch(`https://${shop}/admin/api/2025-10/locations.json?limit=50`, {
-      headers: { 'X-Shopify-Access-Token': session.accessToken },
-    });
-    const restBody = await restRes.json();
-    debug.push(`REST status=${restRes.status} count=${restBody?.locations?.length ?? 'null'} errors=${JSON.stringify(restBody?.errors)}`);
-
-    const restLocs = (restBody?.locations ?? []).map(l => ({
-      id:       `gid://shopify/Location/${l.id}`,
-      name:     l.name,
-      isActive: l.active,
-    }));
-    return { locations: restLocs, debug };
+    const seen = new Map();
+    for (const item of body?.data?.inventoryItems?.edges ?? []) {
+      for (const level of item.node?.inventoryLevels?.edges ?? []) {
+        const loc = level.node?.location;
+        if (loc?.id && !seen.has(loc.id)) seen.set(loc.id, loc);
+      }
+    }
+    const locations = [...seen.values()];
+    debug.push(`found ${locations.length} locations`);
+    return { locations, debug };
   } catch (e) {
     debug.push(`exception: ${e?.message}`);
-    console.error('[inventory] fetchShopifyLocations error:', e?.message);
     return { locations: [], debug };
   }
 }
@@ -77,13 +76,48 @@ export async function syncLocations(shop) {
 
 /**
  * Sync locations using the authenticated `admin` object from authenticate.admin().
- * This always has a valid token — call this from Shopify admin routes.
+ * Uses read_inventory scope (already granted) to discover locations via inventory levels.
+ * Falls back to the locations API if read_locations scope is also available.
  */
 export async function syncLocationsWithAdmin(shop, admin) {
   try {
-    const resp = await admin.graphql(`query { locations(first: 50) { nodes { id name isActive } } }`);
+    // Primary: get locations via inventoryItems → inventoryLevels → location
+    // Works with read_inventory scope (no read_locations needed)
+    const resp = await admin.graphql(`
+      query {
+        inventoryItems(first: 10, query: "tracked:true") {
+          edges {
+            node {
+              inventoryLevels(first: 50) {
+                edges {
+                  node {
+                    location {
+                      id
+                      name
+                      isActive
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    `);
     const { data } = await resp.json();
-    const locs = data?.locations?.nodes ?? [];
+
+    // Deduplicate locations across all inventory items
+    const seen = new Map();
+    for (const item of data?.inventoryItems?.edges ?? []) {
+      for (const level of item.node?.inventoryLevels?.edges ?? []) {
+        const loc = level.node?.location;
+        if (loc?.id && !seen.has(loc.id)) seen.set(loc.id, loc);
+      }
+    }
+
+    const locs = [...seen.values()];
+    console.log(`[inventory] syncLocationsWithAdmin: found ${locs.length} locations via inventory levels for ${shop}`);
+
     for (const loc of locs) {
       await prisma.inventoryLocation.upsert({
         where:  { shop_shopifyLocationId: { shop, shopifyLocationId: loc.id } },
@@ -91,7 +125,6 @@ export async function syncLocationsWithAdmin(shop, admin) {
         create: { shop, shopifyLocationId: loc.id, name: loc.name, isEnabled: true, priorityOrder: 999 },
       });
     }
-    console.log(`[inventory] syncLocationsWithAdmin: upserted ${locs.length} locations for ${shop}`);
   } catch (e) {
     console.error('[inventory] syncLocationsWithAdmin error:', e?.message);
   }
