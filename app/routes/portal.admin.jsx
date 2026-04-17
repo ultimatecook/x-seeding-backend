@@ -7,7 +7,7 @@ import { Form, useLoaderData, useActionData, useNavigation } from 'react-router'
 import prisma from '../db.server';
 import { requirePortalUser } from '../utils/portal-auth.server';
 import { requirePermission } from '../utils/portal-permissions';
-import { getInventoryLocations } from '../utils/inventory.server';
+import { getInventoryLocations, syncLocations } from '../utils/inventory.server';
 import { getPoolStats } from '../utils/discount-codes.server';
 import { D, Pbtn as btn, Pinput as input } from '../utils/portal-theme';
 
@@ -31,6 +31,13 @@ export async function action({ request }) {
 
   const formData = await request.formData();
   const intent   = formData.get('intent');
+
+  // ── Sync from Shopify ────────────────────────────────────────────────────
+  if (intent === 'syncLocations') {
+    const { count, error } = await syncLocations(shop);
+    if (error) return { error };
+    return { ok: true, message: `Synced ${count} location${count !== 1 ? 's' : ''} from Shopify.` };
+  }
 
   // ── Add location manually ────────────────────────────────────────────────
   if (intent === 'addLocation') {
@@ -234,6 +241,14 @@ export default function PortalAdmin() {
             Add your Shopify fulfilment locations, then enable/disable and set their priority order.
             When a seeding is created, the top-priority enabled location is used.
           </p>
+
+          {/* Sync from Shopify */}
+          <Form method="post">
+            <input type="hidden" name="intent" value="syncLocations" />
+            <button type="submit" disabled={busy} style={{ ...btn.primary, fontSize: '13px' }}>
+              {busy ? 'Syncing…' : '↻ Sync from Shopify'}
+            </button>
+          </Form>
 
           {/* Add location form */}
           <Form method="post" style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
