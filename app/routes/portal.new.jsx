@@ -344,10 +344,10 @@ const FOLLOWER_RANGES = [
   { label: '100K+',  min: 100_000,   max: Infinity },
 ];
 
-function FilterPill({ label, active, onClick }) {
+function Pill({ label, active, onClick }) {
   return (
     <button type="button" onClick={onClick} style={{
-      padding: '4px 11px', fontSize: '11px', fontWeight: '700', borderRadius: '20px',
+      padding: '3px 10px', fontSize: '11px', fontWeight: '600', borderRadius: '20px',
       border: `1.5px solid ${active ? D.accent : D.border}`,
       backgroundColor: active ? D.accentLight : 'transparent',
       color: active ? D.accent : D.textSub,
@@ -397,7 +397,6 @@ export default function PortalNewSeeding() {
     );
   }, [selectedInfluencer?.id]);
 
-  // ── Derived influencer filter data ──────────────────────────────────────────
   // Top 5 countries by influencer count
   const countryCounts = {};
   for (const inf of influencers) {
@@ -422,12 +421,10 @@ export default function PortalNewSeeding() {
     return true;
   });
 
-  // ── Derived product filter data ─────────────────────────────────────────────
   const campaignProductIds = selectedCampaign
     ? new Set(selectedCampaign.products.map(cp => cp.productId))
     : null;
 
-  // Build a Set for the selected collection's product IDs (for fast lookup)
   const collectionProductIds = selectedCollection
     ? new Set(selectedCollection.productIds)
     : null;
@@ -460,7 +457,6 @@ export default function PortalNewSeeding() {
     } else if (savedSize) {
       const match = prod.variants.find(v => extractSizeFromVariant(v.title) === savedSize);
       if (match) {
-        // Use the saved size regardless of stock — it's a seeding, OOS is fine
         matchedVariant  = match;
         size            = extractSizeFromVariant(match.title);
         sizeUnavailable = match.available === false;
@@ -478,15 +474,15 @@ export default function PortalNewSeeding() {
     }]);
   }
 
-  const totalCost    = selectedProducts.reduce((sum, p) => sum + (p.selectedVariant?.price ?? p.price ?? 0), 0);
+  const totalRetail  = selectedProducts.reduce((sum, p) => sum + (p.selectedVariant?.price ?? p.price ?? 0), 0);
   const allHaveSizes = selectedProducts.every(p => p.size);
   const canSubmit    = !submitting && selectedInfluencer && selectedProducts.length > 0 && allHaveSizes;
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!selectedInfluencer)      { setSubmitError('Select an influencer first.'); return; }
-    if (selectedProducts.length === 0) { setSubmitError('Add at least one product.'); return; }
-    if (!allHaveSizes)            { setSubmitError('All products must have a size selected.'); return; }
+    if (!selectedInfluencer)          { setSubmitError('Select an influencer first.'); return; }
+    if (selectedProducts.length === 0){ setSubmitError('Add at least one product.'); return; }
+    if (!allHaveSizes)                { setSubmitError('All products must have a size selected.'); return; }
     setSubmitting(true);
     setSubmitError(null);
     e.target.submit();
@@ -494,13 +490,26 @@ export default function PortalNewSeeding() {
 
   return (
     <div>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-        <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '800', color: D.text, letterSpacing: '-0.3px' }}>New Seeding</h2>
-        <button type="button" onClick={() => navigate('/portal/seedings')} style={{ ...btn.ghost }}>← Back</button>
+      <style>{`
+        @keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-4px)} 40%{transform:translateX(4px)} 60%{transform:translateX(-3px)} 80%{transform:translateX(3px)} }
+        @keyframes fadeIn { from{opacity:0;transform:translateY(5px)} to{opacity:1;transform:translateY(0)} }
+        .inf-row:hover { background: ${D.surfaceHigh} !important; }
+        .inf-row-active:hover { background: ${D.accentLight} !important; }
+        .prod-tile { transition: transform 0.12s ease, box-shadow 0.12s ease; }
+        .prod-tile:hover { transform: scale(1.025); box-shadow: 0 4px 14px rgba(0,0,0,0.08); }
+      `}</style>
+
+      {/* ── Header ── */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '800', color: D.text, letterSpacing: '-0.3px' }}>New Seeding</h2>
+          <p style={{ margin: '3px 0 0', fontSize: '13px', color: D.textMuted }}>Send products to an influencer</p>
+        </div>
+        <button type="button" onClick={() => navigate('/portal/seedings')} style={{ ...btn.ghost, fontSize: '13px' }}>← Back</button>
       </div>
 
       <Form method="post" onSubmit={handleSubmit}>
+        {/* Hidden inputs */}
         <input type="hidden" name="shop"         value={shop} />
         <input type="hidden" name="influencerId" value={selectedInfluencer?.id ?? ''} />
         <input type="hidden" name="campaignId"   value={selectedCampaign?.id ?? ''} />
@@ -517,165 +526,174 @@ export default function PortalNewSeeding() {
           </span>
         ))}
 
-        <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: '20px', alignItems: 'start' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '20px', alignItems: 'start' }}>
 
-          {/* ── LEFT: influencer + campaign + notes + submit ── */}
-          <div style={{ display: 'grid', gap: '14px' }}>
+          {/* ══ LEFT SIDEBAR ══ */}
+          <div style={{ backgroundColor: D.surface, border: `1px solid ${D.border}`, borderRadius: '14px', overflow: 'hidden', position: 'sticky', top: '16px' }}>
 
-            {/* Influencer picker */}
-            <div style={{ backgroundColor: D.surface, border: `1px solid ${D.border}`, borderRadius: '12px', overflow: 'hidden' }}>
-              <div style={{ padding: '14px 16px', borderBottom: `1px solid ${D.border}` }}>
-                <div style={{ fontWeight: '800', fontSize: '13px', color: D.text, marginBottom: '10px' }}>Influencer</div>
+            {/* ── Influencer section ── */}
+            <div style={{ padding: '16px 16px 0' }}>
+              <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.6px', color: D.textMuted, marginBottom: '10px' }}>Influencer</div>
 
-                {/* Search */}
-                <input type="text" placeholder="Search by name or handle…" value={infSearch}
-                  onChange={e => setInfSearch(e.target.value)}
-                  style={{ ...input.base, width: '100%', boxSizing: 'border-box', fontSize: '13px', marginBottom: '10px' }} />
+              <input type="text" placeholder="Search…" value={infSearch}
+                onChange={e => setInfSearch(e.target.value)}
+                style={{ ...input.base, width: '100%', boxSizing: 'border-box', fontSize: '13px', marginBottom: '8px' }} />
 
-                {/* Follower range pills */}
-                <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', marginBottom: '8px' }}>
-                  {FOLLOWER_RANGES.map(r => (
-                    <FilterPill key={r.label} label={r.label}
-                      active={infFollowerRange === r.label}
-                      onClick={() => setInfFollowerRange(r.label)} />
+              {/* Follower range */}
+              <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '6px' }}>
+                {FOLLOWER_RANGES.map(r => (
+                  <Pill key={r.label} label={r.label}
+                    active={infFollowerRange === r.label}
+                    onClick={() => setInfFollowerRange(r.label)} />
+                ))}
+              </div>
+
+              {/* Country pills */}
+              {topCountries.length > 0 && (
+                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '10px' }}>
+                  <Pill label="All" active={!infCountry} onClick={() => setInfCountry('')} />
+                  {topCountries.map(c => (
+                    <Pill key={c} label={`${countryFlag(c)} ${c}`}
+                      active={infCountry === c}
+                      onClick={() => setInfCountry(infCountry === c ? '' : c)} />
                   ))}
-                </div>
-
-                {/* Top country pills */}
-                {topCountries.length > 0 && (
-                  <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
-                    <FilterPill label="🌍 All" active={!infCountry} onClick={() => setInfCountry('')} />
-                    {topCountries.map(c => (
-                      <FilterPill key={c}
-                        label={`${countryFlag(c)} ${c}`}
-                        active={infCountry === c}
-                        onClick={() => setInfCountry(infCountry === c ? '' : c)} />
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Influencer list */}
-              <div style={{ maxHeight: '280px', overflowY: 'auto' }}>
-                {filteredInfluencers.length === 0 ? (
-                  <div style={{ padding: '24px 16px', textAlign: 'center', fontSize: '12px', color: D.textMuted }}>
-                    No influencers match your filters
-                  </div>
-                ) : (
-                  filteredInfluencers.map(inf => {
-                    const isSelected = selectedInfluencer?.id === inf.id;
-                    const followers  = fmtFollowers(inf.followers);
-                    return (
-                      <button key={inf.id} type="button" onClick={() => setSelectedInfluencer(inf)}
-                        style={{
-                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                          width: '100%', padding: '10px 14px', cursor: 'pointer', textAlign: 'left',
-                          border: 'none', borderBottom: `1px solid ${D.borderLight}`,
-                          backgroundColor: isSelected ? D.accentFaint : 'transparent',
-                          transition: 'background-color 0.1s',
-                        }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-                          {/* Avatar initial */}
-                          <div style={{
-                            width: '28px', height: '28px', borderRadius: '50%', flexShrink: 0,
-                            background: `linear-gradient(135deg, ${D.accent}, ${D.purple})`,
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontSize: '11px', fontWeight: '800', color: '#fff',
-                          }}>
-                            {(inf.handle?.[0] ?? '?').toUpperCase()}
-                          </div>
-                          <div style={{ minWidth: 0 }}>
-                            <div style={{ fontSize: '13px', fontWeight: '700', color: isSelected ? D.accent : D.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              @{inf.handle}
-                            </div>
-                            {inf.name && (
-                              <div style={{ fontSize: '11px', color: D.textMuted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                {inf.name}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px', flexShrink: 0, marginLeft: '8px' }}>
-                          {followers && (
-                            <span style={{ fontSize: '11px', fontWeight: '700', color: D.textSub }}>{followers}</span>
-                          )}
-                          {inf.country && (
-                            <span style={{ fontSize: '10px', color: D.textMuted }}>{inf.country}</span>
-                          )}
-                        </div>
-                      </button>
-                    );
-                  })
-                )}
-              </div>
-
-              {/* Selected influencer summary */}
-              {selectedInfluencer && (
-                <div style={{ padding: '10px 14px', borderTop: `1px solid ${D.border}`, backgroundColor: D.accentFaint, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: '12px', fontWeight: '700', color: D.accent }}>✓ @{selectedInfluencer.handle}</span>
-                  <button type="button" onClick={() => setSelectedInfluencer(null)}
-                    style={{ background: 'none', border: 'none', color: D.textMuted, cursor: 'pointer', fontSize: '16px', lineHeight: 1 }}>×</button>
                 </div>
               )}
             </div>
 
-            {/* Campaign picker */}
-            <div style={{ backgroundColor: D.surface, border: `1px solid ${D.border}`, borderRadius: '12px', padding: '14px 16px' }}>
-              <div style={{ fontWeight: '800', fontSize: '13px', color: D.text, marginBottom: '10px' }}>Campaign <span style={{ fontWeight: '400', color: D.textMuted }}>(optional)</span></div>
-              <div style={{ display: 'grid', gap: '4px' }}>
-                <button type="button" onClick={() => setSelectedCampaign(null)}
-                  style={{ padding: '7px 10px', borderRadius: '7px', cursor: 'pointer', textAlign: 'left', fontSize: '13px', border: `1px solid ${!selectedCampaign ? D.accent : 'transparent'}`, backgroundColor: !selectedCampaign ? D.accentFaint : 'transparent', color: D.text, fontWeight: !selectedCampaign ? '700' : '400' }}>
-                  No campaign
-                </button>
-                {campaigns.map(c => (
-                  <button key={c.id} type="button" onClick={() => setSelectedCampaign(c)}
-                    style={{ padding: '7px 10px', borderRadius: '7px', cursor: 'pointer', textAlign: 'left', fontSize: '13px', border: `1px solid ${selectedCampaign?.id === c.id ? D.accent : 'transparent'}`, backgroundColor: selectedCampaign?.id === c.id ? D.accentFaint : 'transparent', color: D.text }}>
-                    {c.title}
+            {/* Influencer list */}
+            <div style={{ maxHeight: '260px', overflowY: 'auto', borderTop: `1px solid ${D.borderLight}` }}>
+              {filteredInfluencers.length === 0 ? (
+                <div style={{ padding: '20px 16px', textAlign: 'center', fontSize: '12px', color: D.textMuted }}>
+                  No influencers match your filters
+                </div>
+              ) : filteredInfluencers.map(inf => {
+                const isSelected = selectedInfluencer?.id === inf.id;
+                const followers  = fmtFollowers(inf.followers);
+                return (
+                  <button key={inf.id} type="button"
+                    className={isSelected ? 'inf-row inf-row-active' : 'inf-row'}
+                    onClick={() => setSelectedInfluencer(inf)}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      width: '100%', padding: '9px 14px', cursor: 'pointer', textAlign: 'left',
+                      border: 'none', borderBottom: `1px solid ${D.borderLight}`,
+                      backgroundColor: isSelected ? D.accentLight : 'transparent',
+                      transition: 'background-color 0.1s',
+                    }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                      <div style={{
+                        width: '26px', height: '26px', borderRadius: '50%', flexShrink: 0,
+                        background: `linear-gradient(135deg, ${D.accent}, ${D.purple})`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '10px', fontWeight: '800', color: '#fff',
+                      }}>
+                        {(inf.handle?.[0] ?? '?').toUpperCase()}
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: '13px', fontWeight: isSelected ? '700' : '600', color: isSelected ? D.accent : D.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          @{inf.handle}
+                        </div>
+                        {inf.name && (
+                          <div style={{ fontSize: '11px', color: D.textMuted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {inf.name}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '1px', flexShrink: 0, marginLeft: '8px' }}>
+                      {isSelected && <span style={{ fontSize: '10px', fontWeight: '800', color: D.accent }}>✓</span>}
+                      {followers && <span style={{ fontSize: '10px', fontWeight: '600', color: D.textSub }}>{followers}</span>}
+                      {inf.country && <span style={{ fontSize: '10px', color: D.textMuted }}>{inf.country}</span>}
+                    </div>
                   </button>
-                ))}
-              </div>
+                );
+              })}
             </div>
 
-            {/* Notes */}
-            <div style={{ backgroundColor: D.surface, border: `1px solid ${D.border}`, borderRadius: '12px', padding: '14px 16px' }}>
-              <div style={{ fontWeight: '800', fontSize: '13px', color: D.text, marginBottom: '8px' }}>Notes</div>
-              <textarea name="notes" value={notes} onChange={e => setNotes(e.target.value)} rows={3}
-                placeholder="Any notes about this seeding…"
-                style={{ ...input.base, width: '100%', resize: 'vertical', boxSizing: 'border-box', fontSize: '13px' }} />
-            </div>
-
-            {/* Error + submit */}
-            {submitError && (
-              <div style={{ padding: '10px 14px', backgroundColor: D.errorBg, color: D.errorText, borderRadius: '8px', fontSize: '13px', fontWeight: '600' }}>
-                {submitError}
+            {/* ── Campaign section ── */}
+            {campaigns.length > 0 && (
+              <div style={{ padding: '12px 16px', borderTop: `1px solid ${D.border}` }}>
+                <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.6px', color: D.textMuted, marginBottom: '8px' }}>
+                  Campaign <span style={{ fontWeight: '400', textTransform: 'none', color: D.textMuted, opacity: 0.7 }}>— optional</span>
+                </div>
+                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                  <Pill label="None" active={!selectedCampaign} onClick={() => setSelectedCampaign(null)} />
+                  {campaigns.map(c => (
+                    <Pill key={c.id} label={c.title}
+                      active={selectedCampaign?.id === c.id}
+                      onClick={() => setSelectedCampaign(selectedCampaign?.id === c.id ? null : c)} />
+                  ))}
+                </div>
               </div>
             )}
-            <button type="submit" disabled={!canSubmit}
-              style={{ ...btn.primary, opacity: canSubmit ? 1 : 0.45, cursor: canSubmit ? 'pointer' : 'not-allowed', padding: '12px', fontSize: '14px' }}>
-              {submitting ? 'Creating…' : `Create Seeding${selectedProducts.length > 0 ? ` (${selectedProducts.length})` : ''}`}
-            </button>
+
+            {/* ── Notes section ── */}
+            <div style={{ padding: '12px 16px', borderTop: `1px solid ${D.border}` }}>
+              <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.6px', color: D.textMuted, marginBottom: '6px' }}>
+                Notes <span style={{ fontWeight: '400', textTransform: 'none', opacity: 0.7 }}>— optional</span>
+              </div>
+              <textarea name="notes" value={notes} onChange={e => setNotes(e.target.value)} rows={2}
+                placeholder="Content direction, brief, notes…"
+                style={{ ...input.base, width: '100%', resize: 'vertical', boxSizing: 'border-box', fontSize: '12px' }} />
+            </div>
+
+            {/* ── CTA ── */}
+            <div style={{ padding: '12px 16px', borderTop: `1px solid ${D.border}` }}>
+              {submitError && (
+                <div style={{ marginBottom: '8px', padding: '8px 12px', backgroundColor: D.errorBg, color: D.errorText, borderRadius: '7px', fontSize: '12px', fontWeight: '600' }}>
+                  {submitError}
+                </div>
+              )}
+              <button type="submit" disabled={!canSubmit}
+                style={{
+                  width: '100%',
+                  padding: '13px',
+                  borderRadius: '10px',
+                  border: 'none',
+                  background: canSubmit
+                    ? `linear-gradient(135deg, ${D.accent} 0%, ${D.purple} 100%)`
+                    : D.surfaceHigh,
+                  color: canSubmit ? '#fff' : D.textMuted,
+                  fontSize: '14px',
+                  fontWeight: '700',
+                  cursor: canSubmit ? 'pointer' : 'not-allowed',
+                  boxShadow: canSubmit ? '0 4px 16px rgba(124,111,247,0.3)' : 'none',
+                  transition: 'all 0.2s ease',
+                  letterSpacing: '-0.1px',
+                }}>
+                {submitting
+                  ? 'Creating…'
+                  : selectedProducts.length > 0
+                    ? `🚀 Create Seeding (${selectedProducts.length})`
+                    : 'Create Seeding'}
+              </button>
+
+              {/* Validation hints */}
+              {!selectedInfluencer && (
+                <p style={{ margin: '6px 0 0', fontSize: '11px', color: D.textMuted, textAlign: 'center' }}>Select an influencer to continue</p>
+              )}
+              {selectedInfluencer && selectedProducts.length > 0 && !allHaveSizes && (
+                <p style={{ margin: '6px 0 0', fontSize: '11px', color: D.errorText, textAlign: 'center', fontWeight: '600' }}>⚠️ All products need a size</p>
+              )}
+            </div>
           </div>
 
-          {/* ── RIGHT: product picker + basket ── */}
-          <div style={{ display: 'grid', gap: '14px' }}>
+          {/* ══ RIGHT: products + basket ══ */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
-            {/* Product picker */}
-            <div style={{ backgroundColor: D.surface, border: `1px solid ${D.border}`, borderRadius: '12px', overflow: 'hidden' }}>
-              <div style={{ padding: '14px 16px', borderBottom: `1px solid ${D.border}` }}>
-                <div style={{ fontWeight: '800', fontSize: '13px', color: D.text, marginBottom: '10px' }}>Products</div>
-
-                {/* Search */}
+            {/* ── Product browser ── */}
+            <div style={{ backgroundColor: D.surface, border: `1px solid ${D.border}`, borderRadius: '14px', overflow: 'hidden' }}>
+              {/* Toolbar */}
+              <div style={{ padding: '14px 16px', borderBottom: `1px solid ${D.border}`, display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
                 <input type="text" placeholder="Search products…" value={search}
                   onChange={e => setSearch(e.target.value)}
-                  style={{ ...input.base, width: '100%', boxSizing: 'border-box', fontSize: '13px', marginBottom: '10px' }} />
-
-                {/* Collection pills */}
+                  style={{ ...input.base, flex: '1', minWidth: '160px', fontSize: '13px' }} />
                 {collections.length > 0 && (
-                  <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
-                    <FilterPill label="All" active={!selectedCollection}
-                      onClick={() => setSelectedCollection(null)} />
+                  <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                    <Pill label="All" active={!selectedCollection} onClick={() => setSelectedCollection(null)} />
                     {collections.map(c => (
-                      <FilterPill key={c.id} label={c.title}
+                      <Pill key={c.id} label={c.title}
                         active={selectedCollection?.id === c.id}
                         onClick={() => setSelectedCollection(selectedCollection?.id === c.id ? null : c)} />
                     ))}
@@ -684,15 +702,18 @@ export default function PortalNewSeeding() {
               </div>
 
               {productsError && (
-                <div style={{ padding: '12px 16px', backgroundColor: D.warningBg, color: D.warningText, fontSize: '13px' }}>
+                <div style={{ padding: '10px 16px', backgroundColor: D.warningBg, color: D.warningText, fontSize: '13px' }}>
                   ⚠️ {productsError}
                 </div>
               )}
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '10px', maxHeight: '380px', overflowY: 'auto', padding: '14px 16px' }}>
+              {/* Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '10px', padding: '14px 16px', maxHeight: '400px', overflowY: 'auto' }}>
                 {!productsError && filteredProducts.length === 0 && (
                   <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '32px 16px', color: D.textMuted, fontSize: '13px' }}>
-                    {products.length === 0 ? 'No products found in your Shopify store.' : `No products in ${selectedCollection ? `"${selectedCollection.title}"` : 'this filter'}${search ? ` matching "${search}"` : ''}.`}
+                    {products.length === 0
+                      ? 'No products found in your Shopify store.'
+                      : `No products match${search ? ` "${search}"` : ''}.`}
                   </div>
                 )}
                 {filteredProducts.map(prod => {
@@ -700,33 +721,35 @@ export default function PortalNewSeeding() {
                   const recentlySent = !!(selectedInfluencer && recentlySeedMapForInfluencer[prod.id]);
                   const alreadyAdded = selectedProducts.some(p => p.id === prod.id);
                   const isShaking    = shakeId === prod.id;
+                  const blocked      = outOfStock || recentlySent;
                   return (
                     <div key={prod.id}
-                      draggable={!outOfStock && !recentlySent}
+                      draggable={!blocked}
                       onDragStart={() => setDragProductId(prod.id)}
                       onDragEnd={() => setDragProductId(null)}
-                      onClick={() => { if (!outOfStock && !recentlySent && !alreadyAdded) handleDrop(prod); }}
+                      onClick={() => { if (!blocked && !alreadyAdded) handleDrop(prod); }}
+                      className={blocked || alreadyAdded ? '' : 'prod-tile'}
                       style={{
-                        border: `1.5px solid ${alreadyAdded ? D.accent : D.border}`,
+                        border: `${alreadyAdded ? '2px' : '1px'} solid ${alreadyAdded ? D.accent : D.border}`,
                         borderRadius: '10px', overflow: 'hidden',
-                        cursor: outOfStock || recentlySent ? 'not-allowed' : alreadyAdded ? 'default' : 'pointer',
-                        opacity: outOfStock || recentlySent ? 0.45 : 1,
-                        backgroundColor: alreadyAdded ? D.accentFaint : D.surface,
+                        cursor: blocked ? 'not-allowed' : alreadyAdded ? 'default' : 'pointer',
+                        opacity: blocked ? 0.4 : 1,
+                        backgroundColor: alreadyAdded ? D.accentLight : D.surface,
                         animation: isShaking ? 'shake 0.4s' : 'none',
-                        transition: 'all 0.15s', position: 'relative',
+                        position: 'relative',
                       }}>
                       {alreadyAdded && (
-                        <div style={{ position: 'absolute', top: '6px', right: '6px', width: '18px', height: '18px', borderRadius: '50%', backgroundColor: D.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', color: '#fff', fontWeight: '800' }}>✓</div>
+                        <div style={{ position: 'absolute', top: '5px', right: '5px', width: '18px', height: '18px', borderRadius: '50%', backgroundColor: D.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', color: '#fff', fontWeight: '800' }}>✓</div>
                       )}
                       {prod.image
                         ? <img src={prod.image} alt={prod.name} style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block' }} />
-                        : <div style={{ width: '100%', aspectRatio: '1', backgroundColor: D.surfaceHigh, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px' }}>📦</div>
+                        : <div style={{ width: '100%', aspectRatio: '1', backgroundColor: D.surfaceHigh, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '26px' }}>📦</div>
                       }
-                      <div style={{ padding: '8px 9px' }}>
-                        <div style={{ fontSize: '11px', fontWeight: '700', color: D.text, lineHeight: 1.3, marginBottom: '3px', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{prod.name}</div>
-                        <div style={{ fontSize: '11px', color: D.textMuted }}>€{prod.price.toFixed(2)}</div>
-                        {recentlySent && <div style={{ fontSize: '10px', color: D.accent, fontWeight: '700', marginTop: '2px' }}>Recently sent</div>}
-                        {outOfStock   && <div style={{ fontSize: '10px', color: D.errorText, fontWeight: '700', marginTop: '2px' }}>Out of stock</div>}
+                      <div style={{ padding: '7px 8px' }}>
+                        <div style={{ fontSize: '11px', fontWeight: '700', color: alreadyAdded ? D.accent : D.text, lineHeight: 1.3, marginBottom: '2px', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{prod.name}</div>
+                        <div style={{ fontSize: '10px', color: D.textMuted }}>€{prod.price.toFixed(2)}</div>
+                        {recentlySent && <div style={{ fontSize: '9px', color: D.accent, fontWeight: '700', marginTop: '2px' }}>Recently sent</div>}
+                        {outOfStock   && <div style={{ fontSize: '9px', color: D.errorText, fontWeight: '700', marginTop: '2px' }}>Out of stock</div>}
                       </div>
                     </div>
                   );
@@ -734,7 +757,7 @@ export default function PortalNewSeeding() {
               </div>
             </div>
 
-            {/* Basket / drop zone */}
+            {/* ── Selected items / drop zone ── */}
             <div
               onDragOver={e => { e.preventDefault(); setDragOver(true); }}
               onDragLeave={() => setDragOver(false)}
@@ -744,33 +767,46 @@ export default function PortalNewSeeding() {
                 if (prod) handleDrop(prod);
               }}
               style={{
-                border: `2px ${dragOver ? 'solid' : 'dashed'} ${dragOver ? D.accent : D.border}`,
-                borderRadius: '12px', padding: '16px', minHeight: '120px',
-                backgroundColor: dragOver ? D.accentFaint : D.surface,
-                transition: 'all 0.2s',
-              }}>
+                backgroundColor: dragOver ? D.accentLight : D.surface,
+                border: `1.5px solid ${dragOver ? D.accent : D.border}`,
+                borderRadius: '14px',
+                overflow: 'hidden',
+                transition: 'all 0.15s ease',
+                boxShadow: dragOver ? `0 0 0 3px ${D.accentLight}` : 'none',
+              }}
+            >
+              {/* Panel header */}
+              <div style={{ padding: '12px 16px', borderBottom: `1px solid ${selectedProducts.length > 0 ? D.border : 'transparent'}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '12px', fontWeight: '700', color: D.text }}>Selected items</span>
+                {selectedProducts.length > 0 && (
+                  <span style={{ fontSize: '11px', fontWeight: '700', backgroundColor: D.accent, color: '#fff', borderRadius: '10px', padding: '1px 8px' }}>
+                    {selectedProducts.length}
+                  </span>
+                )}
+              </div>
+
               {selectedProducts.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '20px', color: D.textMuted }}>
-                  <div style={{ fontSize: '28px', marginBottom: '8px' }}>📦</div>
-                  <div style={{ fontSize: '13px', fontWeight: '600', marginBottom: '2px' }}>Click or drag products to add them</div>
-                  <div style={{ fontSize: '12px' }}>Select an influencer first to auto-fill sizes</div>
+                <div style={{ padding: '28px 16px', textAlign: 'center', color: dragOver ? D.accent : D.textMuted, transition: 'color 0.15s' }}>
+                  <div style={{ fontSize: '24px', marginBottom: '6px', transform: dragOver ? 'scale(1.15)' : 'scale(1)', transition: 'transform 0.15s' }}>📦</div>
+                  <div style={{ fontSize: '13px', fontWeight: dragOver ? '700' : '500' }}>
+                    {dragOver ? 'Drop here' : 'Click or drag products to add them'}
+                  </div>
+                  {!dragOver && <div style={{ fontSize: '12px', marginTop: '3px', opacity: 0.7 }}>Select an influencer first to auto-fill sizes</div>}
                 </div>
               ) : (
-                <div style={{ display: 'grid', gap: '8px' }}>
-                  <div style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.6px', color: D.textMuted, marginBottom: '2px' }}>
-                    Selected products ({selectedProducts.length})
-                  </div>
+                <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: '7px' }}>
                   {selectedProducts.map(prod => (
                     <div key={prod.id} style={{
-                      display: 'grid', gridTemplateColumns: '44px 1fr auto', gap: '10px', alignItems: 'center',
-                      backgroundColor: D.surfaceRaised, border: `1px solid ${D.border}`, borderRadius: '10px', padding: '10px',
+                      display: 'grid', gridTemplateColumns: '38px 1fr auto', gap: '10px', alignItems: 'center',
+                      backgroundColor: D.surfaceRaised, border: `1px solid ${D.border}`, borderRadius: '10px', padding: '9px 10px',
+                      animation: 'fadeIn 0.18s ease',
                     }}>
                       {prod.image
-                        ? <img src={prod.image} alt={prod.name} style={{ width: '44px', height: '44px', objectFit: 'cover', borderRadius: '6px' }} />
-                        : <div style={{ width: '44px', height: '44px', backgroundColor: D.surfaceHigh, borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }}>📦</div>
+                        ? <img src={prod.image} alt={prod.name} style={{ width: '38px', height: '38px', objectFit: 'cover', borderRadius: '6px' }} />
+                        : <div style={{ width: '38px', height: '38px', backgroundColor: D.surfaceHigh, borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px' }}>📦</div>
                       }
                       <div>
-                        <div style={{ fontSize: '13px', fontWeight: '700', color: D.text, marginBottom: '5px' }}>{prod.name}</div>
+                        <div style={{ fontSize: '12px', fontWeight: '700', color: D.text, marginBottom: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{prod.name}</div>
                         <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
                           {prod.variants && prod.variants.length > 1 ? (
                             <select
@@ -782,30 +818,42 @@ export default function PortalNewSeeding() {
                                   p.id === prod.id ? { ...p, size, selectedVariant: variant ?? p.selectedVariant, sizeUnavailable: false } : p
                                 ));
                               }}
-                              style={{ fontSize: '12px', padding: '4px 8px', borderRadius: '6px', border: `1px solid ${!prod.size ? D.errorText : D.border}`, backgroundColor: !prod.size ? D.errorBg : D.surface, color: D.text }}>
+                              style={{ fontSize: '12px', padding: '3px 7px', borderRadius: '6px', border: `1px solid ${!prod.size ? D.errorText : D.border}`, backgroundColor: !prod.size ? D.errorBg : D.surface, color: D.text }}>
                               <option value="">Pick size…</option>
                               {prod.variants.map(v => {
                                 const label = extractSizeFromVariant(v.title) || v.title;
                                 return (
                                   <option key={v.id} value={extractSizeFromVariant(v.title)}>
-                                    {label}{v.available === false ? ' (out of stock)' : ''}
+                                    {label}{v.available === false ? ' (OOS)' : ''}
                                   </option>
                                 );
                               })}
                             </select>
                           ) : (
-                            <span style={{ fontSize: '12px', color: D.textMuted, backgroundColor: D.surfaceHigh, padding: '3px 8px', borderRadius: '6px' }}>One size</span>
+                            <span style={{ fontSize: '11px', color: D.textMuted, backgroundColor: D.surfaceHigh, padding: '2px 7px', borderRadius: '5px' }}>One size</span>
                           )}
-                          <span style={{ fontSize: '12px', color: D.textSub, fontWeight: '600' }}>€{(prod.selectedVariant?.price ?? prod.price).toFixed(2)}</span>
+                          <span style={{ fontSize: '11px', color: D.textSub, fontWeight: '600' }}>€{(prod.selectedVariant?.price ?? prod.price).toFixed(2)}</span>
                         </div>
                       </div>
                       <button type="button"
                         onClick={() => setSelectedProducts(prev => prev.filter(p => p.id !== prod.id))}
-                        style={{ background: 'none', border: 'none', color: D.textMuted, cursor: 'pointer', fontSize: '20px', lineHeight: 1, padding: '4px' }}>×</button>
+                        style={{ background: 'none', border: 'none', color: D.textMuted, cursor: 'pointer', fontSize: '18px', lineHeight: 1, padding: '4px', transition: 'color 0.12s' }}
+                        onMouseOver={e => e.currentTarget.style.color = '#EF4444'}
+                        onMouseOut={e => e.currentTarget.style.color = D.textMuted}
+                      >×</button>
                     </div>
                   ))}
-                  <div style={{ fontSize: '14px', fontWeight: '800', color: D.text, textAlign: 'right', paddingTop: '8px', borderTop: `1px solid ${D.border}` }}>
-                    Total: €{totalCost.toFixed(2)}
+
+                  {/* Total row */}
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '16px', paddingTop: '8px', borderTop: `1px solid ${D.border}`, marginTop: '2px' }}>
+                    {selectedProducts.some(p => p.selectedVariant?.cost || p.cost) && (
+                      <span style={{ fontSize: '12px', color: D.textSub }}>
+                        Cost: <strong style={{ color: D.text }}>€{selectedProducts.reduce((s, p) => s + (p.selectedVariant?.cost ?? p.cost ?? 0), 0).toFixed(2)}</strong>
+                      </span>
+                    )}
+                    <span style={{ fontSize: '14px', fontWeight: '800', color: D.text }}>
+                      Retail: €{totalRetail.toFixed(2)}
+                    </span>
                   </div>
                 </div>
               )}
