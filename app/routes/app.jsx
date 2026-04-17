@@ -1,6 +1,7 @@
-import { Outlet, useRouteError, useLocation } from 'react-router';
+import { Outlet, useRouteError, NavLink, useLoaderData } from 'react-router';
 import { authenticate } from '../shopify.server';
 import { boundary } from '@shopify/shopify-app-react-router/server';
+import { AppProvider } from '@shopify/shopify-app-react-router/react';
 
 const P = {
   accent:  '#7C6FF7',
@@ -13,61 +14,60 @@ const P = {
 
 export async function loader({ request }) {
   const { session } = await authenticate.admin(request);
-  return { shop: session.shop };
+  return { shop: session.shop, apiKey: process.env.SHOPIFY_API_KEY || '' };
 }
 
 export default function AppLayout() {
-  const loc = useLocation();
-  const isSettings = loc.pathname.startsWith('/app/settings');
+  const { apiKey } = useLoaderData();
 
   return (
-    <div style={{
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif',
-      backgroundColor: P.bg,
-      minHeight: '100vh',
-    }}>
+    <AppProvider embedded apiKey={apiKey}>
       {/*
-        ui-nav-menu tells Shopify admin to render navigation items in its own
-        chrome. Shopify handles the full-page navigation (with session token),
-        so authenticate.admin works correctly on each page load.
+        ui-nav-menu registers these pages in Shopify's admin chrome.
+        AppProvider intercepts shopify:navigate events and routes them
+        through React Router (with the App Bridge session token).
       */}
       <ui-nav-menu>
         <a href="/app" rel="home">Dashboard</a>
         <a href="/app/settings">Team &amp; Access</a>
       </ui-nav-menu>
 
-      {/* In-page tab bar — purely visual, reflects current route */}
       <div style={{
-        backgroundColor: P.surface,
-        borderBottom: `1px solid ${P.border}`,
-        padding: '0 32px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '4px',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif',
+        backgroundColor: P.bg,
+        minHeight: '100vh',
       }}>
-        {[
-          { href: '/app',          label: 'Dashboard',    active: !isSettings },
-          { href: '/app/settings', label: 'Team & Access', active: isSettings },
-        ].map(({ href, label, active }) => (
-          <a key={href} href={href} style={{
-            padding: '14px 16px',
-            fontSize: '13px',
-            fontWeight: active ? '700' : '500',
-            color: active ? P.accent : P.textSub,
-            textDecoration: 'none',
-            borderBottom: active ? `2px solid ${P.accent}` : '2px solid transparent',
-            marginBottom: '-1px',
-            transition: 'color 0.12s',
-            whiteSpace: 'nowrap',
-          }}>
-            {label}
-          </a>
-        ))}
-      </div>
+        {/* In-page tab bar */}
+        <div style={{
+          backgroundColor: P.surface,
+          borderBottom: `1px solid ${P.border}`,
+          padding: '0 32px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px',
+        }}>
+          <NavLink to="/app" end style={({ isActive }) => tabStyle(isActive)}>Dashboard</NavLink>
+          <NavLink to="/app/settings" style={({ isActive }) => tabStyle(isActive)}>Team &amp; Access</NavLink>
+        </div>
 
-      <Outlet />
-    </div>
+        <Outlet />
+      </div>
+    </AppProvider>
   );
+}
+
+function tabStyle(isActive) {
+  return {
+    padding: '14px 16px',
+    fontSize: '13px',
+    fontWeight: isActive ? '700' : '500',
+    color: isActive ? P.accent : P.textSub,
+    textDecoration: 'none',
+    borderBottom: isActive ? `2px solid ${P.accent}` : '2px solid transparent',
+    marginBottom: '-1px',
+    transition: 'color 0.12s',
+    whiteSpace: 'nowrap',
+  };
 }
 
 export function shouldRevalidate() {
