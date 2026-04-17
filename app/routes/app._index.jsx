@@ -113,9 +113,19 @@ export default function AppIndex() {
   const [ownerCopied, setOwnerCopied] = useState(false);
 
   function copy(url) {
-    navigator.clipboard.writeText(url);
-    setOwnerCopied(true);
-    setTimeout(() => setOwnerCopied(false), 2000);
+    // navigator.clipboard is blocked in the Shopify iframe — use execCommand fallback
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = url;
+      ta.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      setOwnerCopied(true);
+      setTimeout(() => setOwnerCopied(false), 2000);
+    } catch (_) {}
   }
 
   const statuses = ['Pending', 'Ordered', 'Shipped', 'Delivered', 'Posted'];

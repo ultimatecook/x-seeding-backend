@@ -191,7 +191,17 @@ export default function AppSettings() {
   const inviteUrl = actionData?.inviteUrl;
 
   function copy(url, setter) {
-    navigator.clipboard.writeText(url);
+    // navigator.clipboard is blocked in the Shopify iframe — use execCommand fallback
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = url;
+      ta.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    } catch (_) {}
     setter(true);
     setTimeout(() => setter(false), 2000);
   }
