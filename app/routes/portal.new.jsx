@@ -12,6 +12,7 @@ import { fmtNum } from '../theme';
 import { D, Pbtn as btn, Pinput as input } from '../utils/portal-theme';
 import { guessProductCategory, extractSizeFromVariant } from '../utils/size-helpers';
 import { assignDiscountCodes } from '../utils/discount-codes.server';
+import { getPrimaryLocationId } from '../utils/inventory.server';
 
 // ── Loader ────────────────────────────────────────────────────────────────────
 export async function loader({ request }) {
@@ -231,24 +232,27 @@ export async function action({ request }) {
     if (!session) session = await prisma.session.findFirst({ where: { shop, isOnline: false }, orderBy: { expires: 'desc' } });
     if (!session) session = await prisma.session.findFirst({ where: { shop }, orderBy: { expires: 'desc' } });
     if (session?.accessToken) {
-      const lineItems = variantIds.filter(v => v && v.length > 0).map(variantId => ({ variantId, quantity: 1 }));
-      const mutation  = `mutation DraftOrderCreate($input: DraftOrderInput!) {
+      const locationId = await getPrimaryLocationId(shop);
+      const lineItems  = variantIds.filter(v => v && v.length > 0).map(variantId => ({ variantId, quantity: 1 }));
+      const mutation   = `mutation DraftOrderCreate($input: DraftOrderInput!) {
         draftOrderCreate(input: $input) {
           draftOrder { id name invoiceUrl }
           userErrors { field message }
         }
       }`;
+      const draftInput = {
+        lineItems,
+        appliedDiscount: { value: 100, valueType: 'PERCENTAGE', title: 'Seeding Gift – 100% Off' },
+        note: `Seeding for ${influencer?.handle ?? ''} (${influencer?.name ?? ''})`,
+        tags: ['seeding'],
+      };
+      // Route inventory to the chosen location if one is configured
+      if (locationId) draftInput.locationId = locationId;
+
       const res  = await fetch(`https://${shop}/admin/api/2025-10/graphql.json`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': session.accessToken },
-        body: JSON.stringify({ query: mutation, variables: {
-          input: {
-            lineItems,
-            appliedDiscount: { value: 100, valueType: 'PERCENTAGE', title: 'Seeding Gift – 100% Off' },
-            note: `Seeding for ${influencer?.handle ?? ''} (${influencer?.name ?? ''})`,
-            tags: ['seeding'],
-          },
-        }}),
+        body: JSON.stringify({ query: mutation, variables: { input: draftInput } }),
       });
       const body  = await res.json();
       const draft = body?.data?.draftOrderCreate?.draftOrder;

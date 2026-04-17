@@ -41,10 +41,13 @@ export async function action({ request }) {
 
   // ── Add location manually ────────────────────────────────────────────────
   if (intent === 'addLocation') {
-    const name = String(formData.get('name') || '').trim();
+    const name    = String(formData.get('name') || '').trim();
     if (!name) return { error: 'Location name is required.' };
-    // Use the name as the shopifyLocationId placeholder if no real GID available
-    const shopifyLocationId = String(formData.get('shopifyLocationId') || '').trim() || `manual_${Date.now()}`;
+    const rawId   = String(formData.get('shopifyLocationId') || '').trim();
+    // Accept numeric ID or full GID
+    const shopifyLocationId = rawId
+      ? (rawId.startsWith('gid://') ? rawId : `gid://shopify/Location/${rawId}`)
+      : `manual_${Date.now()}`;
     await prisma.inventoryLocation.upsert({
       where:  { shop_shopifyLocationId: { shop, shopifyLocationId } },
       update: { name },
@@ -251,23 +254,29 @@ export default function PortalAdmin() {
           </Form>
 
           {/* Add location form */}
-          <Form method="post" style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
-            <input type="hidden" name="intent" value="addLocation" />
-            <div style={{ flex: 1 }}>
-              <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: D.textSub, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '5px' }}>
-                Location name
-              </label>
-              <input
-                name="name"
-                placeholder="e.g. Main Warehouse"
-                required
-                style={{ ...input.base, width: '100%', boxSizing: 'border-box' }}
-              />
-            </div>
-            <button type="submit" disabled={busy} style={{ ...btn.primary, whiteSpace: 'nowrap' }}>
-              + Add location
-            </button>
-          </Form>
+          <div style={{ padding: '16px', border: `1px solid ${D.border}`, borderRadius: '12px', backgroundColor: 'var(--pt-surface)', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <p style={{ margin: 0, fontSize: '12px', color: D.textSub, lineHeight: 1.6 }}>
+              Find your location ID in Shopify: <strong style={{ color: D.text }}>Admin → Settings → Locations → click your location</strong> — copy the number at the end of the URL (e.g. <code style={{ fontSize: '11px', backgroundColor: D.bg, padding: '1px 5px', borderRadius: '4px' }}>.../locations/97379991828</code>)
+            </p>
+            <Form method="post" style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
+              <input type="hidden" name="intent" value="addLocation" />
+              <div style={{ flex: 2 }}>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: D.textSub, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '5px' }}>
+                  Location name
+                </label>
+                <input name="name" placeholder="e.g. Main Warehouse" required style={{ ...input.base, width: '100%', boxSizing: 'border-box' }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: D.textSub, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '5px' }}>
+                  Shopify Location ID
+                </label>
+                <input name="shopifyLocationId" placeholder="97379991828" style={{ ...input.base, width: '100%', boxSizing: 'border-box' }} />
+              </div>
+              <button type="submit" disabled={busy} style={{ ...btn.primary, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                + Add location
+              </button>
+            </Form>
+          </div>
 
           {locations.length === 0 ? (
             <div style={{ padding: '32px', textAlign: 'center', color: D.textMuted, fontSize: '13px', border: `1px dashed ${D.border}`, borderRadius: '12px' }}>
