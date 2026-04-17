@@ -11,6 +11,7 @@ import { audit } from '../utils/audit.server.js';
 import { fmtNum } from '../theme';
 import { D, Pbtn as btn, Pinput as input } from '../utils/portal-theme';
 import { guessProductCategory, extractSizeFromVariant } from '../utils/size-helpers';
+import { assignDiscountCodes } from '../utils/discount-codes.server';
 
 // ── Loader ────────────────────────────────────────────────────────────────────
 export async function loader({ request }) {
@@ -279,6 +280,13 @@ export async function action({ request }) {
       },
     },
   });
+
+  // Assign discount codes from pool (best-effort — won't fail seeding creation)
+  try {
+    await assignDiscountCodes(shop, seeding.id);
+  } catch (e) {
+    console.warn('Portal: could not assign discount codes:', e.message);
+  }
 
   await audit({
     shop, portalUser,

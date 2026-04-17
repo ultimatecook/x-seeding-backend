@@ -3,6 +3,7 @@ import prisma from '../db.server';
 import { requirePortalUser } from '../utils/portal-auth.server';
 import { can, requirePermission } from '../utils/portal-permissions.js';
 import { audit } from '../utils/audit.server.js';
+import { releaseDiscountCodes } from '../utils/discount-codes.server';
 import { fmtDate } from '../theme';
 import { D } from '../utils/portal-theme';
 
@@ -50,6 +51,7 @@ export async function loader({ request }) {
       select: {
         id: true, status: true, trackingNumber: true, totalCost: true, createdAt: true,
         invoiceUrl: true, shopifyOrderName: true, shippingAddress: true,
+        productDiscountCode: true, shippingDiscountCode: true,
         influencer: { select: { id: true, handle: true, name: true, country: true } },
         products:   { select: { id: true, productName: true, price: true, imageUrl: true } },
       },
@@ -106,6 +108,8 @@ export async function action({ request }) {
     requirePermission(portalUser.role, 'deleteSeeding');
     const id = parseInt(formData.get('id'));
     const seeding = await prisma.seeding.findUnique({ where: { id }, include: { influencer: true } });
+    // Release any assigned discount codes back to the pool before deleting
+    await releaseDiscountCodes(shop, id);
     await prisma.seeding.delete({ where: { id } });
     await audit({ shop, portalUser, action: 'deleted_seeding', entityType: 'seeding', entityId: id, detail: `Deleted seeding for ${seeding?.influencer?.handle ?? id}` });
   }
@@ -222,7 +226,7 @@ export default function PortalSeedings() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
               <thead>
                 <tr style={{ backgroundColor: D.bg }}>
-                  {['Influencer', 'Country', 'Ship To', 'Products', 'Cost', 'Status', 'Tracking', 'Checkout Link', 'Date', ''].map(h => (
+                  {['Influencer', 'Country', 'Ship To', 'Products', 'Cost', 'Status', 'Tracking', 'Checkout Link', 'Codes', 'Date', ''].map(h => (
                     <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontWeight: '700', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.7px', color: D.textMuted, whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
@@ -291,6 +295,22 @@ export default function PortalSeedings() {
                             style={{ ...btnGhost, fontSize: '11px', padding: '4px 10px' }}>
                             Copy
                           </button>
+                        ) : <span style={{ color: D.textMuted, fontSize: '12px' }}>—</span>}
+                      </td>
+                      <td style={{ padding: '12px 14px' }}>
+                        {(s.productDiscountCode || s.shippingDiscountCode) ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                            {s.productDiscountCode && (
+                              <span title="Product code" style={{ fontFamily: 'monospace', fontSize: '10px', fontWeight: '700', color: '#5B21B6', backgroundColor: '#EDE9FE', borderRadius: '4px', padding: '2px 6px', whiteSpace: 'nowrap' }}>
+                                P: {s.productDiscountCode}
+                              </span>
+                            )}
+                            {s.shippingDiscountCode && (
+                              <span title="Shipping code" style={{ fontFamily: 'monospace', fontSize: '10px', fontWeight: '700', color: '#1E40AF', backgroundColor: '#DBEAFE', borderRadius: '4px', padding: '2px 6px', whiteSpace: 'nowrap' }}>
+                                S: {s.shippingDiscountCode}
+                              </span>
+                            )}
+                          </div>
                         ) : <span style={{ color: D.textMuted, fontSize: '12px' }}>—</span>}
                       </td>
                       <td style={{ padding: '12px 14px', color: D.textMuted, fontSize: '12px', whiteSpace: 'nowrap' }}>

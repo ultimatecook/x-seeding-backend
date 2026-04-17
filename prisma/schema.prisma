@@ -116,22 +116,25 @@ model InfluencerSavedSize {
 }
 
 model Seeding {
-  id                  Int              @id @default(autoincrement())
-  shop                String
-  influencerId        Int
-  influencer          Influencer       @relation(fields: [influencerId], references: [id])
-  campaignId          Int?
-  campaign            Campaign?        @relation(fields: [campaignId], references: [id])
-  status              String           @default("Pending")
-  trackingNumber      String?
-  notes               String?
-  shippingAddress     String?
-  totalCost           Float            @default(0)
-  shopifyDraftOrderId String?
-  shopifyOrderName    String?
-  invoiceUrl          String?
-  createdAt           DateTime         @default(now())
-  products            SeedingProduct[]
+  id                   Int              @id @default(autoincrement())
+  shop                 String
+  influencerId         Int
+  influencer           Influencer       @relation(fields: [influencerId], references: [id])
+  campaignId           Int?
+  campaign             Campaign?        @relation(fields: [campaignId], references: [id])
+  status               String           @default("Pending")
+  trackingNumber       String?
+  notes                String?
+  shippingAddress      String?
+  totalCost            Float            @default(0)
+  shopifyDraftOrderId  String?
+  shopifyOrderName     String?
+  invoiceUrl           String?
+  productDiscountCode  String?          // assigned discount code for products (from pool)
+  shippingDiscountCode String?          // assigned discount code for shipping (from pool)
+  createdAt            DateTime         @default(now())
+  products             SeedingProduct[]
+  discountCodes        DiscountCode[]
 
   @@index([shop])
   @@index([status])
@@ -143,17 +146,18 @@ model Seeding {
 }
 
 model SeedingProduct {
-  id          Int     @id @default(autoincrement())
-  seedingId   Int
-  seeding     Seeding @relation(fields: [seedingId], references: [id], onDelete: Cascade)
-  productId   String
-  variantId   String?
-  productName String
-  price       Float           // retail price
-  cost        Float?          // cost per unit (Shopify inventoryItem.unitCost)
-  imageUrl    String?
-  size        String?         // selected size (e.g., "S", "M", "L") - null if not yet selected
-  category    String?         // product category for size lookup (e.g., "tops", "bottoms")
+  id                  Int     @id @default(autoincrement())
+  seedingId           Int
+  seeding             Seeding @relation(fields: [seedingId], references: [id], onDelete: Cascade)
+  productId           String
+  variantId           String?
+  productName         String
+  price               Float           // retail price
+  cost                Float?          // cost per unit (Shopify inventoryItem.unitCost)
+  imageUrl            String?
+  size                String?         // selected size (e.g., "S", "M", "L") - null if not yet selected
+  category            String?         // product category for size lookup (e.g., "tops", "bottoms")
+  inventoryLocationId String?         // Shopify location GID used to fulfil from
 }
 
 model PortalUser {
@@ -210,4 +214,50 @@ model CampaignProduct {
   productName String
   imageUrl    String?
   maxUnits    Int?
+}
+
+// ── Inventory source rules ────────────────────────────────────────────────────
+// Mirrors Shopify locations; lets admins enable/disable/reorder which locations
+// seedings are fulfilled from.
+model InventoryLocation {
+  id                Int      @id @default(autoincrement())
+  shop              String
+  shopifyLocationId String   // Shopify GID e.g. "gid://shopify/Location/12345"
+  name              String
+  isEnabled         Boolean  @default(true)
+  priorityOrder     Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([shop, shopifyLocationId])
+  @@index([shop, isEnabled, priorityOrder])
+}
+
+// ── Discount code pools ───────────────────────────────────────────────────────
+// Pre-loaded unique codes; one from each pool is assigned when a seeding is created.
+enum DiscountPoolType {
+  Product
+  Shipping
+}
+
+enum DiscountCodeStatus {
+  Available
+  Assigned
+  Used
+}
+
+model DiscountCode {
+  id                Int                @id @default(autoincrement())
+  shop              String
+  poolType          DiscountPoolType
+  code              String
+  status            DiscountCodeStatus @default(Available)
+  assignedSeedingId Int?
+  assignedSeeding   Seeding?           @relation(fields: [assignedSeedingId], references: [id], onDelete: SetNull)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  @@unique([shop, code])
+  @@index([shop, poolType, status])
+  @@index([assignedSeedingId])
 }
