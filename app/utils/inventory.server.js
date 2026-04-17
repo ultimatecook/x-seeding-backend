@@ -19,21 +19,41 @@ export async function syncLocations(shop) {
     return { count: 0, error: 'No Shopify session found. Open the app in Shopify admin first.' };
   }
 
-  const res  = await fetch(`https://${shop}/admin/api/2025-10/graphql.json`, {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': session.accessToken },
-    body:    JSON.stringify({ query: `{ locations(first: 50) { nodes { id name isActive } } }` }),
-  });
+  // Try with name first (requires read_locations), fall back to address fields
+  const queries = [
+    `{ locations(first: 50) { nodes { id name isActive } } }`,
+    `{ locations(first: 50) { nodes { id isActive address { address1 city } } } }`,
+    `{ locations(first: 50) { nodes { id isActive } } }`,
+  ];
 
-  const body = await res.json();
+  let locs = [];
+  let lastError = null;
 
-  if (body.errors?.length) {
-    return { count: 0, error: `Shopify API error: ${body.errors[0].message}` };
+  for (const query of queries) {
+    const res  = await fetch(`https://${shop}/admin/api/2025-10/graphql.json`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': session.accessToken },
+      body:    JSON.stringify({ query }),
+    });
+    const body = await res.json();
+    const nodes = body?.data?.locations?.nodes ?? [];
+
+    if (nodes.length > 0) {
+      // Build a display name from whatever fields we got
+      locs = nodes.map((loc, i) => ({
+        id:       loc.id,
+        isActive: loc.isActive,
+        name:     loc.name
+          || (loc.address ? [loc.address.address1, loc.address.city].filter(Boolean).join(', ')
+          : `Location ${i + 1}`),
+      }));
+      break;
+    }
+    lastError = body.errors?.[0]?.message ?? null;
   }
 
-  const locs = body?.data?.locations?.nodes ?? [];
   if (!locs.length) {
-    return { count: 0, error: 'Shopify returned 0 locations. Your store may have no active locations.' };
+    return { count: 0, error: lastError ? `Shopify API error: ${lastError}` : 'No locations returned by Shopify.' };
   }
 
   for (const loc of locs) {
@@ -53,9 +73,24 @@ export async function syncLocations(shop) {
  */
 export async function syncLocationsWithAdmin(shop, admin) {
   try {
-    const resp  = await admin.graphql(`{ locations(first: 50) { nodes { id name isActive } } }`);
-    const body  = await resp.json();
-    const locs  = body?.data?.locations?.nodes ?? [];
+    // Try with name, fall back to address
+    let resp = await admin.graphql(`{ locations(first: 50) { nodes { id name isActive } } }`);
+    let body = await resp.json();
+    let nodes = body?.data?.locations?.nodes ?? [];
+
+    if (!nodes.length || body.errors?.length) {
+      resp  = await admin.graphql(`{ locations(first: 50) { nodes { id isActive address { address1 city } } } }`);
+      body  = await resp.json();
+      nodes = body?.data?.locations?.nodes ?? [];
+    }
+
+    const locs = nodes.map((loc, i) => ({
+      id:       loc.id,
+      isActive: loc.isActive,
+      name:     loc.name
+        || (loc.address ? [loc.address.address1, loc.address.city].filter(Boolean).join(', ')
+        : `Location ${i + 1}`),
+    }));
 
     for (const loc of locs) {
       await prisma.inventoryLocation.upsert({
