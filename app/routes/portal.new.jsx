@@ -147,7 +147,7 @@ export async function loader({ request }) {
   }
 
   const influencers = await prisma.influencer.findMany({
-    where: { archived: false }, orderBy: { name: 'asc' },
+    where: { shop, archived: false }, orderBy: { name: 'asc' },
   });
   const campaigns = await prisma.campaign.findMany({
     where: { shop }, orderBy: { createdAt: 'desc' }, include: { products: true },
@@ -172,7 +172,9 @@ export async function loader({ request }) {
 
   let allSavedSizes = {};
   try {
-    const savedSizes = await prisma.influencerSavedSize.findMany();
+    const savedSizes = await prisma.influencerSavedSize.findMany({
+      where: { influencer: { shop } },
+    });
     for (const ss of savedSizes) {
       if (!allSavedSizes[ss.influencerId]) allSavedSizes[ss.influencerId] = {};
       allSavedSizes[ss.influencerId][ss.category] = ss.size;
@@ -217,6 +219,7 @@ export async function action({ request }) {
   }
 
   const influencer = await prisma.influencer.findUnique({ where: { id: influencerId } });
+  if (!influencer || influencer.shop !== shop) return { error: 'Influencer not found.' };
 
   let shopifyDraftOrderId = null;
   let shopifyOrderName    = null;

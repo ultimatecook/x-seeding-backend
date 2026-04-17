@@ -31,7 +31,7 @@ export async function loader({ request }) {
 
   const [totalSeedings, totalInfluencers, totalCampaigns, statusCounts] = await Promise.all([
     prisma.seeding.count({ where: { shop } }),
-    prisma.influencer.count({ where: { archived: false } }),
+    prisma.influencer.count({ where: { shop, archived: false } }),
     prisma.campaign.count({ where: { shop } }),
     prisma.seeding.groupBy({ by: ['status'], where: { shop }, _count: { _all: true } }),
   ]);

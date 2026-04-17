@@ -6,7 +6,8 @@ import prisma from '../db.server';
  * Returns saved sizes for an influencer
  */
 export async function loader({ request }) {
-  await authenticate.admin(request);
+  const { session } = await authenticate.admin(request);
+  const shop = session.shop;
   const url = new URL(request.url);
   const influencerId = parseInt(url.searchParams.get('influencerId'));
 
@@ -18,6 +19,15 @@ export async function loader({ request }) {
   }
 
   try {
+    // Verify the influencer belongs to this shop
+    const influencer = await prisma.influencer.findUnique({ where: { id: influencerId }, select: { shop: true } });
+    if (!influencer || influencer.shop !== shop) {
+      return new Response(JSON.stringify({ error: 'Not found' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
     const savedSizes = await prisma.influencerSavedSize.findMany({
       where: { influencerId },
     });
@@ -46,7 +56,8 @@ export async function loader({ request }) {
  * Body: { influencerId, category, size }
  */
 export async function action({ request }) {
-  await authenticate.admin(request);
+  const { session } = await authenticate.admin(request);
+  const shop = session.shop;
 
   if (request.method !== 'POST' && request.method !== 'PUT') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), {
@@ -66,6 +77,15 @@ export async function action({ request }) {
         JSON.stringify({ error: 'influencerId, category, and size required' }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
       );
+    }
+
+    // Verify the influencer belongs to this shop
+    const influencer = await prisma.influencer.findUnique({ where: { id: influencerId }, select: { shop: true } });
+    if (!influencer || influencer.shop !== shop) {
+      return new Response(JSON.stringify({ error: 'Not found' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
 
     const savedSize = await prisma.influencerSavedSize.upsert({

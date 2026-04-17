@@ -1,14 +1,22 @@
 import { useState, useEffect } from 'react';
 import { useLoaderData, useRouteLoaderData, useNavigate, Form, redirect, useRouteError } from 'react-router';
 import { boundary } from '@shopify/shopify-app-react-router/server';
+import { authenticate } from '../shopify.server';
 import prisma from '../db.server';
 import { C, btn, input, fmtNum } from '../theme';
 import { guessProductCategory, extractSizeFromVariant, getProductsWithoutSize } from '../utils/size-helpers';
 
 // ── Loader ───────────────────────────────────────────────────────────────────
-export async function loader() {
-  const influencers = await prisma.influencer.findMany({ orderBy: { name: 'asc' } });
-  const campaigns   = await prisma.campaign.findMany({
+export async function loader({ request }) {
+  const { session } = await authenticate.admin(request);
+  const shop = session.shop;
+
+  const influencers = await prisma.influencer.findMany({
+    where:   { shop, archived: false },
+    orderBy: { name: 'asc' },
+  });
+  const campaigns = await prisma.campaign.findMany({
+    where:   { shop },
     orderBy: { createdAt: 'desc' },
     include: { products: true },
   });
@@ -17,7 +25,7 @@ export async function loader() {
   const since = new Date();
   since.setDate(since.getDate() - 90);
   const recentSeedings = await prisma.seeding.findMany({
-    where:   { createdAt: { gte: since } },
+    where:   { shop, createdAt: { gte: since } },
     select:  { influencerId: true, products: { select: { productId: true } }, createdAt: true },
   });
 
@@ -37,7 +45,9 @@ export async function loader() {
   // Avoids client-side fetch which breaks inside Shopify's embedded iframe
   let allSavedSizes = {};
   try {
-    const savedSizes = await prisma.influencerSavedSize.findMany();
+    const savedSizes = await prisma.influencerSavedSize.findMany({
+      where: { influencer: { shop } },
+    });
     for (const ss of savedSizes) {
       if (!allSavedSizes[ss.influencerId]) allSavedSizes[ss.influencerId] = {};
       allSavedSizes[ss.influencerId][ss.category] = ss.size;

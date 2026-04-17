@@ -1,26 +1,34 @@
 import { useState } from 'react';
 import { Link, useLoaderData, useRouteError, useNavigate, Form, useNavigation } from 'react-router';
 import { boundary } from '@shopify/shopify-app-react-router/server';
+import { authenticate } from '../shopify.server';
 import prisma from '../db.server';
 import { C, btn, card, input, section, fmtNum, fmtDate } from '../theme';
 
 const STATUSES = ['Pending', 'Ordered', 'Shipped', 'Delivered', 'Posted'];
 
 export async function action({ request, params }) {
+  const { session } = await authenticate.admin(request);
+  const shop = session.shop;
   const id       = parseInt(params.id);
   const formData = await request.formData();
   const intent   = formData.get('intent');
+
+  // Verify ownership before any mutation
+  const existing = await prisma.influencer.findUnique({ where: { id }, select: { shop: true } });
+  if (!existing || existing.shop !== shop) throw new Response('Not found', { status: 404 });
+
   if (intent === 'updateNotes') {
     const notes = formData.get('notes') ? String(formData.get('notes')).slice(0, 1000) : null;
-    await prisma.influencer.update({ where: { id }, data: { notes } });
+    await prisma.influencer.updateMany({ where: { id, shop }, data: { notes } });
   }
   if (intent === 'updateProfile') {
     const handle  = formData.get('handle')  ? String(formData.get('handle')).slice(0, 100).trim()  : undefined;
     const name    = formData.get('name')    ? String(formData.get('name')).slice(0, 200).trim()    : undefined;
     const country = formData.get('country') ? String(formData.get('country')).slice(0, 100).trim() : undefined;
     const email   = formData.get('email')   ? String(formData.get('email')).slice(0, 254).trim().toLowerCase() : null;
-    await prisma.influencer.update({
-      where: { id },
+    await prisma.influencer.updateMany({
+      where: { id, shop },
       data: {
         handle,
         name,
@@ -31,28 +39,31 @@ export async function action({ request, params }) {
     });
   }
   if (intent === 'archive') {
-    await prisma.influencer.update({ where: { id }, data: { archived: true } });
+    await prisma.influencer.updateMany({ where: { id, shop }, data: { archived: true } });
   }
   if (intent === 'unarchive') {
-    await prisma.influencer.update({ where: { id }, data: { archived: false } });
+    await prisma.influencer.updateMany({ where: { id, shop }, data: { archived: false } });
   }
   return null;
 }
 
-export async function loader({ params }) {
+export async function loader({ request, params }) {
+  const { session } = await authenticate.admin(request);
+  const shop = session.shop;
   const id = parseInt(params.id);
 
   const influencer = await prisma.influencer.findUnique({
     where: { id },
     include: {
       seedings: {
+        where: { shop },
         include: { products: true, campaign: { select: { id: true, title: true } } },
         orderBy: { createdAt: 'desc' },
       },
     },
   });
 
-  if (!influencer) throw new Response('Influencer not found', { status: 404 });
+  if (!influencer || influencer.shop !== shop) throw new Response('Influencer not found', { status: 404 });
   return { influencer };
 }
 

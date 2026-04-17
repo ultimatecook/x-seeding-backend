@@ -20,6 +20,9 @@ function adminOrderLink(s) {
 
 // ── Loader ───────────────────────────────────────────────────────────────────
 export async function loader({ request }) {
+  const { session } = await authenticate.admin(request);
+  const shop = session.shop;
+
   const url      = new URL(request.url);
   const page     = Math.max(1, parseInt(url.searchParams.get('page')     || '1'));
   const status   = url.searchParams.get('status')   || 'all';
@@ -27,12 +30,12 @@ export async function loader({ request }) {
   const country  = url.searchParams.get('country')  || '';
   const q        = url.searchParams.get('q')        || '';
 
-  const where = {};
+  const where = { shop };
   if (status  !== 'all') where.status     = status;
   if (campaign)          where.campaignId = parseInt(campaign);
 
   // Country + search both filter via influencer relation — merge them
-  const influencerWhere = {};
+  const influencerWhere = { shop };
   if (country) influencerWhere.country = country;
   if (q) {
     influencerWhere.OR = [
@@ -40,7 +43,7 @@ export async function loader({ request }) {
       { name:   { contains: q, mode: 'insensitive' } },
     ];
   }
-  if (Object.keys(influencerWhere).length > 0) where.influencer = influencerWhere;
+  where.influencer = influencerWhere;
 
   const [seedings, total, statusCounts, campaigns, allCountries] = await Promise.all([
     prisma.seeding.findMany({
@@ -51,14 +54,14 @@ export async function loader({ request }) {
       take:    PAGE_SIZE,
     }),
     prisma.seeding.count({ where }),
-    prisma.seeding.groupBy({ by: ['status'], _count: { _all: true } }),
-    prisma.campaign.findMany({ select: { id: true, title: true }, orderBy: { createdAt: 'desc' } }),
-    // Distinct countries across all seedings for the filter dropdown
+    prisma.seeding.groupBy({ by: ['status'], where: { shop }, _count: { _all: true } }),
+    prisma.campaign.findMany({ where: { shop }, select: { id: true, title: true }, orderBy: { createdAt: 'desc' } }),
+    // Distinct countries across seedings for this shop
     prisma.influencer.findMany({
-      where:   { seedings: { some: {} } },
-      select:  { country: true },
+      where:    { shop, seedings: { some: { shop } } },
+      select:   { country: true },
       distinct: ['country'],
-      orderBy: { country: 'asc' },
+      orderBy:  { country: 'asc' },
     }),
   ]);
 
@@ -74,34 +77,31 @@ export async function loader({ request }) {
 
 // ── Action ───────────────────────────────────────────────────────────────────
 export async function action({ request }) {
+  const { session, admin } = await authenticate.admin(request);
+  const shop     = session.shop;
   const formData = await request.formData();
   const intent   = formData.get('intent');
+  const id       = parseInt(formData.get('id'));
 
   const VALID_STATUSES = ['Pending', 'Ordered', 'Shipped', 'Delivered', 'Posted'];
 
   if (intent === 'updateStatus') {
     const status = formData.get('status');
-    if (!VALID_STATUSES.includes(status)) return null; // reject unknown statuses
-    await prisma.seeding.update({
-      where: { id: parseInt(formData.get('id')) },
-      data:  { status },
-    });
+    if (!VALID_STATUSES.includes(status)) return null;
+    await prisma.seeding.updateMany({ where: { id, shop }, data: { status } });
   }
   if (intent === 'updateTracking') {
     const trackingNumber = String(formData.get('trackingNumber') || '').slice(0, 200).trim() || null;
-    await prisma.seeding.update({
-      where: { id: parseInt(formData.get('id')) },
-      data:  { trackingNumber },
-    });
+    await prisma.seeding.updateMany({ where: { id, shop }, data: { trackingNumber } });
   }
   if (intent === 'delete') {
-    const id = parseInt(formData.get('id'));
+    // Verify ownership before deletion
+    const seeding = await prisma.seeding.findUnique({ where: { id } });
+    if (!seeding || seeding.shop !== shop) return null;
 
     // If still Pending, also delete the Shopify draft order
-    const seeding = await prisma.seeding.findUnique({ where: { id } });
-    if (seeding?.status === 'Pending' && seeding?.shopifyDraftOrderId) {
+    if (seeding.status === 'Pending' && seeding.shopifyDraftOrderId) {
       try {
-        const { admin } = await authenticate.admin(request);
         await admin.graphql(`
           #graphql
           mutation DeleteDraftOrder($id: ID!) {
@@ -111,7 +111,6 @@ export async function action({ request }) {
           }
         `, { variables: { id: seeding.shopifyDraftOrderId } });
       } catch (e) {
-        // Log but don't block deletion — draft may already be gone
         console.error('Failed to delete Shopify draft order:', e.message);
       }
     }

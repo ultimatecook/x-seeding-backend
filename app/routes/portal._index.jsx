@@ -72,7 +72,7 @@ export async function loader({ request }) {
       take:    8,
     }),
     prisma.influencer.findMany({
-      where:   { archived: false, ...(countryParam ? { country: countryParam } : {}) },
+      where:   { shop, archived: false, ...(countryParam ? { country: countryParam } : {}) },
       orderBy: { seedings: { _count: 'desc' } },
       take:    6,
       select:  { id: true, handle: true, name: true, followers: true, country: true,
@@ -83,7 +83,7 @@ export async function loader({ request }) {
       where:  { seeding: seedingWhere },
       select: { cost: true, productName: true },
     }),
-    prisma.influencer.count({ where: { archived: false } }),
+    prisma.influencer.count({ where: { shop, archived: false } }),
     prisma.seeding.findMany({
       where:  { shop },
       select: { influencer: { select: { country: true } } },

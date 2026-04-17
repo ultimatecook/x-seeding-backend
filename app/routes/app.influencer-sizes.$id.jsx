@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useLoaderData, useNavigate, useRouteError, Form, useNavigation } from 'react-router';
 import { boundary } from '@shopify/shopify-app-react-router/server';
+import { authenticate } from '../shopify.server';
 import prisma from '../db.server';
 import { C, btn, card } from '../theme';
 
@@ -17,13 +18,16 @@ const CATEGORIES = [
 ];
 
 // ── Loader ────────────────────────────────────────────────────────────────────
-export async function loader({ params }) {
+export async function loader({ request, params }) {
+  const { session } = await authenticate.admin(request);
+  const shop = session.shop;
   const id = parseInt(params.id);
+
   const influencer = await prisma.influencer.findUnique({
     where: { id },
     include: { savedSizes: true },
   });
-  if (!influencer) throw new Response('Influencer not found', { status: 404 });
+  if (!influencer || influencer.shop !== shop) throw new Response('Influencer not found', { status: 404 });
 
   const sizeMap = {};
   influencer.savedSizes.forEach(ss => { sizeMap[ss.category] = ss.size; });
@@ -33,10 +37,17 @@ export async function loader({ params }) {
 
 // ── Action ────────────────────────────────────────────────────────────────────
 export async function action({ request, params }) {
+  const { session } = await authenticate.admin(request);
+  const shop = session.shop;
   const influencerId = parseInt(params.id);
-  const formData     = await request.formData();
-  const intent       = formData.get('intent');
-  const category     = formData.get('category');
+
+  // Verify ownership before any write
+  const inf = await prisma.influencer.findUnique({ where: { id: influencerId }, select: { shop: true } });
+  if (!inf || inf.shop !== shop) throw new Response('Not found', { status: 404 });
+
+  const formData = await request.formData();
+  const intent   = formData.get('intent');
+  const category = formData.get('category');
 
   if (intent === 'save') {
     const size = formData.get('size');

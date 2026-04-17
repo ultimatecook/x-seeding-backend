@@ -64,8 +64,9 @@ export async function action({ request, params }) {
 
   if (intent === 'delete') {
     requirePermission(portalUser.role, 'deleteInfluencer');
-    const inf = await prisma.influencer.findUnique({ where: { id }, select: { handle: true } });
-    const seedingIds = (await prisma.seeding.findMany({ where: { influencerId: id }, select: { id: true } })).map(s => s.id);
+    const inf = await prisma.influencer.findUnique({ where: { id }, select: { handle: true, shop: true } });
+    if (!inf || inf.shop !== shop) return null; // guard: can't delete another shop's influencer
+    const seedingIds = (await prisma.seeding.findMany({ where: { shop, influencerId: id }, select: { id: true } })).map(s => s.id);
     if (seedingIds.length > 0) {
       await prisma.seedingProduct.deleteMany({ where: { seedingId: { in: seedingIds } } });
       await prisma.seeding.deleteMany({ where: { id: { in: seedingIds } } });
@@ -81,7 +82,7 @@ export async function action({ request, params }) {
 
 // ── Loader ────────────────────────────────────────────────────────────────────
 export async function loader({ request, params }) {
-  const { portalUser } = await requirePortalUser(request);
+  const { shop, portalUser } = await requirePortalUser(request);
   requirePermission(portalUser.role, 'viewInfluencers');
   const id = parseInt(params.id);
 
@@ -89,13 +90,14 @@ export async function loader({ request, params }) {
     where: { id },
     include: {
       seedings: {
+        where:   { shop },
         include: { products: true, campaign: { select: { id: true, title: true } } },
         orderBy: { createdAt: 'desc' },
       },
     },
   });
 
-  if (!influencer) throw new Response('Influencer not found', { status: 404 });
+  if (!influencer || influencer.shop !== shop) throw new Response('Influencer not found', { status: 404 });
 
   const savedSizes = await prisma.influencerSavedSize.findMany({
     where: { influencerId: id }, orderBy: { category: 'asc' },

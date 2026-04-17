@@ -61,7 +61,7 @@ export async function loader({ request }) {
     prisma.seeding.groupBy({ by: ['status'], where: { shop }, _count: { _all: true } }),
     prisma.campaign.findMany({ where: { shop }, select: { id: true, title: true }, orderBy: { createdAt: 'desc' } }),
     prisma.influencer.findMany({
-      where:    { seedings: { some: { shop } } },
+      where:    { shop, seedings: { some: { shop } } },
       select:   { country: true },
       distinct: ['country'],
       orderBy:  { country: 'asc' },

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useLoaderData, useActionData, Form, useNavigation, useRouteError, Link } from 'react-router';
 import { boundary } from '@shopify/shopify-app-react-router/server';
+import { authenticate } from '../shopify.server';
 import prisma from '../db.server';
 import { C, btn, input, card, label as lbl, section, fmtNum } from '../theme';
 import { rateLimit, getClientIp } from '../utils/rate-limit.server';
@@ -31,8 +32,10 @@ const COUNTRIES = [
   'Zimbabwe',
 ];
 
-export async function loader() {
-  const influencers = await prisma.influencer.findMany({ orderBy: { name: 'asc' } });
+export async function loader({ request }) {
+  const { session } = await authenticate.admin(request);
+  const shop = session.shop;
+  const influencers = await prisma.influencer.findMany({ where: { shop }, orderBy: { name: 'asc' } });
   return { influencers };
 }
 
@@ -59,22 +62,22 @@ function parseCSV(text) {
 }
 
 export async function action({ request }) {
+  const { session } = await authenticate.admin(request);
+  const shop    = session.shop;
   const formData = await request.formData();
-  const intent = formData.get('intent');
+  const intent   = formData.get('intent');
 
   if (intent === 'create') {
-    // 20 creates per hour per IP — prevents bulk spam
     const ip = getClientIp(request);
     const { allowed } = rateLimit(`influencer-create:${ip}`, 20, 60 * 60_000);
     if (!allowed) return { error: 'Too many influencers created recently. Try again later.' };
-
     const handle  = String(formData.get('handle')  || '').slice(0, 100).trim();
     const country = String(formData.get('country') || '').slice(0, 100).trim();
     if (!handle) return { error: 'Handle is required.' };
     await prisma.influencer.create({
       data: {
-        handle,
-        name:      handle.replace(/^@/, ''), // placeholder — overwritten by Shopify checkout
+        shop, handle,
+        name:      handle.replace(/^@/, ''),
         followers: Math.max(0, parseInt(formData.get('followers') || '0') || 0),
         country,
       },
@@ -84,53 +87,47 @@ export async function action({ request }) {
 
   if (intent === 'delete') {
     const id = parseInt(formData.get('id'));
-    const seedingCount = await prisma.seeding.count({ where: { influencerId: id } });
+    const seedingCount = await prisma.seeding.count({ where: { shop, influencerId: id } });
     if (seedingCount > 0) {
       return { error: `Can't delete — this influencer has ${seedingCount} seeding${seedingCount !== 1 ? 's' : ''}. Archive them instead.` };
     }
-    await prisma.influencer.delete({ where: { id } });
+    await prisma.influencer.deleteMany({ where: { shop, id } });
     return null;
   }
 
   if (intent === 'updateNotes') {
+    const id    = parseInt(formData.get('id'));
     const notes = formData.get('notes') ? String(formData.get('notes')).slice(0, 1000) : null;
-    await prisma.influencer.update({
-      where: { id: parseInt(formData.get('id')) },
-      data:  { notes },
-    });
+    await prisma.influencer.updateMany({ where: { shop, id }, data: { notes } });
     return null;
   }
 
   if (intent === 'bulkArchive') {
     const ids = formData.getAll('ids').map(Number);
-    await prisma.influencer.updateMany({ where: { id: { in: ids } }, data: { archived: true } });
+    await prisma.influencer.updateMany({ where: { shop, id: { in: ids } }, data: { archived: true } });
     return { bulkDone: ids.length };
   }
 
   if (intent === 'bulkUnarchive') {
     const ids = formData.getAll('ids').map(Number);
-    await prisma.influencer.updateMany({ where: { id: { in: ids } }, data: { archived: false } });
+    await prisma.influencer.updateMany({ where: { shop, id: { in: ids } }, data: { archived: false } });
     return { bulkDone: ids.length };
   }
 
   if (intent === 'bulkDelete') {
     const ids = formData.getAll('ids').map(Number);
-    // Filter out any influencers that have seedings — can't delete those
     const withSeedings = await prisma.seeding.findMany({
-      where:  { influencerId: { in: ids } },
-      select: { influencerId: true },
+      where:    { shop, influencerId: { in: ids } },
+      select:   { influencerId: true },
       distinct: ['influencerId'],
     });
-    const blockedIds = new Set(withSeedings.map(s => s.influencerId));
+    const blockedIds   = new Set(withSeedings.map(s => s.influencerId));
     const deletableIds = ids.filter(id => !blockedIds.has(id));
     if (deletableIds.length > 0) {
-      await prisma.influencer.deleteMany({ where: { id: { in: deletableIds } } });
+      await prisma.influencer.deleteMany({ where: { shop, id: { in: deletableIds } } });
     }
     if (blockedIds.size > 0) {
-      return {
-        bulkDone: deletableIds.length,
-        error: `${blockedIds.size} influencer${blockedIds.size !== 1 ? 's' : ''} could not be deleted because they have seedings.`,
-      };
+      return { bulkDone: deletableIds.length, error: `${blockedIds.size} influencer${blockedIds.size !== 1 ? 's' : ''} could not be deleted because they have seedings.` };
     }
     return { bulkDone: deletableIds.length };
   }
@@ -141,7 +138,7 @@ export async function action({ request }) {
     const text = await file.text();
     const rows = parseCSV(text);
     if (rows.length === 0) return { error: 'No valid rows found. Check the CSV format.' };
-    await prisma.influencer.createMany({ data: rows, skipDuplicates: true });
+    await prisma.influencer.createMany({ data: rows.map(r => ({ ...r, shop })), skipDuplicates: true });
     return { imported: rows.length };
   }
 

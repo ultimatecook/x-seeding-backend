@@ -66,7 +66,7 @@ const PAGE_SIZE = 40;
 
 // ── Loader ────────────────────────────────────────────────────────────────────
 export async function loader({ request }) {
-  const { portalUser } = await requirePortalUser(request);
+  const { shop, portalUser } = await requirePortalUser(request);
   requirePermission(portalUser.role, 'viewInfluencers');
 
   const url      = new URL(request.url);
@@ -75,8 +75,8 @@ export async function loader({ request }) {
   const tier     = url.searchParams.get('tier')  || 'all';      // all | micro | mid | celeb
   const page     = Math.max(1, parseInt(url.searchParams.get('page') || '1'));
 
-  // Build where clause on the server
-  const where = { archived: view === 'archived' };
+  // Build where clause on the server — always scope to this shop
+  const where = { shop, archived: view === 'archived' };
   if (q) {
     where.OR = [
       { handle:  { contains: q, mode: 'insensitive' } },
@@ -101,8 +101,8 @@ export async function loader({ request }) {
       },
     }),
     prisma.influencer.count({ where }),
-    prisma.influencer.count({ where: { archived: false } }),
-    prisma.influencer.count({ where: { archived: true  } }),
+    prisma.influencer.count({ where: { shop, archived: false } }),
+    prisma.influencer.count({ where: { shop, archived: true  } }),
   ]);
 
   return { influencers, total, page, activeCount, archivedCount, q, view, tier, role: portalUser.role };
@@ -121,7 +121,7 @@ export async function action({ request }) {
     const followers = Math.max(0, parseInt(formData.get('followers') || '0') || 0);
     if (!handle) return { error: 'Handle is required.' };
     const inf = await prisma.influencer.create({
-      data: { handle, name: handle.replace(/^@/, ''), followers, country },
+      data: { shop, handle, name: handle.replace(/^@/, ''), followers, country },
     });
     await audit({ shop, portalUser, action: 'created_influencer', entityType: 'influencer', entityId: inf.id, detail: `Created ${handle}` });
     return { created: true };
@@ -134,7 +134,7 @@ export async function action({ request }) {
     const text = await file.text();
     const rows = parseCSV(text);
     if (rows.length === 0) return { error: 'No valid rows found. Check CSV has name and handle columns.' };
-    await prisma.influencer.createMany({ data: rows, skipDuplicates: true });
+    await prisma.influencer.createMany({ data: rows.map(r => ({ ...r, shop })), skipDuplicates: true });
     await audit({ shop, portalUser, action: 'imported_influencers', entityType: 'influencer', detail: `Imported ${rows.length} influencers via CSV` });
     return { imported: rows.length };
   }
@@ -142,7 +142,7 @@ export async function action({ request }) {
   if (intent === 'bulkArchive') {
     requirePermission(portalUser.role, 'editInfluencer');
     const ids = formData.getAll('ids').map(Number);
-    await prisma.influencer.updateMany({ where: { id: { in: ids } }, data: { archived: true } });
+    await prisma.influencer.updateMany({ where: { shop, id: { in: ids } }, data: { archived: true } });
     await audit({ shop, portalUser, action: 'bulk_archived', entityType: 'influencer', detail: `Archived ${ids.length} influencers` });
     return { bulkDone: ids.length };
   }
@@ -150,7 +150,7 @@ export async function action({ request }) {
   if (intent === 'bulkUnarchive') {
     requirePermission(portalUser.role, 'editInfluencer');
     const ids = formData.getAll('ids').map(Number);
-    await prisma.influencer.updateMany({ where: { id: { in: ids } }, data: { archived: false } });
+    await prisma.influencer.updateMany({ where: { shop, id: { in: ids } }, data: { archived: false } });
     await audit({ shop, portalUser, action: 'bulk_unarchived', entityType: 'influencer', detail: `Unarchived ${ids.length} influencers` });
     return { bulkDone: ids.length };
   }
@@ -159,13 +159,13 @@ export async function action({ request }) {
     requirePermission(portalUser.role, 'editInfluencer');
     const ids = formData.getAll('ids').map(Number);
     // Cascade: delete child records first
-    const seedingIds = (await prisma.seeding.findMany({ where: { influencerId: { in: ids } }, select: { id: true } })).map(s => s.id);
+    const seedingIds = (await prisma.seeding.findMany({ where: { shop, influencerId: { in: ids } }, select: { id: true } })).map(s => s.id);
     if (seedingIds.length > 0) {
       await prisma.seedingProduct.deleteMany({ where: { seedingId: { in: seedingIds } } });
       await prisma.seeding.deleteMany({ where: { id: { in: seedingIds } } });
     }
     await prisma.influencerSavedSize.deleteMany({ where: { influencerId: { in: ids } } });
-    await prisma.influencer.deleteMany({ where: { id: { in: ids } } });
+    await prisma.influencer.deleteMany({ where: { shop, id: { in: ids } } });
     await audit({ shop, portalUser, action: 'bulk_deleted', entityType: 'influencer', detail: `Permanently deleted ${ids.length} influencer(s)` });
     return { bulkDeleted: ids.length };
   }

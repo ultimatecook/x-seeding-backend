@@ -85,6 +85,7 @@ model UserPreference {
 
 model Influencer {
   id          Int                  @id @default(autoincrement())
+  shop        String               @default("")
   name        String
   handle      String
   followers   Int                  @default(0)
@@ -96,6 +97,8 @@ model Influencer {
   seedings    Seeding[]
   savedSizes  InfluencerSavedSize[]
 
+  @@index([shop])
+  @@index([shop, archived])
   @@index([archived])
   @@index([handle])
 }
