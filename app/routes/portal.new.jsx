@@ -12,7 +12,7 @@ import { fmtNum } from '../theme';
 import { D, Pbtn as btn, Pinput as input } from '../utils/portal-theme';
 import { guessProductCategory, extractSizeFromVariant } from '../utils/size-helpers';
 import { assignDiscountCodes } from '../utils/discount-codes.server';
-import { getPrimaryLocationId } from '../utils/inventory.server';
+import { getPrimaryLocationId, getInventoryLocations } from '../utils/inventory.server';
 
 // ── Loader ────────────────────────────────────────────────────────────────────
 export async function loader({ request }) {
@@ -192,7 +192,10 @@ export async function loader({ request }) {
     productIds: [...c.productIds],
   }));
 
-  return { products, productsError, collections: collectionsData, influencers, campaigns, recentlySeededMap, allSavedSizes, shop };
+  const enabledLocations = await getInventoryLocations(shop); // enabled only
+  const hasEnabledLocation = enabledLocations.length > 0;
+
+  return { products, productsError, collections: collectionsData, influencers, campaigns, recentlySeededMap, allSavedSizes, shop, hasEnabledLocation };
 }
 
 // ── Action ────────────────────────────────────────────────────────────────────
@@ -370,7 +373,7 @@ function Pill({ label, active, onClick }) {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function PortalNewSeeding() {
-  const { products, productsError, collections, influencers, campaigns, recentlySeededMap, allSavedSizes, shop } = useLoaderData();
+  const { products, productsError, collections, influencers, campaigns, recentlySeededMap, allSavedSizes, shop, hasEnabledLocation } = useLoaderData();
   const navigate = useNavigate();
 
   const [selectedInfluencer, setSelectedInfluencer] = useState(null);
@@ -488,7 +491,7 @@ export default function PortalNewSeeding() {
 
   const totalRetail  = selectedProducts.reduce((sum, p) => sum + (p.selectedVariant?.price ?? p.price ?? 0), 0);
   const allHaveSizes = selectedProducts.every(p => p.size);
-  const canSubmit    = !submitting && selectedInfluencer && selectedProducts.length > 0 && allHaveSizes;
+  const canSubmit    = !submitting && selectedInfluencer && selectedProducts.length > 0 && allHaveSizes && hasEnabledLocation;
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -519,6 +522,21 @@ export default function PortalNewSeeding() {
         </div>
         <button type="button" onClick={() => navigate('/portal/seedings')} style={{ ...btn.ghost, fontSize: '13px' }}>← Back</button>
       </div>
+
+      {/* ── No location banner ── */}
+      {!hasEnabledLocation && (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px',
+          padding: '12px 16px', marginBottom: '8px',
+          backgroundColor: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: '10px',
+          fontSize: '13px', color: '#92400E',
+        }}>
+          <span>⚠️ <strong>No inventory location is enabled.</strong> Enable at least one location in Admin before creating seedings — otherwise stock can't be tracked or routed correctly.</span>
+          <a href="/portal/admin" style={{ flexShrink: 0, fontWeight: '700', color: '#92400E', textDecoration: 'underline', whiteSpace: 'nowrap' }}>
+            Go to Admin →
+          </a>
+        </div>
+      )}
 
       <Form method="post" onSubmit={handleSubmit}>
         {/* Hidden inputs */}
@@ -682,10 +700,13 @@ export default function PortalNewSeeding() {
               </button>
 
               {/* Validation hints */}
-              {!selectedInfluencer && (
+              {!hasEnabledLocation && (
+                <p style={{ margin: '6px 0 0', fontSize: '11px', color: '#92400E', textAlign: 'center', fontWeight: '600' }}>⚠️ Enable a location in Admin first</p>
+              )}
+              {hasEnabledLocation && !selectedInfluencer && (
                 <p style={{ margin: '6px 0 0', fontSize: '11px', color: D.textMuted, textAlign: 'center' }}>Select an influencer to continue</p>
               )}
-              {selectedInfluencer && selectedProducts.length > 0 && !allHaveSizes && (
+              {hasEnabledLocation && selectedInfluencer && selectedProducts.length > 0 && !allHaveSizes && (
                 <p style={{ margin: '6px 0 0', fontSize: '11px', color: D.errorText, textAlign: 'center', fontWeight: '600' }}>⚠️ All products need a size</p>
               )}
             </div>
@@ -729,7 +750,7 @@ export default function PortalNewSeeding() {
                   </div>
                 )}
                 {filteredProducts.map(prod => {
-                  const outOfStock   = prod.stock === 0;
+                  const outOfStock   = hasEnabledLocation && prod.stock === 0;
                   const recentlySent = !!(selectedInfluencer && recentlySeedMapForInfluencer[prod.id]);
                   const alreadyAdded = selectedProducts.some(p => p.id === prod.id);
                   const isShaking    = shakeId === prod.id;
@@ -762,6 +783,7 @@ export default function PortalNewSeeding() {
                         <div style={{ fontSize: '10px', color: D.textMuted }}>€{prod.price.toFixed(2)}</div>
                         {recentlySent && <div style={{ fontSize: '9px', color: D.accent, fontWeight: '700', marginTop: '2px' }}>Recently sent</div>}
                         {outOfStock   && <div style={{ fontSize: '9px', color: D.errorText, fontWeight: '700', marginTop: '2px' }}>Out of stock</div>}
+                        {!hasEnabledLocation && !recentlySent && <div style={{ fontSize: '9px', color: D.textMuted, marginTop: '2px' }}>Stock: —</div>}
                       </div>
                     </div>
                   );
