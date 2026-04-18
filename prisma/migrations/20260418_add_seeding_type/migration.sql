@@ -1,10 +1,22 @@
--- Add LocationType enum and locationType to InventoryLocation
-CREATE TYPE "LocationType" AS ENUM ('Online', 'Store');
-ALTER TABLE "InventoryLocation" ADD COLUMN "locationType" "LocationType" NOT NULL DEFAULT 'Online';
-CREATE INDEX "InventoryLocation_shop_locationType_isEnabled_idx" ON "InventoryLocation"("shop", "locationType", "isEnabled");
+-- Add LocationType enum (idempotent)
+DO $$ BEGIN
+  CREATE TYPE "LocationType" AS ENUM ('Online', 'Store');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
--- Add SeedingType enum and fields to Seeding
-CREATE TYPE "SeedingType" AS ENUM ('Online', 'InStore');
-ALTER TABLE "Seeding" ADD COLUMN "seedingType"       "SeedingType" NOT NULL DEFAULT 'Online';
-ALTER TABLE "Seeding" ADD COLUMN "storeLocationId"   TEXT;
-ALTER TABLE "Seeding" ADD COLUMN "storeLocationName" TEXT;
+-- Add SeedingType enum (idempotent)
+DO $$ BEGIN
+  CREATE TYPE "SeedingType" AS ENUM ('Online', 'InStore');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+-- Add locationType to InventoryLocation
+ALTER TABLE "InventoryLocation" ADD COLUMN IF NOT EXISTS "locationType" "LocationType" NOT NULL DEFAULT 'Online';
+
+-- Add index for locationType
+CREATE INDEX IF NOT EXISTS "InventoryLocation_shop_locationType_isEnabled_idx" ON "InventoryLocation"("shop", "locationType", "isEnabled");
+
+-- Add seedingType and store fields to Seeding
+ALTER TABLE "Seeding" ADD COLUMN IF NOT EXISTS "seedingType"       "SeedingType" NOT NULL DEFAULT 'Online';
+ALTER TABLE "Seeding" ADD COLUMN IF NOT EXISTS "storeLocationId"   TEXT;
+ALTER TABLE "Seeding" ADD COLUMN IF NOT EXISTS "storeLocationName" TEXT;
