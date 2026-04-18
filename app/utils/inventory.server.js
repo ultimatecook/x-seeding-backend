@@ -45,11 +45,10 @@ export async function syncLocations(shop) {
   }
 
   for (const loc of validNodes) {
-    // Use real name if available, otherwise use numeric ID from GID
     const name = loc.name || `Location ${gidToNumeric(loc.id)}`;
     await prisma.inventoryLocation.upsert({
       where:  { shop_shopifyLocationId: { shop, shopifyLocationId: loc.id } },
-      update: {}, // don't overwrite a user-set name
+      update: { name }, // refresh name from Shopify on every sync
       create: { shop, shopifyLocationId: loc.id, name, isEnabled: true, priorityOrder: 999 },
     });
   }
@@ -75,7 +74,7 @@ export async function syncLocationsWithAdmin(shop, admin) {
       const name = loc.name || `Location ${gidToNumeric(loc.id)}`;
       await prisma.inventoryLocation.upsert({
         where:  { shop_shopifyLocationId: { shop, shopifyLocationId: loc.id } },
-        update: {},
+        update: { name }, // refresh name from Shopify on every sync
         create: { shop, shopifyLocationId: loc.id, name, isEnabled: true, priorityOrder: 999 },
       });
     }

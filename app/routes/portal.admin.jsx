@@ -44,7 +44,6 @@ export async function action({ request }) {
     const name    = String(formData.get('name') || '').trim();
     if (!name) return { error: 'Location name is required.' };
     const rawId   = String(formData.get('shopifyLocationId') || '').trim();
-    // Accept numeric ID or full GID
     const shopifyLocationId = rawId
       ? (rawId.startsWith('gid://') ? rawId : `gid://shopify/Location/${rawId}`)
       : `manual_${Date.now()}`;
@@ -67,16 +66,32 @@ export async function action({ request }) {
     return { ok: true };
   }
 
-  // ── Reorder locations ────────────────────────────────────────────────────
-  if (intent === 'reorderLocations') {
-    const ordered = formData.getAll('locationId').map((id, i) => ({
-      id: parseInt(id), priorityOrder: i,
-    }));
+  // ── Move location up or down ─────────────────────────────────────────────
+  if (intent === 'moveLocation') {
+    const id        = parseInt(formData.get('locationId'));
+    const direction = formData.get('direction'); // 'up' | 'down'
+
+    const all = await prisma.inventoryLocation.findMany({
+      where:   { shop },
+      orderBy: [{ priorityOrder: 'asc' }, { name: 'asc' }],
+    });
+
+    const idx = all.findIndex(l => l.id === id);
+    if (idx === -1) return null;
+
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= all.length) return null;
+
+    // Swap
+    [all[idx], all[swapIdx]] = [all[swapIdx], all[idx]];
+
+    // Persist new order
     await Promise.all(
-      ordered.map(({ id, priorityOrder }) =>
-        prisma.inventoryLocation.updateMany({ where: { id, shop }, data: { priorityOrder } })
+      all.map((l, i) =>
+        prisma.inventoryLocation.update({ where: { id: l.id }, data: { priorityOrder: i } })
       )
     );
+
     return { ok: true };
   }
 
@@ -94,13 +109,12 @@ export async function action({ request }) {
     if (codes.length === 0) return { error: 'No codes found. Paste codes separated by commas or new lines.' };
     if (codes.length > 5000) return { error: 'Maximum 5 000 codes per import.' };
 
-    // Upsert — skip duplicates
     let inserted = 0;
     for (const code of codes) {
       try {
         await prisma.discountCode.upsert({
           where:  { shop_code: { shop, code } },
-          update: {}, // already exists — leave it
+          update: {},
           create: { shop, poolType, code, status: 'Available' },
         });
         inserted++;
@@ -130,6 +144,10 @@ export async function action({ request }) {
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
+function gidToNumeric(gid) {
+  return gid?.split('/').pop() ?? gid;
+}
+
 const TAG = {
   Available: { bg: '#DCFCE7', color: '#166534' },
   Assigned:  { bg: '#DBEAFE', color: '#1E40AF' },
@@ -157,33 +175,8 @@ export default function PortalAdmin() {
   const nav         = useNavigation();
   const busy        = nav.state !== 'idle';
 
-  const [tab, setTab]           = useState('inventory');  // 'inventory' | 'discounts'
-  const [activePool, setActivePool] = useState('Product'); // 'Product' | 'Shipping'
-
-  // Optimistic local order for drag-and-drop (simple move-up / move-down buttons)
-  const [order, setOrder] = useState(() => locations.map(l => l.id));
-  const displayedLocs = [...locations].sort(
-    (a, b) => order.indexOf(a.id) - order.indexOf(b.id)
-  );
-
-  function moveUp(id) {
-    setOrder(prev => {
-      const i = prev.indexOf(id);
-      if (i <= 0) return prev;
-      const next = [...prev];
-      [next[i - 1], next[i]] = [next[i], next[i - 1]];
-      return next;
-    });
-  }
-  function moveDown(id) {
-    setOrder(prev => {
-      const i = prev.indexOf(id);
-      if (i >= prev.length - 1) return prev;
-      const next = [...prev];
-      [next[i + 1], next[i]] = [next[i], next[i + 1]];
-      return next;
-    });
-  }
+  const [tab, setTab]           = useState('inventory');
+  const [activePool, setActivePool] = useState('Product');
 
   const POOL = poolStats[activePool] || { Available: 0, Assigned: 0, Used: 0 };
 
@@ -241,8 +234,8 @@ export default function PortalAdmin() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
           <p style={{ margin: 0, fontSize: '13px', color: D.textSub, lineHeight: 1.6 }}>
-            Add your Shopify fulfilment locations, then enable/disable and set their priority order.
-            When a seeding is created, the top-priority enabled location is used.
+            Sync your Shopify locations below, then set priority order. When a seeding is created,
+            stock is pulled from the top-priority enabled location.
           </p>
 
           {/* Sync from Shopify */}
@@ -253,126 +246,109 @@ export default function PortalAdmin() {
             </button>
           </Form>
 
-          {/* Add location form */}
-          <div style={{ padding: '16px', border: `1px solid ${D.border}`, borderRadius: '12px', backgroundColor: 'var(--pt-surface)', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            <p style={{ margin: 0, fontSize: '12px', color: D.textSub, lineHeight: 1.6 }}>
-              Find your location ID in Shopify: <strong style={{ color: D.text }}>Admin → Settings → Locations → click your location</strong> — copy the number at the end of the URL (e.g. <code style={{ fontSize: '11px', backgroundColor: D.bg, padding: '1px 5px', borderRadius: '4px' }}>.../locations/97379991828</code>)
-            </p>
-            <Form method="post" style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
-              <input type="hidden" name="intent" value="addLocation" />
-              <div style={{ flex: 2 }}>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: D.textSub, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '5px' }}>
-                  Location name
-                </label>
-                <input name="name" placeholder="e.g. Main Warehouse" required style={{ ...input.base, width: '100%', boxSizing: 'border-box' }} />
-              </div>
-              <div style={{ flex: 1 }}>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: D.textSub, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '5px' }}>
-                  Shopify Location ID
-                </label>
-                <input name="shopifyLocationId" placeholder="97379991828" style={{ ...input.base, width: '100%', boxSizing: 'border-box' }} />
-              </div>
-              <button type="submit" disabled={busy} style={{ ...btn.primary, whiteSpace: 'nowrap', flexShrink: 0 }}>
-                + Add location
-              </button>
-            </Form>
-          </div>
-
           {locations.length === 0 ? (
             <div style={{ padding: '32px', textAlign: 'center', color: D.textMuted, fontSize: '13px', border: `1px dashed ${D.border}`, borderRadius: '12px' }}>
-              No locations yet. Add one above.
+              No locations yet. Click Sync from Shopify above.
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {/* Save order form */}
-              <Form method="post" style={{ display: 'contents' }}>
-                <input type="hidden" name="intent" value="reorderLocations" />
-                {displayedLocs.map(loc => (
-                  <input key={loc.id} type="hidden" name="locationId" value={String(loc.id)} />
-                ))}
-
-                {displayedLocs.map((loc, idx) => (
-                  <div
-                    key={loc.id}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: '12px',
-                      padding: '12px 16px',
-                      backgroundColor: 'var(--pt-surface)',
-                      border: `1px solid ${D.border}`,
-                      borderRadius: '10px',
-                    }}
-                  >
-                    {/* Up / Down */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                      <button
-                        type="button"
-                        onClick={() => moveUp(loc.id)}
-                        disabled={idx === 0}
-                        title="Move up"
-                        style={{ background: 'none', border: 'none', cursor: idx === 0 ? 'default' : 'pointer', color: idx === 0 ? D.border : D.textSub, fontSize: '12px', padding: '1px 4px' }}
-                      >▲</button>
-                      <button
-                        type="button"
-                        onClick={() => moveDown(loc.id)}
-                        disabled={idx === displayedLocs.length - 1}
-                        title="Move down"
-                        style={{ background: 'none', border: 'none', cursor: idx === displayedLocs.length - 1 ? 'default' : 'pointer', color: idx === displayedLocs.length - 1 ? D.border : D.textSub, fontSize: '12px', padding: '1px 4px' }}
-                      >▼</button>
-                    </div>
-
-                    {/* Priority badge */}
-                    <span style={{
-                      minWidth: '26px', height: '26px', borderRadius: '50%',
-                      backgroundColor: loc.isEnabled ? 'var(--pt-accent-light)' : D.surfaceHigh,
-                      color: loc.isEnabled ? 'var(--pt-accent)' : D.textMuted,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: '11px', fontWeight: '800', flexShrink: 0,
-                    }}>{idx + 1}</span>
-
-                    {/* Name */}
-                    <span style={{ flex: 1, fontSize: '13px', fontWeight: '600', color: loc.isEnabled ? D.text : D.textMuted }}>
-                      {loc.name}
-                    </span>
-
-                    {/* Enable / disable toggle */}
+              {locations.map((loc, idx) => (
+                <div
+                  key={loc.id}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '12px',
+                    padding: '12px 16px',
+                    backgroundColor: 'var(--pt-surface)',
+                    border: `1px solid ${D.border}`,
+                    borderRadius: '10px',
+                    opacity: loc.isEnabled ? 1 : 0.55,
+                  }}
+                >
+                  {/* Up / Down — each is its own form so it submits immediately */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                     <Form method="post">
-                      <input type="hidden" name="intent"     value="toggleLocation" />
+                      <input type="hidden" name="intent"     value="moveLocation" />
                       <input type="hidden" name="locationId" value={String(loc.id)} />
-                      <input type="hidden" name="isEnabled"  value={loc.isEnabled ? 'false' : 'true'} />
+                      <input type="hidden" name="direction"  value="up" />
                       <button
                         type="submit"
-                        disabled={busy}
+                        disabled={idx === 0 || busy}
+                        title="Move up"
                         style={{
-                          padding: '4px 12px',
-                          fontSize: '11px', fontWeight: '700',
-                          borderRadius: '6px',
-                          border: `1px solid ${D.border}`,
-                          background: loc.isEnabled ? '#DCFCE7' : '#FEE2E2',
-                          color:      loc.isEnabled ? '#166534' : '#991B1B',
-                          cursor: 'pointer',
+                          background: 'none', border: 'none',
+                          cursor: idx === 0 ? 'default' : 'pointer',
+                          color: idx === 0 ? D.border : D.textSub,
+                          fontSize: '12px', padding: '1px 4px', display: 'block',
                         }}
-                      >
-                        {loc.isEnabled ? 'Enabled' : 'Disabled'}
-                      </button>
+                      >▲</button>
                     </Form>
-
-                    {/* Delete */}
-                    <Form method="post" onSubmit={e => { if (!confirm(`Remove "${loc.name}"?`)) e.preventDefault(); }}>
-                      <input type="hidden" name="intent"     value="deleteLocation" />
+                    <Form method="post">
+                      <input type="hidden" name="intent"     value="moveLocation" />
                       <input type="hidden" name="locationId" value={String(loc.id)} />
-                      <button type="submit" disabled={busy} style={{ background: 'none', border: 'none', color: D.textMuted, cursor: 'pointer', fontSize: '18px', lineHeight: 1, padding: '0 4px' }}>×</button>
+                      <input type="hidden" name="direction"  value="down" />
+                      <button
+                        type="submit"
+                        disabled={idx === locations.length - 1 || busy}
+                        title="Move down"
+                        style={{
+                          background: 'none', border: 'none',
+                          cursor: idx === locations.length - 1 ? 'default' : 'pointer',
+                          color: idx === locations.length - 1 ? D.border : D.textSub,
+                          fontSize: '12px', padding: '1px 4px', display: 'block',
+                        }}
+                      >▼</button>
                     </Form>
                   </div>
-                ))}
 
-                <button
-                  type="submit"
-                  disabled={busy}
-                  style={{ ...btn.primary, fontSize: '13px', marginTop: '4px' }}
-                >
-                  Save order
-                </button>
-              </Form>
+                  {/* Priority badge */}
+                  <span style={{
+                    minWidth: '26px', height: '26px', borderRadius: '50%',
+                    backgroundColor: loc.isEnabled ? 'var(--pt-accent-light)' : D.surfaceHigh,
+                    color: loc.isEnabled ? 'var(--pt-accent)' : D.textMuted,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '11px', fontWeight: '800', flexShrink: 0,
+                  }}>{idx + 1}</span>
+
+                  {/* Name + ID */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '13px', fontWeight: '600', color: D.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {loc.name}
+                    </div>
+                    <div style={{ fontSize: '11px', color: D.textMuted, marginTop: '1px' }}>
+                      ID: {gidToNumeric(loc.shopifyLocationId)}
+                    </div>
+                  </div>
+
+                  {/* Enable / disable toggle */}
+                  <Form method="post">
+                    <input type="hidden" name="intent"     value="toggleLocation" />
+                    <input type="hidden" name="locationId" value={String(loc.id)} />
+                    <input type="hidden" name="isEnabled"  value={loc.isEnabled ? 'false' : 'true'} />
+                    <button
+                      type="submit"
+                      disabled={busy}
+                      style={{
+                        padding: '4px 12px',
+                        fontSize: '11px', fontWeight: '700',
+                        borderRadius: '6px',
+                        border: `1px solid ${D.border}`,
+                        background: loc.isEnabled ? '#DCFCE7' : '#FEE2E2',
+                        color:      loc.isEnabled ? '#166534' : '#991B1B',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {loc.isEnabled ? 'Enabled' : 'Disabled'}
+                    </button>
+                  </Form>
+
+                  {/* Delete */}
+                  <Form method="post" onSubmit={e => { if (!confirm(`Remove "${loc.name}"?`)) e.preventDefault(); }}>
+                    <input type="hidden" name="intent"     value="deleteLocation" />
+                    <input type="hidden" name="locationId" value={String(loc.id)} />
+                    <button type="submit" disabled={busy} style={{ background: 'none', border: 'none', color: D.textMuted, cursor: 'pointer', fontSize: '18px', lineHeight: 1, padding: '0 4px' }}>×</button>
+                  </Form>
+                </div>
+              ))}
             </div>
           )}
         </div>
