@@ -3,7 +3,7 @@
  * Fetches Shopify products using the stored offline access token — no Shopify admin session needed.
  */
 import { useState, useEffect } from 'react';
-import { useLoaderData, Form, useNavigate, redirect } from 'react-router';
+import { useLoaderData, useActionData, Form, useNavigate, redirect } from 'react-router';
 import prisma from '../db.server';
 import { requirePortalUser } from '../utils/portal-auth.server';
 import { requirePermission } from '../utils/portal-permissions.js';
@@ -192,10 +192,9 @@ export async function loader({ request }) {
     productIds: [...c.productIds],
   }));
 
-  const enabledLocations = await getInventoryLocations(shop); // enabled only
-  const hasEnabledLocation = enabledLocations.length > 0;
+  const enabledLocations = await getInventoryLocations(shop); // enabled only, includes all types
 
-  return { products, productsError, collections: collectionsData, influencers, campaigns, recentlySeededMap, allSavedSizes, shop, hasEnabledLocation };
+  return { products, productsError, collections: collectionsData, influencers, campaigns, recentlySeededMap, allSavedSizes, shop, enabledLocations };
 }
 
 // ── Action ────────────────────────────────────────────────────────────────────
@@ -218,6 +217,10 @@ export async function action({ request }) {
   const totalCost      = productPrices.reduce((sum, p) => sum + p, 0);
   const notes          = formData.get('notes') || '';
 
+  const seedingType       = formData.get('seedingType') || 'Online'; // 'Online' | 'InStore'
+  const storeLocationId   = formData.get('storeLocationId')   || null;
+  const storeLocationName = formData.get('storeLocationName') || null;
+
   const productsWithoutSize = productSizes.filter(s => !s || s.trim() === '');
   if (productsWithoutSize.length > 0) {
     return { error: 'All products must have a size selected.' };
@@ -230,48 +233,51 @@ export async function action({ request }) {
   let shopifyOrderName    = null;
   let invoiceUrl          = null;
 
-  try {
-    let session = await prisma.session.findFirst({ where: { shop, isOnline: false, expires: null } });
-    if (!session) session = await prisma.session.findFirst({ where: { shop, isOnline: false }, orderBy: { expires: 'desc' } });
-    if (!session) session = await prisma.session.findFirst({ where: { shop }, orderBy: { expires: 'desc' } });
-    if (session?.accessToken) {
-      const locationId = await getPrimaryLocationId(shop);
-      const lineItems  = variantIds.filter(v => v && v.length > 0).map(variantId => ({ variantId, quantity: 1 }));
-      const mutation   = `mutation DraftOrderCreate($input: DraftOrderInput!) {
-        draftOrderCreate(input: $input) {
-          draftOrder { id name invoiceUrl }
-          userErrors { field message }
-        }
-      }`;
-      const draftInput = {
-        lineItems,
-        appliedDiscount: { value: 100, valueType: 'PERCENTAGE', title: 'Seeding Gift – 100% Off' },
-        note: `Seeding for ${influencer?.handle ?? ''} (${influencer?.name ?? ''})`,
-        tags: ['seeding'],
-      };
-      // Route inventory to the chosen location if one is configured
-      if (locationId) draftInput.locationId = locationId;
+  // Only create a Shopify draft order for online seedings
+  if (seedingType === 'Online') {
+    try {
+      let session = await prisma.session.findFirst({ where: { shop, isOnline: false, expires: null } });
+      if (!session) session = await prisma.session.findFirst({ where: { shop, isOnline: false }, orderBy: { expires: 'desc' } });
+      if (!session) session = await prisma.session.findFirst({ where: { shop }, orderBy: { expires: 'desc' } });
+      if (session?.accessToken) {
+        const locationId = await getPrimaryLocationId(shop);
+        const lineItems  = variantIds.filter(v => v && v.length > 0).map(variantId => ({ variantId, quantity: 1 }));
+        const mutation   = `mutation DraftOrderCreate($input: DraftOrderInput!) {
+          draftOrderCreate(input: $input) {
+            draftOrder { id name invoiceUrl }
+            userErrors { field message }
+          }
+        }`;
+        const draftInput = {
+          lineItems,
+          appliedDiscount: { value: 100, valueType: 'PERCENTAGE', title: 'Seeding Gift – 100% Off' },
+          note: `Seeding for ${influencer?.handle ?? ''} (${influencer?.name ?? ''})`,
+          tags: ['seeding'],
+        };
+        if (locationId) draftInput.locationId = locationId;
 
-      const res  = await fetch(`https://${shop}/admin/api/2025-10/graphql.json`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': session.accessToken },
-        body: JSON.stringify({ query: mutation, variables: { input: draftInput } }),
-      });
-      const body  = await res.json();
-      const draft = body?.data?.draftOrderCreate?.draftOrder;
-      if (draft) {
-        shopifyDraftOrderId = draft.id;
-        shopifyOrderName    = draft.name;
-        invoiceUrl          = draft.invoiceUrl;
+        const res  = await fetch(`https://${shop}/admin/api/2025-10/graphql.json`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': session.accessToken },
+          body: JSON.stringify({ query: mutation, variables: { input: draftInput } }),
+        });
+        const body  = await res.json();
+        const draft = body?.data?.draftOrderCreate?.draftOrder;
+        if (draft) {
+          shopifyDraftOrderId = draft.id;
+          shopifyOrderName    = draft.name;
+          invoiceUrl          = draft.invoiceUrl;
+        }
       }
+    } catch (err) {
+      console.error('Portal: failed to create Shopify draft order:', err.message);
     }
-  } catch (err) {
-    console.error('Portal: failed to create Shopify draft order:', err.message);
   }
 
   const seeding = await prisma.seeding.create({
     data: {
       shop, influencerId, campaignId, totalCost, notes, status: 'Pending',
+      seedingType, storeLocationId, storeLocationName,
       shopifyDraftOrderId, shopifyOrderName, invoiceUrl,
       products: {
         create: productIds.map((productId, i) => ({
@@ -289,8 +295,12 @@ export async function action({ request }) {
   });
 
   // Assign discount codes from pool (best-effort — won't fail seeding creation)
+  let assignedCodes = null;
   try {
-    await assignDiscountCodes(shop, seeding.id);
+    assignedCodes = await assignDiscountCodes(shop, seeding.id);
+    // Re-fetch to get the assigned codes
+    const updated = await prisma.seeding.findUnique({ where: { id: seeding.id }, select: { productDiscountCode: true, shippingDiscountCode: true } });
+    if (updated) assignedCodes = updated;
   } catch (e) {
     console.warn('Portal: could not assign discount codes:', e.message);
   }
@@ -300,7 +310,7 @@ export async function action({ request }) {
     action: 'created_seeding',
     entityType: 'seeding',
     entityId: seeding.id,
-    detail: `Created seeding for ${influencer?.handle ?? influencerId} (${productIds.length} product${productIds.length !== 1 ? 's' : ''}, €${totalCost.toFixed(2)})`,
+    detail: `Created ${seedingType === 'InStore' ? 'in-store' : 'online'} seeding for ${influencer?.handle ?? influencerId} (${productIds.length} product${productIds.length !== 1 ? 's' : ''}, €${totalCost.toFixed(2)})${storeLocationName ? ` at ${storeLocationName}` : ''}`,
   });
 
   // Save sizes for next time
@@ -318,6 +328,19 @@ export async function action({ request }) {
     }
   } catch (e) {
     console.warn('Portal: could not save sizes:', e.message);
+  }
+
+  // For in-store seedings: return the code to display — don't redirect
+  if (seedingType === 'InStore') {
+    const fresh = await prisma.seeding.findUnique({ where: { id: seeding.id }, select: { productDiscountCode: true, shippingDiscountCode: true } });
+    return {
+      inStoreSuccess:      true,
+      seedingId:           seeding.id,
+      storeName:           storeLocationName,
+      influencerHandle:    influencer.handle,
+      productCode:         fresh?.productDiscountCode ?? null,
+      shippingCode:        fresh?.shippingDiscountCode ?? null,
+    };
   }
 
   return redirect('/portal/seedings');
@@ -373,9 +396,15 @@ function Pill({ label, active, onClick }) {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function PortalNewSeeding() {
-  const { products, productsError, collections, influencers, campaigns, recentlySeededMap, allSavedSizes, shop, hasEnabledLocation } = useLoaderData();
-  const navigate = useNavigate();
+  const { products, productsError, collections, influencers, campaigns, recentlySeededMap, allSavedSizes, shop, enabledLocations } = useLoaderData();
+  const actionData = useActionData();
+  const navigate   = useNavigate();
 
+  const onlineLocations = (enabledLocations ?? []).filter(l => l.locationType === 'Online');
+  const storeLocations  = (enabledLocations ?? []).filter(l => l.locationType === 'Store');
+
+  const [seedingType,        setSeedingType]        = useState('Online'); // 'Online' | 'InStore'
+  const [selectedStore,      setSelectedStore]      = useState(null);    // { id, shopifyLocationId, name }
   const [selectedInfluencer, setSelectedInfluencer] = useState(null);
   const [selectedCampaign,   setSelectedCampaign]   = useState(null);
   const [selectedProducts,   setSelectedProducts]   = useState([]);
@@ -491,7 +520,11 @@ export default function PortalNewSeeding() {
 
   const totalRetail  = selectedProducts.reduce((sum, p) => sum + (p.selectedVariant?.price ?? p.price ?? 0), 0);
   const allHaveSizes = selectedProducts.every(p => p.size);
-  const canSubmit    = !submitting && selectedInfluencer && selectedProducts.length > 0 && allHaveSizes && hasEnabledLocation;
+  const hasEnabledLocation = seedingType === 'Online'
+    ? onlineLocations.length > 0
+    : storeLocations.length > 0;
+  const hasSelectedStore = seedingType === 'InStore' ? selectedStore !== null : true;
+  const canSubmit = !submitting && selectedInfluencer && selectedProducts.length > 0 && allHaveSizes && hasEnabledLocation && hasSelectedStore;
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -501,6 +534,69 @@ export default function PortalNewSeeding() {
     setSubmitting(true);
     setSubmitError(null);
     e.target.submit();
+  }
+
+  // ── In-store success overlay ─────────────────────────────────────────────────
+  if (actionData?.inStoreSuccess) {
+    const { storeName, influencerHandle, productCode, shippingCode } = actionData;
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: '24px', padding: '40px 24px', textAlign: 'center' }}>
+        <div style={{ fontSize: '48px' }}>🏪</div>
+        <div>
+          <h2 style={{ margin: '0 0 6px', fontSize: '22px', fontWeight: '800', color: D.text }}>In-Store Seeding Created</h2>
+          <p style={{ margin: 0, fontSize: '14px', color: D.textSub }}>
+            @{influencerHandle} · {storeName}
+          </p>
+        </div>
+
+        <div style={{ width: '100%', maxWidth: '420px', backgroundColor: D.surface, border: `1px solid ${D.border}`, borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <p style={{ margin: 0, fontSize: '13px', color: D.textSub }}>
+            Give this code to the retail assistant at <strong style={{ color: D.text }}>{storeName}</strong> to apply at the POS:
+          </p>
+
+          {productCode ? (
+            <div style={{ backgroundColor: '#F3F0FF', border: '1.5px solid #C4B5FD', borderRadius: '12px', padding: '20px' }}>
+              <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.6px', color: '#6D28D9', marginBottom: '8px' }}>
+                Discount Code
+              </div>
+              <div style={{
+                fontFamily: 'monospace', fontSize: '28px', fontWeight: '800',
+                color: '#4C1D95', letterSpacing: '3px', userSelect: 'all',
+              }}>
+                {productCode}
+              </div>
+              <button
+                type="button"
+                onClick={() => navigator.clipboard.writeText(productCode)}
+                style={{ marginTop: '10px', padding: '5px 14px', fontSize: '11px', fontWeight: '700', borderRadius: '6px', border: '1px solid #C4B5FD', backgroundColor: '#EDE9FE', color: '#5B21B6', cursor: 'pointer' }}>
+                Copy code
+              </button>
+            </div>
+          ) : (
+            <div style={{ padding: '16px', backgroundColor: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: '10px', fontSize: '13px', color: '#92400E' }}>
+              No discount code was assigned — your pool may be empty. Add codes in Admin → Discount Codes.
+            </div>
+          )}
+
+          {shippingCode && (
+            <div style={{ fontSize: '12px', color: D.textSub }}>
+              Shipping code: <code style={{ fontWeight: '700', color: D.text }}>{shippingCode}</code>
+            </div>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <button type="button" onClick={() => navigate('/portal/seedings')}
+            style={{ padding: '10px 24px', borderRadius: '9px', border: `1px solid ${D.border}`, backgroundColor: D.surface, color: D.textSub, fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>
+            View all seedings
+          </button>
+          <button type="button" onClick={() => window.location.reload()}
+            style={{ padding: '10px 24px', borderRadius: '9px', border: 'none', background: `linear-gradient(135deg, ${D.accent} 0%, ${D.purple} 100%)`, color: '#fff', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>
+            New seeding
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -523,6 +619,30 @@ export default function PortalNewSeeding() {
         <button type="button" onClick={() => navigate('/portal/seedings')} style={{ ...btn.ghost, fontSize: '13px' }}>← Back</button>
       </div>
 
+      {/* ── Seeding type picker ── */}
+      <div style={{ display: 'flex', gap: '0', backgroundColor: D.surface, border: `1px solid ${D.border}`, borderRadius: '10px', padding: '4px', width: 'fit-content', marginBottom: '4px' }}>
+        {[
+          { key: 'Online',  icon: '🌐', label: 'Online',   sub: 'Sends checkout link' },
+          { key: 'InStore', icon: '🏪', label: 'In-Store', sub: 'POS discount code' },
+        ].map(({ key, icon, label, sub }) => {
+          const active = seedingType === key;
+          return (
+            <button key={key} type="button"
+              onClick={() => { setSeedingType(key); setSelectedStore(null); }}
+              style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px',
+                padding: '8px 24px', borderRadius: '7px', border: 'none', cursor: 'pointer',
+                backgroundColor: active ? 'var(--pt-accent)' : 'transparent',
+                color: active ? '#fff' : D.textSub,
+                transition: 'all 0.15s',
+              }}>
+              <span style={{ fontSize: '14px' }}>{icon} <strong style={{ fontSize: '13px' }}>{label}</strong></span>
+              <span style={{ fontSize: '10px', opacity: active ? 0.85 : 0.7 }}>{sub}</span>
+            </button>
+          );
+        })}
+      </div>
+
       {/* ── No location banner ── */}
       {!hasEnabledLocation && (
         <div style={{
@@ -531,7 +651,12 @@ export default function PortalNewSeeding() {
           backgroundColor: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: '10px',
           fontSize: '13px', color: '#92400E',
         }}>
-          <span>⚠️ <strong>No inventory location is enabled.</strong> Enable at least one location in Admin before creating seedings — otherwise stock can't be tracked or routed correctly.</span>
+          <span>
+            {seedingType === 'InStore'
+              ? <>⚠️ <strong>No store locations configured.</strong> Go to Admin, enable a location and set its type to <strong>Store</strong>.</>
+              : <>⚠️ <strong>No online location enabled.</strong> Go to Admin and enable at least one location typed as <strong>Online</strong>.</>
+            }
+          </span>
           <a href="/portal/admin" style={{ flexShrink: 0, fontWeight: '700', color: '#92400E', textDecoration: 'underline', whiteSpace: 'nowrap' }}>
             Go to Admin →
           </a>
@@ -540,9 +665,12 @@ export default function PortalNewSeeding() {
 
       <Form method="post" onSubmit={handleSubmit}>
         {/* Hidden inputs */}
-        <input type="hidden" name="shop"         value={shop} />
-        <input type="hidden" name="influencerId" value={selectedInfluencer?.id ?? ''} />
-        <input type="hidden" name="campaignId"   value={selectedCampaign?.id ?? ''} />
+        <input type="hidden" name="shop"              value={shop} />
+        <input type="hidden" name="influencerId"      value={selectedInfluencer?.id ?? ''} />
+        <input type="hidden" name="campaignId"        value={selectedCampaign?.id ?? ''} />
+        <input type="hidden" name="seedingType"       value={seedingType} />
+        <input type="hidden" name="storeLocationId"   value={selectedStore?.shopifyLocationId ?? ''} />
+        <input type="hidden" name="storeLocationName" value={selectedStore?.name ?? ''} />
         {selectedProducts.map(p => (
           <span key={p.id}>
             <input type="hidden" name="productIds"        value={p.id} />
@@ -658,6 +786,37 @@ export default function PortalNewSeeding() {
               </div>
             )}
 
+            {/* ── Store picker (in-store only) ── */}
+            {seedingType === 'InStore' && (
+              <div style={{ padding: '12px 16px', borderTop: `1px solid ${D.border}` }}>
+                <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.6px', color: D.textMuted, marginBottom: '8px' }}>
+                  Store location <span style={{ color: D.errorText }}>*</span>
+                </div>
+                {storeLocations.length === 0 ? (
+                  <p style={{ margin: 0, fontSize: '12px', color: '#92400E' }}>No stores configured. Set a location type to Store in Admin.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    {storeLocations.map(loc => {
+                      const active = selectedStore?.id === loc.id;
+                      return (
+                        <button key={loc.id} type="button" onClick={() => setSelectedStore(loc)}
+                          style={{
+                            textAlign: 'left', padding: '8px 12px', borderRadius: '8px', border: `1.5px solid ${active ? 'var(--pt-accent)' : D.border}`,
+                            backgroundColor: active ? 'var(--pt-accent-light)' : 'transparent',
+                            color: active ? 'var(--pt-accent)' : D.text,
+                            cursor: 'pointer', fontSize: '13px', fontWeight: active ? '700' : '500',
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                          }}>
+                          <span>🏪 {loc.name}</span>
+                          {active && <span style={{ fontSize: '11px', fontWeight: '800' }}>✓</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* ── Notes section ── */}
             <div style={{ padding: '12px 16px', borderTop: `1px solid ${D.border}` }}>
               <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.6px', color: D.textMuted, marginBottom: '6px' }}>
@@ -701,12 +860,17 @@ export default function PortalNewSeeding() {
 
               {/* Validation hints */}
               {!hasEnabledLocation && (
-                <p style={{ margin: '6px 0 0', fontSize: '11px', color: '#92400E', textAlign: 'center', fontWeight: '600' }}>⚠️ Enable a location in Admin first</p>
+                <p style={{ margin: '6px 0 0', fontSize: '11px', color: '#92400E', textAlign: 'center', fontWeight: '600' }}>
+                  {seedingType === 'InStore' ? '⚠️ Configure a Store location in Admin first' : '⚠️ Enable an Online location in Admin first'}
+                </p>
               )}
-              {hasEnabledLocation && !selectedInfluencer && (
+              {hasEnabledLocation && seedingType === 'InStore' && !selectedStore && (
+                <p style={{ margin: '6px 0 0', fontSize: '11px', color: D.textMuted, textAlign: 'center' }}>Select a store location</p>
+              )}
+              {hasEnabledLocation && hasSelectedStore && !selectedInfluencer && (
                 <p style={{ margin: '6px 0 0', fontSize: '11px', color: D.textMuted, textAlign: 'center' }}>Select an influencer to continue</p>
               )}
-              {hasEnabledLocation && selectedInfluencer && selectedProducts.length > 0 && !allHaveSizes && (
+              {hasEnabledLocation && hasSelectedStore && selectedInfluencer && selectedProducts.length > 0 && !allHaveSizes && (
                 <p style={{ margin: '6px 0 0', fontSize: '11px', color: D.errorText, textAlign: 'center', fontWeight: '600' }}>⚠️ All products need a size</p>
               )}
             </div>

@@ -14,7 +14,7 @@ import { D, Pbtn as btn, Pinput as input } from '../utils/portal-theme';
 // ── Loader ─────────────────────────────────────────────────────────────────────
 export async function loader({ request }) {
   const { shop, portalUser } = await requirePortalUser(request);
-  requirePermission(portalUser.role, 'manageUsers'); // Owner / Admin only
+  requirePermission(portalUser.role, 'manageUsers');
 
   const [locations, poolStats] = await Promise.all([
     getInventoryLocations(shop, true /* includeDisabled */),
@@ -32,18 +32,16 @@ export async function action({ request }) {
   const formData = await request.formData();
   const intent   = formData.get('intent');
 
-  // ── Sync from Shopify ────────────────────────────────────────────────────
   if (intent === 'syncLocations') {
     const { count, error } = await syncLocations(shop);
     if (error) return { error };
     return { ok: true, message: `Synced ${count} location${count !== 1 ? 's' : ''} from Shopify.` };
   }
 
-  // ── Add location manually ────────────────────────────────────────────────
   if (intent === 'addLocation') {
-    const name    = String(formData.get('name') || '').trim();
+    const name  = String(formData.get('name') || '').trim();
     if (!name) return { error: 'Location name is required.' };
-    const rawId   = String(formData.get('shopifyLocationId') || '').trim();
+    const rawId = String(formData.get('shopifyLocationId') || '').trim();
     const shopifyLocationId = rawId
       ? (rawId.startsWith('gid://') ? rawId : `gid://shopify/Location/${rawId}`)
       : `manual_${Date.now()}`;
@@ -55,21 +53,24 @@ export async function action({ request }) {
     return { ok: true, message: `Location "${name}" added.` };
   }
 
-  // ── Toggle location enabled ──────────────────────────────────────────────
   if (intent === 'toggleLocation') {
     const id        = parseInt(formData.get('locationId'));
     const isEnabled = formData.get('isEnabled') === 'true';
-    await prisma.inventoryLocation.updateMany({
-      where: { id, shop },
-      data:  { isEnabled },
-    });
+    await prisma.inventoryLocation.updateMany({ where: { id, shop }, data: { isEnabled } });
     return { ok: true };
   }
 
-  // ── Move location up or down ─────────────────────────────────────────────
+  if (intent === 'updateLocationType') {
+    const id           = parseInt(formData.get('locationId'));
+    const locationType = formData.get('locationType'); // 'Online' | 'Store'
+    if (!['Online', 'Store'].includes(locationType)) return null;
+    await prisma.inventoryLocation.updateMany({ where: { id, shop }, data: { locationType } });
+    return { ok: true };
+  }
+
   if (intent === 'moveLocation') {
     const id        = parseInt(formData.get('locationId'));
-    const direction = formData.get('direction'); // 'up' | 'down'
+    const direction = formData.get('direction');
 
     const all = await prisma.inventoryLocation.findMany({
       where:   { shop },
@@ -82,31 +83,22 @@ export async function action({ request }) {
     const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
     if (swapIdx < 0 || swapIdx >= all.length) return null;
 
-    // Swap
     [all[idx], all[swapIdx]] = [all[swapIdx], all[idx]];
-
-    // Persist new order
     await Promise.all(
       all.map((l, i) =>
         prisma.inventoryLocation.update({ where: { id: l.id }, data: { priorityOrder: i } })
       )
     );
-
     return { ok: true };
   }
 
-  // ── Import discount codes ────────────────────────────────────────────────
   if (intent === 'importCodes') {
-    const poolType = formData.get('poolType'); // 'Product' | 'Shipping'
+    const poolType = formData.get('poolType');
     const raw      = String(formData.get('codes') || '');
     if (!['Product', 'Shipping'].includes(poolType)) return { error: 'Invalid pool type.' };
 
-    const codes = raw
-      .split(/[\n,]+/)
-      .map(c => c.trim().toUpperCase())
-      .filter(Boolean);
-
-    if (codes.length === 0) return { error: 'No codes found. Paste codes separated by commas or new lines.' };
+    const codes = raw.split(/[\n,]+/).map(c => c.trim().toUpperCase()).filter(Boolean);
+    if (codes.length === 0) return { error: 'No codes found.' };
     if (codes.length > 5000) return { error: 'Maximum 5 000 codes per import.' };
 
     let inserted = 0;
@@ -123,14 +115,12 @@ export async function action({ request }) {
     return { ok: true, message: `Imported ${inserted} ${poolType.toLowerCase()} codes.` };
   }
 
-  // ── Delete location ──────────────────────────────────────────────────────
   if (intent === 'deleteLocation') {
     const id = parseInt(formData.get('locationId'));
     await prisma.inventoryLocation.deleteMany({ where: { id, shop } });
     return { ok: true, message: 'Location removed.' };
   }
 
-  // ── Delete available codes from a pool ───────────────────────────────────
   if (intent === 'clearPool') {
     const poolType = formData.get('poolType');
     if (!['Product', 'Shipping'].includes(poolType)) return { error: 'Invalid pool type.' };
@@ -183,17 +173,11 @@ export default function PortalAdmin() {
   return (
     <div style={{ maxWidth: '760px', padding: '32px 24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
 
-      {/* Header */}
       <div>
-        <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: D.text, letterSpacing: '-0.3px' }}>
-          Admin
-        </h2>
-        <p style={{ margin: '4px 0 0', fontSize: '13px', color: D.textSub }}>
-          Manage inventory source rules and discount code pools.
-        </p>
+        <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: D.text, letterSpacing: '-0.3px' }}>Admin</h2>
+        <p style={{ margin: '4px 0 0', fontSize: '13px', color: D.textSub }}>Manage inventory source rules and discount code pools.</p>
       </div>
 
-      {/* Flash */}
       {actionData?.error && (
         <div style={{ padding: '10px 16px', backgroundColor: '#FEE2E2', color: '#991B1B', borderRadius: '8px', fontSize: '13px', fontWeight: '600' }}>
           {actionData.error}
@@ -206,24 +190,16 @@ export default function PortalAdmin() {
       )}
 
       {/* Tab bar */}
-      <div style={{ display: 'flex', gap: '4px', borderBottom: `1px solid ${D.border}`, paddingBottom: '0' }}>
+      <div style={{ display: 'flex', gap: '4px', borderBottom: `1px solid ${D.border}` }}>
         {['inventory', 'discounts'].map(t => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            style={{
-              padding: '10px 18px',
-              fontSize: '13px',
-              fontWeight: tab === t ? '700' : '500',
-              color: tab === t ? 'var(--pt-accent)' : D.textSub,
-              background: 'none',
-              border: 'none',
-              borderBottom: tab === t ? '2px solid var(--pt-accent)' : '2px solid transparent',
-              marginBottom: '-1px',
-              cursor: 'pointer',
-              textTransform: 'capitalize',
-            }}
-          >
+          <button key={t} onClick={() => setTab(t)} style={{
+            padding: '10px 18px', fontSize: '13px',
+            fontWeight: tab === t ? '700' : '500',
+            color: tab === t ? 'var(--pt-accent)' : D.textSub,
+            background: 'none', border: 'none',
+            borderBottom: tab === t ? '2px solid var(--pt-accent)' : '2px solid transparent',
+            marginBottom: '-1px', cursor: 'pointer', textTransform: 'capitalize',
+          }}>
             {t === 'inventory' ? 'Inventory Rules' : 'Discount Codes'}
           </button>
         ))}
@@ -234,11 +210,10 @@ export default function PortalAdmin() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
           <p style={{ margin: 0, fontSize: '13px', color: D.textSub, lineHeight: 1.6 }}>
-            Sync your Shopify locations below, then set priority order. When a seeding is created,
-            stock is pulled from the top-priority enabled location.
+            Sync your Shopify locations, then set each one as <strong>Online</strong> (fulfillment warehouse) or <strong>Store</strong> (physical retail).
+            The top-priority Online location is used for online seedings. For in-store seedings the user picks the store at creation time.
           </p>
 
-          {/* Sync from Shopify */}
           <Form method="post">
             <input type="hidden" name="intent" value="syncLocations" />
             <button type="submit" disabled={busy} style={{ ...btn.primary, fontSize: '13px' }}>
@@ -253,50 +228,29 @@ export default function PortalAdmin() {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {locations.map((loc, idx) => (
-                <div
-                  key={loc.id}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: '12px',
-                    padding: '12px 16px',
-                    backgroundColor: 'var(--pt-surface)',
-                    border: `1px solid ${D.border}`,
-                    borderRadius: '10px',
-                    opacity: loc.isEnabled ? 1 : 0.55,
-                  }}
-                >
-                  {/* Up / Down — each is its own form so it submits immediately */}
+                <div key={loc.id} style={{
+                  display: 'flex', alignItems: 'center', gap: '10px',
+                  padding: '12px 16px',
+                  backgroundColor: 'var(--pt-surface)',
+                  border: `1px solid ${D.border}`,
+                  borderRadius: '10px',
+                  opacity: loc.isEnabled ? 1 : 0.55,
+                }}>
+                  {/* Up / Down */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                     <Form method="post">
                       <input type="hidden" name="intent"     value="moveLocation" />
                       <input type="hidden" name="locationId" value={String(loc.id)} />
                       <input type="hidden" name="direction"  value="up" />
-                      <button
-                        type="submit"
-                        disabled={idx === 0 || busy}
-                        title="Move up"
-                        style={{
-                          background: 'none', border: 'none',
-                          cursor: idx === 0 ? 'default' : 'pointer',
-                          color: idx === 0 ? D.border : D.textSub,
-                          fontSize: '12px', padding: '1px 4px', display: 'block',
-                        }}
-                      >▲</button>
+                      <button type="submit" disabled={idx === 0 || busy} title="Move up"
+                        style={{ background: 'none', border: 'none', cursor: idx === 0 ? 'default' : 'pointer', color: idx === 0 ? D.border : D.textSub, fontSize: '12px', padding: '1px 4px', display: 'block' }}>▲</button>
                     </Form>
                     <Form method="post">
                       <input type="hidden" name="intent"     value="moveLocation" />
                       <input type="hidden" name="locationId" value={String(loc.id)} />
                       <input type="hidden" name="direction"  value="down" />
-                      <button
-                        type="submit"
-                        disabled={idx === locations.length - 1 || busy}
-                        title="Move down"
-                        style={{
-                          background: 'none', border: 'none',
-                          cursor: idx === locations.length - 1 ? 'default' : 'pointer',
-                          color: idx === locations.length - 1 ? D.border : D.textSub,
-                          fontSize: '12px', padding: '1px 4px', display: 'block',
-                        }}
-                      >▼</button>
+                      <button type="submit" disabled={idx === locations.length - 1 || busy} title="Move down"
+                        style={{ background: 'none', border: 'none', cursor: idx === locations.length - 1 ? 'default' : 'pointer', color: idx === locations.length - 1 ? D.border : D.textSub, fontSize: '12px', padding: '1px 4px', display: 'block' }}>▼</button>
                     </Form>
                   </div>
 
@@ -319,24 +273,37 @@ export default function PortalAdmin() {
                     </div>
                   </div>
 
-                  {/* Enable / disable toggle */}
+                  {/* Location type toggle: Online | Store */}
+                  <Form method="post" style={{ display: 'flex' }}>
+                    <input type="hidden" name="intent"       value="updateLocationType" />
+                    <input type="hidden" name="locationId"   value={String(loc.id)} />
+                    <input type="hidden" name="locationType" value={loc.locationType === 'Online' ? 'Store' : 'Online'} />
+                    <button type="submit" disabled={busy} title="Toggle location type" style={{
+                      display: 'flex', alignItems: 'center', gap: '5px',
+                      padding: '4px 10px',
+                      fontSize: '11px', fontWeight: '700',
+                      borderRadius: '6px',
+                      border: `1px solid ${D.border}`,
+                      background: loc.locationType === 'Store' ? '#FFF7ED' : '#EFF6FF',
+                      color:      loc.locationType === 'Store' ? '#92400E' : '#1E40AF',
+                      cursor: 'pointer', whiteSpace: 'nowrap',
+                    }}>
+                      {loc.locationType === 'Store' ? '🏪 Store' : '🌐 Online'}
+                    </button>
+                  </Form>
+
+                  {/* Enable / disable */}
                   <Form method="post">
                     <input type="hidden" name="intent"     value="toggleLocation" />
                     <input type="hidden" name="locationId" value={String(loc.id)} />
                     <input type="hidden" name="isEnabled"  value={loc.isEnabled ? 'false' : 'true'} />
-                    <button
-                      type="submit"
-                      disabled={busy}
-                      style={{
-                        padding: '4px 12px',
-                        fontSize: '11px', fontWeight: '700',
-                        borderRadius: '6px',
-                        border: `1px solid ${D.border}`,
-                        background: loc.isEnabled ? '#DCFCE7' : '#FEE2E2',
-                        color:      loc.isEnabled ? '#166534' : '#991B1B',
-                        cursor: 'pointer',
-                      }}
-                    >
+                    <button type="submit" disabled={busy} style={{
+                      padding: '4px 12px', fontSize: '11px', fontWeight: '700', borderRadius: '6px',
+                      border: `1px solid ${D.border}`,
+                      background: loc.isEnabled ? '#DCFCE7' : '#FEE2E2',
+                      color:      loc.isEnabled ? '#166534' : '#991B1B',
+                      cursor: 'pointer',
+                    }}>
                       {loc.isEnabled ? 'Enabled' : 'Disabled'}
                     </button>
                   </Form>
@@ -359,40 +326,29 @@ export default function PortalAdmin() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
 
           <p style={{ margin: 0, fontSize: '13px', color: D.textSub, lineHeight: 1.6 }}>
-            Pre-load unique discount codes here. When a new seeding is created, one code
-            from each pool is automatically assigned to it. Import codes as a comma-separated
-            or line-separated list.
+            Pre-load unique discount codes here. When a seeding is created — online or in-store — one code
+            from each pool is automatically assigned. Import as comma-separated or line-separated list.
           </p>
 
-          {/* Pool selector */}
           <div style={{ display: 'flex', gap: '8px' }}>
             {['Product', 'Shipping'].map(p => (
-              <button
-                key={p}
-                onClick={() => setActivePool(p)}
-                style={{
-                  padding: '7px 18px',
-                  fontSize: '12px', fontWeight: '700',
-                  borderRadius: '8px',
-                  border: `1px solid ${D.border}`,
-                  cursor: 'pointer',
-                  backgroundColor: activePool === p ? 'var(--pt-accent-light)' : 'var(--pt-surface)',
-                  color: activePool === p ? 'var(--pt-accent)' : D.textSub,
-                }}
-              >
+              <button key={p} onClick={() => setActivePool(p)} style={{
+                padding: '7px 18px', fontSize: '12px', fontWeight: '700', borderRadius: '8px',
+                border: `1px solid ${D.border}`, cursor: 'pointer',
+                backgroundColor: activePool === p ? 'var(--pt-accent-light)' : 'var(--pt-surface)',
+                color: activePool === p ? 'var(--pt-accent)' : D.textSub,
+              }}>
                 {p} codes
               </button>
             ))}
           </div>
 
-          {/* Stats row */}
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             <StatusPill label="Available" count={POOL.Available} type="Available" />
             <StatusPill label="Assigned"  count={POOL.Assigned}  type="Assigned"  />
             <StatusPill label="Used"      count={POOL.Used}      type="Used"      />
           </div>
 
-          {/* Import form */}
           <Form method="post">
             <input type="hidden" name="intent"   value="importCodes" />
             <input type="hidden" name="poolType" value={activePool}  />
@@ -400,70 +356,33 @@ export default function PortalAdmin() {
               <label style={{ fontSize: '12px', fontWeight: '700', color: D.textSub, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                 Paste {activePool.toLowerCase()} codes
               </label>
-              <textarea
-                name="codes"
-                placeholder={`CODE001\nCODE002\nCODE003`}
-                rows={6}
-                required
-                style={{
-                  ...input.base,
-                  fontFamily: 'monospace',
-                  fontSize:   '12px',
-                  resize:     'vertical',
-                  width:      '100%',
-                  boxSizing:  'border-box',
-                }}
-              />
+              <textarea name="codes" placeholder={`CODE001\nCODE002\nCODE003`} rows={6} required
+                style={{ ...input.base, fontFamily: 'monospace', fontSize: '12px', resize: 'vertical', width: '100%', boxSizing: 'border-box' }} />
               <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                 <button type="submit" disabled={busy} style={{ ...btn.primary }}>
                   {busy ? 'Importing…' : `Import ${activePool} codes`}
                 </button>
-                <span style={{ fontSize: '11px', color: D.textMuted }}>
-                  Duplicate codes are silently skipped.
-                </span>
+                <span style={{ fontSize: '11px', color: D.textMuted }}>Duplicate codes are silently skipped.</span>
               </div>
             </div>
           </Form>
 
-          {/* Clear pool */}
-          <div style={{
-            padding: '16px',
-            border: `1px solid #FCA5A5`,
-            borderRadius: '10px',
-            backgroundColor: '#FFF5F5',
-          }}>
-            <p style={{ margin: '0 0 10px', fontSize: '13px', fontWeight: '600', color: '#7F1D1D' }}>
-              Danger zone
-            </p>
+          <div style={{ padding: '16px', border: '1px solid #FCA5A5', borderRadius: '10px', backgroundColor: '#FFF5F5' }}>
+            <p style={{ margin: '0 0 10px', fontSize: '13px', fontWeight: '600', color: '#7F1D1D' }}>Danger zone</p>
             <p style={{ margin: '0 0 12px', fontSize: '12px', color: '#991B1B' }}>
-              Remove all <strong>Available</strong> {activePool.toLowerCase()} codes from the pool.
-              Assigned and used codes are kept.
+              Remove all <strong>Available</strong> {activePool.toLowerCase()} codes. Assigned and used codes are kept.
             </p>
-            <Form method="post"
-              onSubmit={e => {
-                if (!confirm(`Delete all available ${activePool.toLowerCase()} codes? This cannot be undone.`)) e.preventDefault();
-              }}
-            >
-              <input type="hidden" name="intent"   value="clearPool"   />
-              <input type="hidden" name="poolType" value={activePool}  />
-              <button
-                type="submit"
-                disabled={busy}
-                style={{
-                  padding: '6px 16px',
-                  fontSize: '12px', fontWeight: '700',
-                  borderRadius: '7px',
-                  border: '1px solid #FCA5A5',
-                  backgroundColor: '#FEE2E2',
-                  color: '#991B1B',
-                  cursor: 'pointer',
-                }}
-              >
+            <Form method="post" onSubmit={e => { if (!confirm(`Delete all available ${activePool.toLowerCase()} codes?`)) e.preventDefault(); }}>
+              <input type="hidden" name="intent"   value="clearPool"  />
+              <input type="hidden" name="poolType" value={activePool} />
+              <button type="submit" disabled={busy} style={{
+                padding: '6px 16px', fontSize: '12px', fontWeight: '700', borderRadius: '7px',
+                border: '1px solid #FCA5A5', backgroundColor: '#FEE2E2', color: '#991B1B', cursor: 'pointer',
+              }}>
                 Clear available {activePool.toLowerCase()} codes
               </button>
             </Form>
           </div>
-
         </div>
       )}
     </div>

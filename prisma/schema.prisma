@@ -115,6 +115,11 @@ model InfluencerSavedSize {
   @@unique([influencerId, category])
 }
 
+enum SeedingType {
+  Online
+  InStore
+}
+
 model Seeding {
   id                   Int              @id @default(autoincrement())
   shop                 String
@@ -122,6 +127,9 @@ model Seeding {
   influencer           Influencer       @relation(fields: [influencerId], references: [id])
   campaignId           Int?
   campaign             Campaign?        @relation(fields: [campaignId], references: [id])
+  seedingType          SeedingType      @default(Online)
+  storeLocationId      String?          // Shopify GID of the store (in-store seedings only)
+  storeLocationName    String?          // Denormalised store name for display
   status               String           @default("Pending")
   trackingNumber       String?
   notes                String?
@@ -219,18 +227,26 @@ model CampaignProduct {
 // ── Inventory source rules ────────────────────────────────────────────────────
 // Mirrors Shopify locations; lets admins enable/disable/reorder which locations
 // seedings are fulfilled from.
+
+enum LocationType {
+  Online
+  Store
+}
+
 model InventoryLocation {
-  id                Int      @id @default(autoincrement())
+  id                Int          @id @default(autoincrement())
   shop              String
-  shopifyLocationId String   // Shopify GID e.g. "gid://shopify/Location/12345"
+  shopifyLocationId String       // Shopify GID e.g. "gid://shopify/Location/12345"
   name              String
-  isEnabled         Boolean  @default(true)
-  priorityOrder     Int      @default(0)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  locationType      LocationType @default(Online)
+  isEnabled         Boolean      @default(true)
+  priorityOrder     Int          @default(0)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
 
   @@unique([shop, shopifyLocationId])
   @@index([shop, isEnabled, priorityOrder])
+  @@index([shop, locationType, isEnabled])
 }
 
 // ── Discount code pools ───────────────────────────────────────────────────────

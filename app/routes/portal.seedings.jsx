@@ -51,6 +51,7 @@ export async function loader({ request }) {
       select: {
         id: true, status: true, trackingNumber: true, totalCost: true, createdAt: true,
         invoiceUrl: true, shopifyOrderName: true, shippingAddress: true,
+        seedingType: true, storeLocationName: true,
         productDiscountCode: true, shippingDiscountCode: true,
         influencer: { select: { id: true, handle: true, name: true, country: true } },
         products:   { select: { id: true, productName: true, price: true, imageUrl: true } },
@@ -239,6 +240,11 @@ export default function PortalSeedings() {
                       <td style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>
                         <div style={{ fontWeight: '700', color: D.text }}>@{s.influencer.handle}</div>
                         <div style={{ fontSize: '11px', color: D.textMuted, marginTop: '1px' }}>{s.influencer.name}</div>
+                        {s.seedingType === 'InStore' && (
+                          <span style={{ display: 'inline-block', marginTop: '3px', fontSize: '9px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.4px', backgroundColor: '#FFF7ED', color: '#92400E', border: '1px solid #FED7AA', borderRadius: '4px', padding: '1px 5px' }}>
+                            🏪 In-Store
+                          </span>
+                        )}
                       </td>
                       <td style={{ padding: '12px 14px', color: D.textSub, fontSize: '12px' }}>{s.influencer.country}</td>
                       <td style={{ padding: '12px 14px', maxWidth: '150px', color: D.textSub }}>
@@ -284,7 +290,11 @@ export default function PortalSeedings() {
                         )}
                       </td>
                       <td style={{ padding: '12px 14px' }}>
-                        {s.invoiceUrl ? (
+                        {s.seedingType === 'InStore' ? (
+                          <span style={{ fontSize: '11px', color: '#92400E', fontWeight: '600' }}>
+                            📍 {s.storeLocationName || 'In-Store'}
+                          </span>
+                        ) : s.invoiceUrl ? (
                           <button type="button"
                             onClick={() => {
                               navigator.clipboard.writeText(s.invoiceUrl);
