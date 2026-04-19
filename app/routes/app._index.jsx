@@ -1,4 +1,4 @@
-import { useLoaderData, useRouteError } from 'react-router';
+import { useLoaderData, useRouteError, useRouteLoaderData } from 'react-router';
 import { boundary } from '@shopify/shopify-app-react-router/server';
 import { authenticate } from '../shopify.server';
 import { generateInviteToken } from '../utils/portal-auth.server';
@@ -137,8 +137,23 @@ function StatCard({ label, value, icon }) {
   );
 }
 
+function useBillingNav() {
+  const parent = useRouteLoaderData('routes/app') || {};
+  return function navToBilling() {
+    const currentParams = new URLSearchParams(window.location.search);
+    const shop = parent.shop || currentParams.get('shop') || '';
+    const host = parent.host || currentParams.get('host') || '';
+    const params = new URLSearchParams();
+    if (shop) params.set('shop', shop);
+    if (host) params.set('host', host);
+    params.set('embedded', '1');
+    window.location.href = `/app/billing?${params.toString()}`;
+  };
+}
+
 export default function AppIndex() {
   const { totalSeedings, totalInfluencers, totalCampaigns, byStatus, ownerSetup, billing } = useLoaderData();
+  const navToBilling = useBillingNav();
 
   const statuses = ['Pending', 'Ordered', 'Shipped', 'Delivered', 'Posted'];
   const activeStatuses = statuses.filter(s => (byStatus[s] || 0) > 0);
@@ -228,19 +243,19 @@ export default function AppIndex() {
               ? 'Subscribe to restore access to all features and your data.'
               : `Upgrade to Zeedy Basic ($${billing.planPrice}/month) to keep full access after your trial.`}
           </p>
-          <a
-            href="/app/billing"
+          <button
+            onClick={navToBilling}
             style={{
               display: 'inline-flex', alignItems: 'center', gap: '8px',
               padding: '10px 22px',
               background: billing.planStatus === 'expired'
                 ? 'linear-gradient(135deg, #EF4444 0%, #DC2626 100%)'
                 : 'linear-gradient(135deg, #D97706 0%, #B45309 100%)',
-              color: '#fff', textDecoration: 'none',
-              borderRadius: '10px', fontSize: '14px', fontWeight: '700',
+              color: '#fff', border: 'none',
+              borderRadius: '10px', fontSize: '14px', fontWeight: '700', cursor: 'pointer',
             }}>
             {billing.planStatus === 'expired' ? 'Subscribe now →' : 'View plans →'}
-          </a>
+          </button>
         </div>
       )}
 
@@ -256,9 +271,9 @@ export default function AppIndex() {
           <span style={{ fontSize: '13px', fontWeight: '600', color: P.accent }}>
             🎉 Free trial · {billing.daysRemaining} day{billing.daysRemaining !== 1 ? 's' : ''} remaining
           </span>
-          <a href="/app/billing" style={{ fontSize: '12px', fontWeight: '700', color: P.accent, textDecoration: 'none' }}>
+          <button onClick={navToBilling} style={{ fontSize: '12px', fontWeight: '700', color: P.accent, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
             View plans →
-          </a>
+          </button>
         </div>
       )}
 
