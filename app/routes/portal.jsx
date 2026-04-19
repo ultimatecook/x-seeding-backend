@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Outlet, NavLink, useLoaderData, redirect, Form } from 'react-router';
+import { Outlet, NavLink, useLoaderData, redirect, Form, useRouteError } from 'react-router';
 import { requirePortalUser, destroyPortalSession, getPortalSession } from '../utils/portal-auth.server';
 import { can } from '../utils/portal-permissions';
 import { PORTAL_THEME_CSS } from '../utils/portal-theme';
@@ -532,6 +532,55 @@ function PortalLayoutInner() {
       <main style={{ flex: 1, minWidth: 0, padding: '28px 32px' }}>
         <Outlet />
       </main>
+    </div>
+  );
+}
+
+export function ErrorBoundary() {
+  const error = useRouteError();
+  const message = error?.message || 'An unexpected error occurred.';
+  return (
+    <div style={{
+      minHeight: '100vh',
+      backgroundColor: '#F7F6FB',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif',
+    }}>
+      <div style={{
+        backgroundColor: '#fff',
+        border: '1px solid #E5E3F0',
+        borderRadius: '16px',
+        padding: '40px',
+        maxWidth: '420px',
+        width: '100%',
+        textAlign: 'center',
+        boxShadow: '0 4px 24px rgba(124,111,247,0.08)',
+      }}>
+        <div style={{ fontSize: '32px', marginBottom: '12px' }}>⚠️</div>
+        <h2 style={{ margin: '0 0 8px', fontSize: '18px', fontWeight: '800', color: '#1A1523' }}>
+          Something went wrong
+        </h2>
+        <p style={{ margin: '0 0 24px', fontSize: '13px', color: '#6B6880', lineHeight: 1.6 }}>
+          {message}
+        </p>
+        <a
+          href="/portal"
+          style={{
+            display: 'inline-block',
+            padding: '10px 24px',
+            background: 'linear-gradient(135deg, #7C6FF7 0%, #5B4CF0 100%)',
+            color: '#fff',
+            textDecoration: 'none',
+            borderRadius: '9px',
+            fontSize: '14px',
+            fontWeight: '700',
+          }}
+        >
+          Back to portal
+        </a>
+      </div>
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { Form, useActionData } from 'react-router';
 import { randomBytes } from 'crypto';
 import prisma from '../db.server';
 import { sendPasswordResetEmail } from '../utils/email.server';
+import { rateLimit, getClientIp } from '../utils/rate-limit.server';
 
 const APP_URL = process.env.SHOPIFY_APP_URL || 'https://www.zeedy.xyz';
 
@@ -25,6 +26,13 @@ const inputStyle = {
 };
 
 export async function action({ request }) {
+  // 5 attempts per IP per 15 minutes
+  const ip = getClientIp(request);
+  const { allowed } = rateLimit(`forgot:${ip}`, 5, 15 * 60 * 1000);
+  if (!allowed) {
+    return { sent: true }; // silently throttle — don't reveal rate limiting
+  }
+
   const formData = await request.formData();
   const email    = String(formData.get('email') || '').toLowerCase().trim();
 
