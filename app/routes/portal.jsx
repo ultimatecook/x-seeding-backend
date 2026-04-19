@@ -523,6 +523,13 @@ function PortalLayoutInner() {
                   {dark ? <IconSun /> : <IconMoon />}
                 </button>
               </div>
+
+              {/* Legal links */}
+              <div style={{ display: 'flex', gap: '10px', marginTop: '10px', flexWrap: 'wrap' }}>
+                <a href="/privacy" target="_blank" rel="noreferrer" style={{ fontSize: '10px', color: 'var(--pt-text-muted)', textDecoration: 'none' }}>Privacy</a>
+                <a href="/terms"   target="_blank" rel="noreferrer" style={{ fontSize: '10px', color: 'var(--pt-text-muted)', textDecoration: 'none' }}>Terms</a>
+                <a href="mailto:support@zeedy.xyz"  style={{ fontSize: '10px', color: 'var(--pt-text-muted)', textDecoration: 'none' }}>Support</a>
+              </div>
             </>
           )}
         </div>

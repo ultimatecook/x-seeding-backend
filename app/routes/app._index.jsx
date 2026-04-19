@@ -290,6 +290,13 @@ export default function AppIndex() {
         <br />All features are available at <a href="https://zeedy.xyz/portal" target="_blank" rel="noreferrer" style={{ color: P.accent, fontWeight: '600', textDecoration: 'none' }}>zeedy.xyz/portal</a>.
       </p>
 
+      {/* Legal links */}
+      <div style={{ display: 'flex', gap: '16px', justifyContent: 'center' }}>
+        <a href="https://www.zeedy.xyz/privacy" target="_blank" rel="noreferrer" style={{ fontSize: '11px', color: P.textMuted, textDecoration: 'none' }}>Privacy Policy</a>
+        <a href="https://www.zeedy.xyz/terms"   target="_blank" rel="noreferrer" style={{ fontSize: '11px', color: P.textMuted, textDecoration: 'none' }}>Terms of Service</a>
+        <a href="mailto:support@zeedy.xyz"       style={{ fontSize: '11px', color: P.textMuted, textDecoration: 'none' }}>Support</a>
+      </div>
+
     </div>
   );
 }
