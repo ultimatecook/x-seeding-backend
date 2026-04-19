@@ -217,7 +217,8 @@
         "selectStore":      "Selecciona una tienda.",
         "noOnlineLoc":      "⚠️ Activa una ubicación Online en Admin primero",
         "noStoreLoc":       "⚠️ Configura una ubicación de Tienda en Admin primero",
-        "sizeRequired":     "⚠️ Todos los productos necesitan talla"
+        "sizeRequired":     "⚠️ Todos los productos necesitan talla",
+        "noProductCodes":   "⚠️ Sin códigos disponibles — importa códigos en Admin primero"
       }
     },
     "submit":     "Crear Envío",

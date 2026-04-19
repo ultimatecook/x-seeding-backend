@@ -195,7 +195,11 @@ export async function loader({ request }) {
 
   const enabledLocations = await getInventoryLocations(shop); // enabled only, includes all types
 
-  return { products, productsError, collections: collectionsData, influencers, campaigns, recentlySeededMap, allSavedSizes, shop, enabledLocations };
+  const availableProductCodes = await prisma.discountCode.count({
+    where: { shop, poolType: 'Product', status: 'Available' },
+  });
+
+  return { products, productsError, collections: collectionsData, influencers, campaigns, recentlySeededMap, allSavedSizes, shop, enabledLocations, availableProductCodes };
 }
 
 // ── Action ────────────────────────────────────────────────────────────────────
@@ -397,7 +401,7 @@ function Pill({ label, active, onClick }) {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function PortalNewSeeding() {
-  const { products, productsError, collections, influencers, campaigns, recentlySeededMap, allSavedSizes, shop, enabledLocations } = useLoaderData();
+  const { products, productsError, collections, influencers, campaigns, recentlySeededMap, allSavedSizes, shop, enabledLocations, availableProductCodes } = useLoaderData();
   const actionData = useActionData();
   const navigate   = useNavigate();
   const { t }      = useT();
@@ -526,7 +530,8 @@ export default function PortalNewSeeding() {
     ? onlineLocations.length > 0
     : storeLocations.length > 0;
   const hasSelectedStore = seedingType === 'InStore' ? selectedStore !== null : true;
-  const canSubmit = !submitting && selectedInfluencer && selectedProducts.length > 0 && allHaveSizes && hasEnabledLocation && hasSelectedStore;
+  const hasProductCodes = seedingType !== 'InStore' || availableProductCodes > 0;
+  const canSubmit = !submitting && selectedInfluencer && selectedProducts.length > 0 && allHaveSizes && hasEnabledLocation && hasSelectedStore && hasProductCodes;
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -874,6 +879,9 @@ export default function PortalNewSeeding() {
               )}
               {hasEnabledLocation && hasSelectedStore && selectedInfluencer && selectedProducts.length > 0 && !allHaveSizes && (
                 <p style={{ margin: '6px 0 0', fontSize: '11px', color: D.errorText, textAlign: 'center', fontWeight: '600' }}>{t('newSeeding.sidebar.validation.sizeRequired')}</p>
+              )}
+              {seedingType === 'InStore' && availableProductCodes === 0 && (
+                <p style={{ margin: '6px 0 0', fontSize: '11px', color: '#92400E', textAlign: 'center', fontWeight: '600' }}>{t('newSeeding.sidebar.validation.noProductCodes')}</p>
               )}
             </div>
           </div>

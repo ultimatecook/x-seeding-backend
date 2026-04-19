@@ -7,6 +7,7 @@ import { audit } from '../utils/audit.server.js';
 import { fmtNum, fmtDate } from '../theme';
 import { D, InstagramAvatar } from '../utils/portal-theme';
 import { useT } from '../utils/i18n';
+import { releaseDiscountCodes } from '../utils/discount-codes.server';
 
 // ── Action ────────────────────────────────────────────────────────────────────
 export async function action({ request, params }) {
@@ -69,6 +70,8 @@ export async function action({ request, params }) {
     if (!inf || inf.shop !== shop) return null; // guard: can't delete another shop's influencer
     const seedingIds = (await prisma.seeding.findMany({ where: { shop, influencerId: id }, select: { id: true } })).map(s => s.id);
     if (seedingIds.length > 0) {
+      // Release any assigned discount codes back to the pool before deleting
+      await Promise.all(seedingIds.map(sid => releaseDiscountCodes(shop, sid)));
       await prisma.seedingProduct.deleteMany({ where: { seedingId: { in: seedingIds } } });
       await prisma.seeding.deleteMany({ where: { id: { in: seedingIds } } });
     }

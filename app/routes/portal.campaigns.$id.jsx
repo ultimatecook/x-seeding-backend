@@ -6,6 +6,7 @@ import { audit } from '../utils/audit.server.js';
 import { fmtDate, fmtNum } from '../theme';
 import { D } from '../utils/portal-theme';
 import { useT } from '../utils/i18n';
+import { releaseDiscountCodes } from '../utils/discount-codes.server';
 
 // ── Design tokens (matches portal dashboard) ──────────────────────────────
 
@@ -84,6 +85,7 @@ export async function action({ request, params }) {
     requirePermission(portalUser.role, 'deleteSeeding');
     const id = parseInt(formData.get('seedingId'));
     const seeding = await prisma.seeding.findUnique({ where: { id }, include: { influencer: true } });
+    await releaseDiscountCodes(shop, id);
     await prisma.seeding.delete({ where: { id } });
     await audit({ shop, portalUser, action: 'deleted_seeding', entityType: 'seeding', entityId: id, detail: `Deleted seeding for ${seeding?.influencer?.handle ?? id}` });
   }

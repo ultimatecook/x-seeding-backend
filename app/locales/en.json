@@ -217,7 +217,8 @@
         "selectStore":      "Select a store location.",
         "noOnlineLoc":      "⚠️ Enable an Online location in Admin first",
         "noStoreLoc":       "⚠️ Configure a Store location in Admin first",
-        "sizeRequired":     "⚠️ All products need a size"
+        "sizeRequired":     "⚠️ All products need a size",
+        "noProductCodes":   "⚠️ No discount codes available — import codes in Admin first"
       }
     },
     "submit":     "Create Seeding",
