@@ -42,34 +42,18 @@ export default function AppLayout() {
       return orig(input, init);
     };
 
-    // Handle shopify:navigate from admin chrome
-    function handleShopifyNavigate(event) {
-      const href = event.detail?.href || event.detail?.path || event.target?.getAttribute?.('href');
-      if (href && href.startsWith('/app')) {
-        event.stopImmediatePropagation();
-        navigate(href);
-      }
-    }
-    document.addEventListener('shopify:navigate', handleShopifyNavigate, true);
-    window.addEventListener('shopify:navigate', handleShopifyNavigate, true);
-
     return () => {
       window.fetch = orig;
-      document.removeEventListener('shopify:navigate', handleShopifyNavigate, true);
-      window.removeEventListener('shopify:navigate', handleShopifyNavigate, true);
     };
   }, [navigate]);
 
   const isSettings = pathname.startsWith('/app/settings');
 
-  // Use App Bridge native navigation when available — it handles token refresh automatically.
-  // Fall back to React Router navigate if App Bridge isn't ready.
+  // For internal /app/* routes always use React Router's client-side navigate.
+  // window.shopify.navigate causes a full-frame reload that bypasses the router
+  // and silently fails inside the Shopify admin iframe.
   function go(path) {
-    if (window.shopify?.navigate) {
-      window.shopify.navigate(path);
-    } else {
-      navigate(path);
-    }
+    navigate(path);
   }
 
   return (
