@@ -112,8 +112,10 @@
     "noInfluencers":  "No influencers yet.",
     "createFirst":    "Create your first seeding →",
     "seedings":       "seedings",
+    "units":          "units",
     "peak":           "peak",
     "deliveredPct":   "{pct}% delivered",
+    "noLocations":    "No location data yet.",
     "edit":           "Edit",
     "done":           "Done",
     "stat": {
@@ -129,7 +131,8 @@
       "pipeline":    "Pipeline",
       "recent":      "Recent Seedings",
       "countries":   "Countries",
-      "influencers": "Top Influencers"
+      "influencers": "Top Influencers",
+      "locations":   "Locations"
     },
     "table": {
       "influencer": "Influencer",

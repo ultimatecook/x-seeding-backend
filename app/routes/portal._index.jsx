@@ -55,6 +55,8 @@ export async function loader({ request }) {
     allProductRows,
     totalInfluencers,
     allSeedingsForPills,
+    seedingsForLocations,
+    inventoryLocations,
   ] = await Promise.all([
     prisma.seeding.findMany({
       where:  seedingWhere,
@@ -90,7 +92,45 @@ export async function loader({ request }) {
       select: { influencer: { select: { country: true } } },
       take:   5000,
     }),
+    // Location analytics
+    prisma.seeding.findMany({
+      where:  seedingWhere,
+      select: {
+        id: true, seedingType: true, storeLocationName: true, totalCost: true,
+        products: { select: { inventoryLocationId: true, cost: true } },
+      },
+    }),
+    prisma.inventoryLocation.findMany({
+      where:  { shop },
+      select: { shopifyLocationId: true, name: true, locationType: true },
+    }),
   ]);
+
+  // ── Location analytics ────────────────────────────────────────────────────
+  const locationAgg = {};
+  for (const s of seedingsForLocations) {
+    const isOnline = s.seedingType === 'Online';
+    const locKey   = isOnline ? '__online__' : (s.storeLocationName || 'Store');
+    const locName  = isOnline ? 'Online'     : (s.storeLocationName || 'Store');
+    const locType  = s.seedingType || 'InStore';
+    if (!locationAgg[locKey]) {
+      locationAgg[locKey] = { name: locName, type: locType, seedingIds: new Set(), units: 0, value: 0 };
+    }
+    locationAgg[locKey].seedingIds.add(s.id);
+    locationAgg[locKey].value += s.totalCost ?? 0;
+    locationAgg[locKey].units += s.products.length;
+  }
+  const totalLocSeedings = seedingsForLocations.length;
+  const locationData = Object.values(locationAgg)
+    .map(l => ({
+      name:     l.name,
+      type:     l.type,
+      seedings: l.seedingIds.size,
+      units:    l.units,
+      value:    l.value,
+      pct:      totalLocSeedings > 0 ? Math.round((l.seedingIds.size / totalLocSeedings) * 100) : 0,
+    }))
+    .sort((a, b) => b.seedings - a.seedings);
 
   // ── Metrics ────────────────────────────────────────────────────────────────
   const statusMap = {};
@@ -190,6 +230,7 @@ export async function loader({ request }) {
     rangeLabel,
     currentMonthShort: now.toLocaleDateString('en-GB', { month: 'short' }),
     chartDays,
+    locationData,
   };
 }
 
@@ -461,7 +502,7 @@ function Rule({ my = 40 }) {
 }
 
 // ── Band / section definitions ────────────────────────────────────────────────
-const DEFAULT_BAND_ORDER = ['stats', 'midrow', 'botrow'];
+const DEFAULT_BAND_ORDER = ['stats', 'midrow', 'botrow', 'locrow'];
 
 const SECTION_DEFS = [
   { id: 'stats',       labelKey: 'dashboard.sections.stats',       band: 'stats'  },
@@ -469,6 +510,7 @@ const SECTION_DEFS = [
   { id: 'recent',      labelKey: 'dashboard.sections.recent',      band: 'midrow' },
   { id: 'countries',   labelKey: 'dashboard.sections.countries',   band: 'botrow' },
   { id: 'influencers', labelKey: 'dashboard.sections.influencers', band: 'botrow' },
+  { id: 'locations',   labelKey: 'dashboard.sections.locations',   band: 'locrow' },
 ];
 
 // ── Draggable band wrapper ────────────────────────────────────────────────────
@@ -513,6 +555,7 @@ export default function PortalDashboard() {
     spendDelta, countDelta,
     countryPills, activeDays, activeCountry,
     activeSeedings, totalCogs, chartDays, rangeLabel, currentMonthShort,
+    locationData,
   } = useLoaderData();
 
   const TIME_OPTIONS = [
@@ -556,7 +599,15 @@ export default function PortalDashboard() {
     try {
       const o = localStorage.getItem('dash-order-v2');
       const h = localStorage.getItem('dash-hidden-v2');
-      if (o) setBandOrder(JSON.parse(o));
+      if (o) {
+        const stored = JSON.parse(o);
+        // Merge any new bands not yet in the stored order (backward-compat)
+        const merged = [...stored];
+        for (const band of DEFAULT_BAND_ORDER) {
+          if (!merged.includes(band)) merged.push(band);
+        }
+        setBandOrder(merged);
+      }
       if (h) setHiddenSet(new Set(JSON.parse(h)));
     } catch {}
   }, []);
@@ -795,6 +846,90 @@ export default function PortalDashboard() {
     </div>
   );
 
+  const renderLocations = () => {
+    const LOC_COLORS = {
+      Online:  { bg: 'rgba(59,130,246,0.10)', text: '#3B82F6' },
+      InStore: { bg: 'rgba(16,185,129,0.10)', text: '#10B981' },
+    };
+    return (
+      <div>
+        <Label>{t('dashboard.sections.locations')}</Label>
+        {locationData.length === 0 ? (
+          <p style={{ margin: 0, fontSize: '13px', color: 'var(--pt-text-muted)' }}>{t('dashboard.noLocations')}</p>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '12px' }}>
+            {locationData.map((loc) => {
+              const col = LOC_COLORS[loc.type] || LOC_COLORS.InStore;
+              return (
+                <div key={loc.name} style={{
+                  border: '1px solid var(--pt-border)',
+                  borderRadius: '12px',
+                  padding: '16px 18px',
+                  backgroundColor: 'var(--pt-surface)',
+                }}>
+                  {/* Type badge */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                    <span style={{
+                      fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.8px',
+                      color: col.text, backgroundColor: col.bg,
+                      padding: '3px 8px', borderRadius: '99px',
+                    }}>
+                      {loc.type === 'Online' ? 'Online' : 'In-Store'}
+                    </span>
+                    <span style={{ fontSize: '11px', fontWeight: '600', color: 'var(--pt-text-muted)' }}>
+                      {loc.pct}%
+                    </span>
+                  </div>
+
+                  {/* Location name */}
+                  <div style={{ fontSize: '14px', fontWeight: '700', color: 'var(--pt-text)',
+                    marginBottom: '10px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {loc.name}
+                  </div>
+
+                  {/* Progress bar */}
+                  <div style={{ height: '3px', borderRadius: '99px', backgroundColor: 'var(--pt-border)',
+                    marginBottom: '12px', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${loc.pct}%`, backgroundColor: col.text,
+                      borderRadius: '99px', transition: 'width 0.4s' }} />
+                  </div>
+
+                  {/* Stats row */}
+                  <div style={{ display: 'flex', gap: '16px' }}>
+                    <div>
+                      <div style={{ fontSize: '15px', fontWeight: '800', color: 'var(--pt-text)', letterSpacing: '-0.5px' }}>
+                        {loc.seedings}
+                      </div>
+                      <div style={{ fontSize: '10px', color: 'var(--pt-text-muted)', fontWeight: '500' }}>
+                        {t('dashboard.seedings')}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '15px', fontWeight: '800', color: 'var(--pt-text)', letterSpacing: '-0.5px' }}>
+                        {loc.units}
+                      </div>
+                      <div style={{ fontSize: '10px', color: 'var(--pt-text-muted)', fontWeight: '500' }}>
+                        {t('dashboard.units')}
+                      </div>
+                    </div>
+                    <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
+                      <div style={{ fontSize: '15px', fontWeight: '800', color: col.text, letterSpacing: '-0.5px' }}>
+                        €{fmtNum(loc.value)}
+                      </div>
+                      <div style={{ fontSize: '10px', color: 'var(--pt-text-muted)', fontWeight: '500' }}>
+                        {t('dashboard.stat.retailValue')}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // ── Band renderer ──────────────────────────────────────────────────────────
   const bandProps = (id) => ({
     id, editMode,
@@ -837,6 +972,10 @@ export default function PortalDashboard() {
         </Band>
       );
     }
+    if (id === 'locrow') {
+      if (!vis('locations')) return null;
+      return <Band key={id} {...bandProps(id)}>{renderLocations()}</Band>;
+    }
     return null;
   };
 
@@ -844,6 +983,7 @@ export default function PortalDashboard() {
     if (id === 'stats')  return vis('stats');
     if (id === 'midrow') return vis('pipeline') || vis('recent');
     if (id === 'botrow') return (vis('countries') && !activeCountry) || vis('influencers');
+    if (id === 'locrow') return vis('locations');
     return false;
   });
 

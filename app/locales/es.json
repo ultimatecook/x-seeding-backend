@@ -112,8 +112,10 @@
     "noInfluencers":  "Sin influencers aún.",
     "createFirst":    "Crea tu primer envío →",
     "seedings":       "envíos",
+    "units":          "unidades",
     "peak":           "pico",
     "deliveredPct":   "{pct}% entregados",
+    "noLocations":    "Sin datos de ubicación aún.",
     "edit":           "Editar",
     "done":           "Listo",
     "stat": {
@@ -129,7 +131,8 @@
       "pipeline":    "Pipeline",
       "recent":      "Envíos recientes",
       "countries":   "Países",
-      "influencers": "Top Influencers"
+      "influencers": "Top Influencers",
+      "locations":   "Ubicaciones"
     },
     "table": {
       "influencer": "Influencer",
