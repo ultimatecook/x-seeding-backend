@@ -1,4 +1,4 @@
-import { Outlet, Link, useLocation, useRouteError, useLoaderData } from 'react-router';
+import { Outlet, useLocation, useRouteError, useLoaderData } from 'react-router';
 import { useEffect } from 'react';
 import { authenticate } from '../shopify.server';
 import { boundary } from '@shopify/shopify-app-react-router/server';
@@ -15,11 +15,17 @@ const P = {
 
 export async function loader({ request }) {
   const { session } = await authenticate.admin(request);
-  return { shop: session.shop, apiKey: process.env.SHOPIFY_API_KEY || '' };
+  // Also capture the host param so the layout can build correct full-page nav URLs.
+  const url = new URL(request.url);
+  return {
+    shop:   session.shop,
+    host:   url.searchParams.get('host') || '',
+    apiKey: process.env.SHOPIFY_API_KEY || '',
+  };
 }
 
 export default function AppLayout() {
-  const { apiKey } = useLoaderData();
+  const { apiKey, shop, host } = useLoaderData();
   const { pathname } = useLocation();
 
   useEffect(() => {
@@ -48,6 +54,38 @@ export default function AppLayout() {
 
   const isSettings = pathname.startsWith('/app/settings');
 
+  /**
+   * Navigate via a full iframe page-load rather than React Router client-side
+   * navigation.  Client-side navigation in Shopify embedded apps requires
+   * window.shopify.idToken() to inject an Authorization header into the loader
+   * fetch — but that relies on App Bridge postMessage communication, which can
+   * fail silently in some environments.  When it fails, authenticate.admin()
+   * throws a redirect to the bounce page; React Router follows it as a
+   * client-side redirect (rendering nothing) instead of as a real page load.
+   *
+   * A full page-load with shop + host params bypasses all of that:
+   *   1. Browser GETs /app/settings?shop=X&host=Y&embedded=1
+   *   2. authenticate.admin detects embedded=1 + missing id_token → redirects
+   *      to bounce page (/auth/session-token)
+   *   3. Bounce page initialises App Bridge fresh, obtains the JWT, redirects
+   *      back to /app/settings?shop=X&host=Y&embedded=1&id_token=JWT
+   *   4. authenticate.admin validates the JWT → page renders correctly
+   */
+  function navTo(path) {
+    // Pick up shop/host from the loader (set on initial auth) or fall back to
+    // the current URL search params (populated by the bounce-page redirect).
+    const currentParams = new URLSearchParams(window.location.search);
+    const resolvedShop = shop || currentParams.get('shop') || '';
+    const resolvedHost = host || currentParams.get('host') || '';
+
+    const params = new URLSearchParams();
+    if (resolvedShop) params.set('shop', resolvedShop);
+    if (resolvedHost) params.set('host', resolvedHost);
+    params.set('embedded', '1');
+
+    window.location.href = `${path}?${params.toString()}`;
+  }
+
   return (
     <AppProvider embedded apiKey={apiKey}>
       <ui-nav-menu>
@@ -68,11 +106,8 @@ export default function AppLayout() {
           alignItems: 'center',
           gap: '4px',
         }}>
-          {/* Use Link (anchor) not button+navigate — programmatic navigate() triggers
-              App Bridge's postMessage URL-sync which fails inside the Shopify admin
-              iframe due to origin mismatch, aborting the transition entirely. */}
-          <Link to="/app" style={tabStyle(!isSettings)}>Dashboard</Link>
-          <Link to="/app/settings" style={tabStyle(isSettings)}>Team &amp; Access</Link>
+          <button onClick={() => navTo('/app')} style={tabStyle(!isSettings)}>Dashboard</button>
+          <button onClick={() => navTo('/app/settings')} style={tabStyle(isSettings)}>Team &amp; Access</button>
         </div>
 
         <Outlet />
@@ -83,7 +118,6 @@ export default function AppLayout() {
 
 function tabStyle(isActive) {
   return {
-    display: 'inline-block',
     padding: '14px 16px',
     fontSize: '13px',
     fontWeight: isActive ? '700' : '500',
@@ -96,7 +130,6 @@ function tabStyle(isActive) {
     transition: 'color 0.12s',
     whiteSpace: 'nowrap',
     fontFamily: 'inherit',
-    textDecoration: 'none',
   };
 }
 
