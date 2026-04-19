@@ -1,6 +1,6 @@
 client_id = "fd3bb73cfc21e2a47db99799ddb620ba"
 name = "x-seeding"
-application_url = "https://zeedy.xyz"
+application_url = "https://www.zeedy.xyz"
 embedded = true
 
 [build]
@@ -30,4 +30,4 @@ api_version = "2026-07"
 scopes = "read_inventory,read_products,write_draft_orders,read_draft_orders,read_fulfillments,read_locations"
 
 [auth]
-redirect_urls = [ "https://zeedy.xyz/auth/callback" ]
+redirect_urls = [ "https://www.zeedy.xyz/auth/callback" ]
