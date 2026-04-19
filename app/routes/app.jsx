@@ -63,6 +63,7 @@ export default function AppLayout() {
   }, []);
 
   const isSettings = pathname.startsWith('/app/settings');
+  const isBilling  = pathname.startsWith('/app/billing');
 
   /**
    * Navigate via a full iframe page-load rather than React Router client-side
@@ -101,6 +102,7 @@ export default function AppLayout() {
       <ui-nav-menu>
         <a href="/app" rel="home">Dashboard</a>
         <a href="/app/settings">Team</a>
+        <a href="/app/billing">Billing</a>
       </ui-nav-menu>
 
       <div style={{
@@ -116,8 +118,9 @@ export default function AppLayout() {
           alignItems: 'center',
           gap: '4px',
         }}>
-          <button onClick={() => navTo('/app')} style={tabStyle(!isSettings)}>Dashboard</button>
+          <button onClick={() => navTo('/app')} style={tabStyle(!isSettings && !isBilling)}>Dashboard</button>
           <button onClick={() => navTo('/app/settings')} style={tabStyle(isSettings)}>Team</button>
+          <button onClick={() => navTo('/app/billing')} style={tabStyle(isBilling)}>Billing</button>
         </div>
 
         <Outlet />
