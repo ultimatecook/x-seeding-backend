@@ -43,8 +43,8 @@
     "newSeeding":  "New Seeding",
     "influencers": "Influencers",
     "campaigns":   "Campaigns",
-    "settings":    "Settings",
-    "admin":       "Admin",
+    "settings":    "Team",
+    "admin":       "Locations",
     "signOut":     "Sign out",
     "theme":       "Theme"
   },

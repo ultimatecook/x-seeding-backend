@@ -90,7 +90,7 @@ export default function AppLayout() {
     <AppProvider embedded apiKey={apiKey}>
       <ui-nav-menu>
         <a href="/app" rel="home">Dashboard</a>
-        <a href="/app/settings">Team &amp; Access</a>
+        <a href="/app/settings">Team</a>
       </ui-nav-menu>
 
       <div style={{
@@ -107,7 +107,7 @@ export default function AppLayout() {
           gap: '4px',
         }}>
           <button onClick={() => navTo('/app')} style={tabStyle(!isSettings)}>Dashboard</button>
-          <button onClick={() => navTo('/app/settings')} style={tabStyle(isSettings)}>Team &amp; Access</button>
+          <button onClick={() => navTo('/app/settings')} style={tabStyle(isSettings)}>Team</button>
         </div>
 
         <Outlet />
