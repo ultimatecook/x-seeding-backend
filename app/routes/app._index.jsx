@@ -3,6 +3,7 @@ import { boundary } from '@shopify/shopify-app-react-router/server';
 import { authenticate } from '../shopify.server';
 import { generateInviteToken } from '../utils/portal-auth.server';
 import { sendInviteEmail } from '../utils/email.server';
+import { getOrCreateBilling, refreshBillingStatus, trialDaysRemaining, hasActiveAccess, PLAN_PRICE_USD } from '../utils/billing.server';
 import prisma from '../db.server';
 import { syncLocationsWithAdmin } from '../utils/inventory.server';
 
@@ -92,7 +93,18 @@ export async function loader({ request }) {
     console.error('[dashboard] db error:', e?.message);
   }
 
-  return { shop, totalSeedings, totalInfluencers, totalCampaigns, byStatus, ownerSetup };
+  // ── Billing ──────────────────────────────────────────────────────────────────
+  const rawBilling = await getOrCreateBilling(shop);
+  const billing    = await refreshBillingStatus(rawBilling);
+  const billingInfo = {
+    planStatus:    billing.planStatus,
+    billingStatus: billing.billingStatus,
+    daysRemaining: trialDaysRemaining(billing),
+    isActive:      hasActiveAccess(billing),
+    planPrice:     PLAN_PRICE_USD,
+  };
+
+  return { shop, totalSeedings, totalInfluencers, totalCampaigns, byStatus, ownerSetup, billing: billingInfo };
 }
 
 function StatCard({ label, value, icon }) {
@@ -126,7 +138,7 @@ function StatCard({ label, value, icon }) {
 }
 
 export default function AppIndex() {
-  const { totalSeedings, totalInfluencers, totalCampaigns, byStatus, ownerSetup } = useLoaderData();
+  const { totalSeedings, totalInfluencers, totalCampaigns, byStatus, ownerSetup, billing } = useLoaderData();
 
   const statuses = ['Pending', 'Ordered', 'Shipped', 'Delivered', 'Posted'];
   const activeStatuses = statuses.filter(s => (byStatus[s] || 0) > 0);
@@ -195,6 +207,58 @@ export default function AppIndex() {
               }}
             />
           </div>
+        </div>
+      )}
+
+      {/* ── Billing status card ── */}
+      {billing && !billing.isActive && (
+        <div style={{
+          width: '100%',
+          backgroundColor: billing.planStatus === 'expired' ? '#FEF2F2' : '#FFFBEB',
+          border: `1.5px solid ${billing.planStatus === 'expired' ? '#FECACA' : '#F59E0B'}`,
+          borderRadius: '16px',
+          padding: '24px 28px',
+          boxShadow: P.shadow,
+        }}>
+          <div style={{ fontSize: '16px', fontWeight: '800', color: billing.planStatus === 'expired' ? '#DC2626' : '#92400E', marginBottom: '6px' }}>
+            {billing.planStatus === 'expired' ? '⛔ Your trial has ended' : `⏳ ${billing.daysRemaining} day${billing.daysRemaining !== 1 ? 's' : ''} left in your free trial`}
+          </div>
+          <p style={{ margin: '0 0 16px', fontSize: '13px', color: billing.planStatus === 'expired' ? '#DC2626' : '#B45309', lineHeight: 1.6 }}>
+            {billing.planStatus === 'expired'
+              ? 'Subscribe to restore access to all features and your data.'
+              : `Upgrade to Zeedy Basic ($${billing.planPrice}/month) to keep full access after your trial.`}
+          </p>
+          <a
+            href="/app/billing"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '8px',
+              padding: '10px 22px',
+              background: billing.planStatus === 'expired'
+                ? 'linear-gradient(135deg, #EF4444 0%, #DC2626 100%)'
+                : 'linear-gradient(135deg, #D97706 0%, #B45309 100%)',
+              color: '#fff', textDecoration: 'none',
+              borderRadius: '10px', fontSize: '14px', fontWeight: '700',
+            }}>
+            {billing.planStatus === 'expired' ? 'Subscribe now →' : 'View plans →'}
+          </a>
+        </div>
+      )}
+
+      {billing?.isActive && billing?.planStatus === 'trial' && (
+        <div style={{
+          width: '100%',
+          backgroundColor: P.accentFaint,
+          border: `1px solid ${P.accentLight}`,
+          borderRadius: '12px',
+          padding: '14px 20px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px',
+        }}>
+          <span style={{ fontSize: '13px', fontWeight: '600', color: P.accent }}>
+            🎉 Free trial · {billing.daysRemaining} day{billing.daysRemaining !== 1 ? 's' : ''} remaining
+          </span>
+          <a href="/app/billing" style={{ fontSize: '12px', fontWeight: '700', color: P.accent, textDecoration: 'none' }}>
+            View plans →
+          </a>
         </div>
       )}
 

@@ -189,6 +189,22 @@ model PortalUser {
   @@index([resetToken])
 }
 
+model ShopBilling {
+  id              Int       @id @default(autoincrement())
+  shop            String    @unique
+  planName        String    @default("trial")   // "trial" | "basic"
+  planStatus      String    @default("trial")   // "trial" | "active" | "expired"
+  billingStatus   String?                        // "pending" | "active" | "cancelled" | "frozen" | "declined"
+  trialStartedAt  DateTime  @default(now())
+  trialEndsAt     DateTime
+  shopifyChargeId String?                        // Shopify AppSubscription GID
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([shop])
+  @@index([planStatus])
+}
+
 model AuditLog {
   id           Int      @id @default(autoincrement())
   shop         String

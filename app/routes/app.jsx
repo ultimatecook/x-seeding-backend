@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { authenticate } from '../shopify.server';
 import { boundary } from '@shopify/shopify-app-react-router/server';
 import { AppProvider } from '@shopify/shopify-app-react-router/react';
+import { getOrCreateBilling, refreshBillingStatus } from '../utils/billing.server';
 
 const P = {
   accent:  '#7C6FF7',
@@ -15,12 +16,21 @@ const P = {
 
 export async function loader({ request }) {
   const { session } = await authenticate.admin(request);
-  // Also capture the host param so the layout can build correct full-page nav URLs.
   const url = new URL(request.url);
+
+  // Bootstrap billing — creates trial record on first install, syncs expired status
+  const rawBilling = await getOrCreateBilling(session.shop);
+  const billing    = await refreshBillingStatus(rawBilling);
+
   return {
     shop:   session.shop,
     host:   url.searchParams.get('host') || '',
     apiKey: process.env.SHOPIFY_API_KEY || '',
+    billing: {
+      planStatus:    billing.planStatus,
+      billingStatus: billing.billingStatus,
+      trialEndsAt:   billing.trialEndsAt?.toISOString() ?? null,
+    },
   };
 }
 

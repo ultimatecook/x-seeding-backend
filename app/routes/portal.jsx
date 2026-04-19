@@ -1,13 +1,34 @@
 import { useState, useEffect } from 'react';
 import { Outlet, NavLink, useLoaderData, redirect, Form, useRouteError } from 'react-router';
 import { requirePortalUser, destroyPortalSession, getPortalSession } from '../utils/portal-auth.server';
+import { getOrCreateBilling, refreshBillingStatus, hasActiveAccess, trialDaysRemaining, PLAN_PRICE_USD } from '../utils/billing.server';
 import { can } from '../utils/portal-permissions';
 import { PORTAL_THEME_CSS } from '../utils/portal-theme';
 import { I18nProvider, useT, SUPPORTED_LANGS, LANG_LABELS } from '../utils/i18n';
 
 export async function loader({ request }) {
   const { portalUser, shop } = await requirePortalUser(request);
-  return { portalUser, shop, role: portalUser.role };
+
+  const rawBilling = await getOrCreateBilling(shop);
+  const billing    = await refreshBillingStatus(rawBilling);
+  const isActive   = hasActiveAccess(billing);
+
+  // Build upgrade URL pointing to Shopify admin
+  const shopName   = shop.replace('.myshopify.com', '');
+  const upgradeUrl = `https://admin.shopify.com/store/${shopName}/apps`;
+
+  return {
+    portalUser,
+    shop,
+    role: portalUser.role,
+    billing: {
+      planStatus:    billing.planStatus,
+      daysRemaining: trialDaysRemaining(billing),
+      isActive,
+      planPrice:     PLAN_PRICE_USD,
+      upgradeUrl,
+    },
+  };
 }
 
 export async function action({ request }) {
@@ -204,7 +225,7 @@ export default function PortalLayout() {
 }
 
 function PortalLayoutInner() {
-  const { portalUser, role } = useLoaderData();
+  const { portalUser, role, billing } = useLoaderData();
   const { t, lang, changeLang } = useT();
 
   const [dark,      setDark]      = useState(null);
@@ -536,8 +557,80 @@ function PortalLayoutInner() {
       </aside>
 
       {/* ── Main content ──────────────────────────────────────────── */}
-      <main style={{ flex: 1, minWidth: 0, padding: '28px 32px' }}>
+      <main style={{ flex: 1, minWidth: 0, padding: '28px 32px', position: 'relative' }}>
+
+        {/* Trial countdown banner */}
+        {billing?.isActive && billing?.planStatus === 'trial' && billing.daysRemaining <= 5 && (
+          <div style={{
+            marginBottom: '20px',
+            padding: '10px 16px',
+            backgroundColor: 'var(--pt-accent-faint)',
+            border: '1px solid var(--pt-accent-light)',
+            borderRadius: '10px',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap',
+          }}>
+            <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--pt-accent)' }}>
+              ⏳ {billing.daysRemaining} day{billing.daysRemaining !== 1 ? 's' : ''} left in your free trial
+            </span>
+            <a href={billing.upgradeUrl} target="_blank" rel="noreferrer"
+              style={{ fontSize: '12px', fontWeight: '700', color: 'var(--pt-accent)', textDecoration: 'none' }}>
+              Upgrade now →
+            </a>
+          </div>
+        )}
+
         <Outlet />
+
+        {/* Paywall overlay — shown when trial expired and no active plan */}
+        {billing && !billing.isActive && (
+          <div style={{
+            position: 'absolute', inset: 0,
+            backgroundColor: 'rgba(247, 246, 251, 0.92)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 100,
+            padding: '24px',
+          }}>
+            <div style={{
+              backgroundColor: 'var(--pt-surface)',
+              border: '1px solid var(--pt-border)',
+              borderRadius: '20px',
+              padding: '40px',
+              maxWidth: '440px',
+              width: '100%',
+              textAlign: 'center',
+              boxShadow: '0 8px 40px rgba(124,111,247,0.15)',
+            }}>
+              <div style={{ fontSize: '40px', marginBottom: '16px' }}>⛔</div>
+              <h2 style={{ margin: '0 0 10px', fontSize: '22px', fontWeight: '800', color: 'var(--pt-text)', letterSpacing: '-0.3px' }}>
+                Your free trial has ended
+              </h2>
+              <p style={{ margin: '0 0 28px', fontSize: '14px', color: 'var(--pt-text-sub)', lineHeight: 1.6 }}>
+                Subscribe to <strong>Zeedy Basic</strong> (${billing.planPrice}/month) to restore full access.
+                Your data is safe — nothing has been deleted.
+              </p>
+              <a
+                href={billing.upgradeUrl}
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '8px',
+                  padding: '14px 32px',
+                  background: 'linear-gradient(135deg, #7C6FF7 0%, #5B4CF0 100%)',
+                  color: '#fff', textDecoration: 'none', borderRadius: '12px',
+                  fontSize: '15px', fontWeight: '700',
+                  boxShadow: '0 4px 14px rgba(124,111,247,0.4)',
+                }}
+              >
+                Open Shopify Admin to upgrade →
+              </a>
+              <p style={{ margin: '16px 0 0', fontSize: '11px', color: 'var(--pt-text-muted)' }}>
+                You'll be taken to your Shopify admin where you can subscribe.
+              </p>
+            </div>
+          </div>
+        )}
+
       </main>
     </div>
   );
