@@ -6,6 +6,7 @@ import { audit } from '../utils/audit.server.js';
 import { releaseDiscountCodes } from '../utils/discount-codes.server';
 import { fmtDate } from '../theme';
 import { D } from '../utils/portal-theme';
+import { useT } from '../utils/i18n';
 
 
 const STATUS_META = {
@@ -123,6 +124,7 @@ export default function PortalSeedings() {
   const canEdit   = can.updateSeeding(role);
   const canDelete = can.deleteSeeding(role);
   const canCreate = can.createSeeding(role);
+  const { t } = useT();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const currentStatus   = searchParams.get('status')   || 'all';
@@ -153,12 +155,12 @@ export default function PortalSeedings() {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: D.text, letterSpacing: '-0.3px' }}>Seedings</h2>
+          <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: D.text, letterSpacing: '-0.3px' }}>{t('seedings.title')}</h2>
           <p style={{ margin: '2px 0 0', fontSize: '13px', color: D.textSub }}>{total} seeding{total !== 1 ? 's' : ''}{hasFilters ? ' matching filters' : ''}</p>
         </div>
         {canCreate && (
           <Link to="/portal/new" style={{ padding: '8px 18px', background: 'linear-gradient(135deg, #7C6FF7 0%, #9C8FFF 100%)', color: '#fff', borderRadius: '8px', textDecoration: 'none', fontSize: '13px', fontWeight: '700', boxShadow: '0 2px 6px rgba(124,111,247,0.35)' }}>
-            + New Seeding
+            {t('seedings.newSeeding')}
           </Link>
         )}
       </div>
@@ -166,7 +168,7 @@ export default function PortalSeedings() {
       {/* Filter bar */}
       <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
         <input
-          type="text" placeholder="Search influencer…"
+          type="text" placeholder={t('seedings.search')}
           defaultValue={currentQ} key={currentQ}
           onKeyDown={e => { if (e.key === 'Enter') setFilter('q', e.target.value); }}
           onBlur={e => { if (e.target.value !== currentQ) setFilter('q', e.target.value); }}
@@ -211,13 +213,13 @@ export default function PortalSeedings() {
         <div style={{ textAlign: 'center', padding: '60px', color: D.textMuted, border: `2px dashed ${D.border}`, borderRadius: '12px' }}>
           {hasFilters ? (
             <>
-              <p style={{ margin: '0 0 12px', fontSize: '15px', color: D.textSub }}>No seedings match these filters.</p>
+              <p style={{ margin: '0 0 12px', fontSize: '15px', color: D.textSub }}>{t('seedings.empty')}</p>
               <button type="button" onClick={() => setSearchParams(new URLSearchParams())} style={btnGhost}>Clear filters</button>
             </>
           ) : (
             <>
-              <p style={{ margin: '0 0 12px', fontSize: '15px', color: D.textSub }}>No seedings yet.</p>
-              <Link to="/portal/new" style={{ color: D.accent, fontWeight: '700', textDecoration: 'none' }}>Create your first one →</Link>
+              <p style={{ margin: '0 0 12px', fontSize: '15px', color: D.textSub }}>{t('seedings.emptyAll')}</p>
+              <Link to="/portal/new" style={{ color: D.accent, fontWeight: '700', textDecoration: 'none' }}>{t('seedings.emptyAction')}</Link>
             </>
           )}
         </div>
@@ -227,7 +229,7 @@ export default function PortalSeedings() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
               <thead>
                 <tr style={{ backgroundColor: D.bg }}>
-                  {['Influencer', 'Country', 'Ship To', 'Products', 'Cost', 'Status', 'Tracking', 'Checkout Link', 'Codes', 'Date', ''].map(h => (
+                  {[t('seedings.table.influencer'), 'Country', 'Ship To', t('seedings.table.products'), t('seedings.table.cost'), t('seedings.table.status'), 'Tracking', t('seedings.table.link'), 'Codes', t('seedings.table.date'), ''].map(h => (
                     <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontWeight: '700', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.7px', color: D.textMuted, whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
@@ -242,7 +244,7 @@ export default function PortalSeedings() {
                         <div style={{ fontSize: '11px', color: D.textMuted, marginTop: '1px' }}>{s.influencer.name}</div>
                         {s.seedingType === 'InStore' && (
                           <span style={{ display: 'inline-block', marginTop: '3px', fontSize: '9px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.4px', backgroundColor: '#FFF7ED', color: '#92400E', border: '1px solid #FED7AA', borderRadius: '4px', padding: '1px 5px' }}>
-                            🏪 In-Store
+                            {t('seedings.inStoreBadge')}
                           </span>
                         )}
                       </td>

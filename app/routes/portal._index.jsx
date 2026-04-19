@@ -4,6 +4,7 @@ import prisma from '../db.server';
 import { requirePortalUser } from '../utils/portal-auth.server';
 import { fmtDate, fmtNum } from '../theme';
 import { D, FlagImg } from '../utils/portal-theme';
+import { useT } from '../utils/i18n';
 
 // ── Predefined country list (for pills fill-in) ───────────────────────────────
 const PRESET_COUNTRIES = ['Spain', 'United Kingdom', 'France', 'Italy', 'United States', 'Netherlands', 'Germany'];
@@ -306,7 +307,7 @@ function StatCard({ label, value, delta, icon, iconColor, iconBg }) {
 }
 
 // ── Interactive line chart ─────────────────────────────────────────────────────
-function LineChart({ days }) {
+function LineChart({ days, seedingsLabel }) {
   const [hover, setHover] = useState(null); // { idx }
   const [cw,    setCw]    = useState(800);  // measured container width
   const wrapRef           = useRef(null);
@@ -436,7 +437,7 @@ function LineChart({ days }) {
             {hData.label}
           </div>
           <div style={{ fontSize: '12px', fontWeight: '600', color: '#7C6FF7' }}>
-            {hData.seedings} seedings
+            {hData.seedings} {seedingsLabel}
           </div>
         </div>
       )}
@@ -463,11 +464,11 @@ function Rule({ my = 40 }) {
 const DEFAULT_BAND_ORDER = ['stats', 'midrow', 'botrow'];
 
 const SECTION_DEFS = [
-  { id: 'stats',       label: 'Stats',          band: 'stats'  },
-  { id: 'pipeline',    label: 'Pipeline',        band: 'midrow' },
-  { id: 'recent',      label: 'Recent Seedings', band: 'midrow' },
-  { id: 'countries',   label: 'Countries',       band: 'botrow' },
-  { id: 'influencers', label: 'Top Influencers', band: 'botrow' },
+  { id: 'stats',       labelKey: 'dashboard.sections.stats',       band: 'stats'  },
+  { id: 'pipeline',    labelKey: 'dashboard.sections.pipeline',    band: 'midrow' },
+  { id: 'recent',      labelKey: 'dashboard.sections.recent',      band: 'midrow' },
+  { id: 'countries',   labelKey: 'dashboard.sections.countries',   band: 'botrow' },
+  { id: 'influencers', labelKey: 'dashboard.sections.influencers', band: 'botrow' },
 ];
 
 // ── Draggable band wrapper ────────────────────────────────────────────────────
@@ -521,6 +522,7 @@ export default function PortalDashboard() {
     { label: '1yr',             value: '365' },
   ];
 
+  const { t }          = useT();
   const navigate       = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -529,10 +531,10 @@ export default function PortalDashboard() {
   const peakDay        = chartDays.reduce((best, d) => d.seedings > best.seedings ? d : best, chartDays[0] ?? { label: '', seedings: 0 });
 
   const pipeline = [
-    { label: 'Pending',   count: pendingSeedings,   color: D.statusPending.dot   },
-    { label: 'Ordered',   count: orderedSeedings,   color: D.statusOrdered.dot   },
-    { label: 'Shipped',   count: shippedSeedings,   color: D.statusShipped.dot   },
-    { label: 'Delivered', count: deliveredSeedings, color: D.statusDelivered.dot },
+    { label: t('status.Pending'),   count: pendingSeedings,   color: D.statusPending.dot   },
+    { label: t('status.Ordered'),   count: orderedSeedings,   color: D.statusOrdered.dot   },
+    { label: t('status.Shipped'),   count: shippedSeedings,   color: D.statusShipped.dot   },
+    { label: t('status.Delivered'), count: deliveredSeedings, color: D.statusDelivered.dot },
   ];
 
   function buildUrl(newDays, newCountry) {
@@ -616,7 +618,7 @@ export default function PortalDashboard() {
   const renderStats = () => (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
       <StatCard
-        label="Retail Value Seeded"
+        label={t('dashboard.stat.retailValue')}
         value={`€${fmtNum(totalSpend)}`}
         delta={spendDelta}
         icon={<IconEuro />}
@@ -624,21 +626,21 @@ export default function PortalDashboard() {
         iconBg="rgba(245,158,11,0.1)"
       />
       <StatCard
-        label="Cost of Goods Seeded"
+        label={t('dashboard.stat.cogs')}
         value={`€${fmtNum(totalCogs)}`}
         icon={<IconTag />}
         iconColor="#7C6FF7"
         iconBg="rgba(124,111,247,0.1)"
       />
       <StatCard
-        label="Units Sent"
+        label={t('dashboard.stat.units')}
         value={totalUnits}
         icon={<IconBox />}
         iconColor="#3B82F6"
         iconBg="rgba(59,130,246,0.1)"
       />
       <StatCard
-        label="Influencers"
+        label={t('dashboard.stat.influencers')}
         value={totalInfluencers}
         icon={<IconUsers />}
         iconColor="#10B981"
@@ -649,9 +651,9 @@ export default function PortalDashboard() {
 
   const renderPipeline = () => (
     <div>
-      <Label>Pipeline</Label>
+      <Label>{t('dashboard.pipeline')}</Label>
       {totalSeedings === 0 ? (
-        <p style={{ margin: 0, fontSize: '13px', color: 'var(--pt-text-muted)' }}>No seedings yet.</p>
+        <p style={{ margin: 0, fontSize: '13px', color: 'var(--pt-text-muted)' }}>{t('dashboard.noSeedings')}</p>
       ) : (
         <>
           <div style={{ display: 'flex', height: '3px', borderRadius: '99px', overflow: 'hidden',
@@ -674,7 +676,7 @@ export default function PortalDashboard() {
             ))}
           </div>
           <div style={{ fontSize: '11px', color: 'var(--pt-text-muted)', marginTop: '16px' }}>
-            {completionRate}% delivered
+            {t('dashboard.deliveredPct', { pct: completionRate })}
           </div>
         </>
       )}
@@ -685,12 +687,12 @@ export default function PortalDashboard() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
         <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase',
-          letterSpacing: '1px', color: 'var(--pt-text-muted)' }}>Recent Seedings</div>
+          letterSpacing: '1px', color: 'var(--pt-text-muted)' }}>{t('dashboard.recentSeedings')}</div>
         <Link to="/portal/seedings" style={{ fontSize: '11px', color: 'var(--pt-accent)',
-          fontWeight: '600', textDecoration: 'none' }}>View all →</Link>
+          fontWeight: '600', textDecoration: 'none' }}>{t('dashboard.viewAll')}</Link>
       </div>
       {recentSeedings.length === 0 ? (
-        <p style={{ margin: 0, fontSize: '13px', color: 'var(--pt-text-muted)' }}>No seedings yet.</p>
+        <p style={{ margin: 0, fontSize: '13px', color: 'var(--pt-text-muted)' }}>{t('dashboard.noSeedings')}</p>
       ) : (
         <div>
           {recentSeedings.slice(0, 6).map((s, i) => (
@@ -724,9 +726,9 @@ export default function PortalDashboard() {
 
   const renderCountries = () => (
     <div>
-      <Label>Top Countries</Label>
+      <Label>{t('dashboard.topCountries')}</Label>
       {countryData.length === 0 ? (
-        <p style={{ margin: 0, fontSize: '13px', color: 'var(--pt-text-muted)' }}>No data yet.</p>
+        <p style={{ margin: 0, fontSize: '13px', color: 'var(--pt-text-muted)' }}>{t('dashboard.noCountries')}</p>
       ) : (
         <div>
           {countryData.slice(0, 5).map((d, i) => (
@@ -736,7 +738,7 @@ export default function PortalDashboard() {
               <span style={{ flex: 1, fontSize: '13px', fontWeight: '500', color: 'var(--pt-text)' }}>
                 {d.country}
               </span>
-              <span style={{ fontSize: '11px', color: 'var(--pt-text-muted)' }}>{d.seedings} seedings</span>
+              <span style={{ fontSize: '11px', color: 'var(--pt-text-muted)' }}>{d.seedings} {t('dashboard.seedings')}</span>
               <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--pt-text)',
                 minWidth: '56px', textAlign: 'right' }}>€{fmtNum(d.spend)}</span>
             </div>
@@ -750,12 +752,12 @@ export default function PortalDashboard() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
         <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase',
-          letterSpacing: '1px', color: 'var(--pt-text-muted)' }}>Top Influencers</div>
+          letterSpacing: '1px', color: 'var(--pt-text-muted)' }}>{t('dashboard.topInfluencers')}</div>
         <Link to="/portal/influencers" style={{ fontSize: '11px', color: 'var(--pt-accent)',
-          fontWeight: '600', textDecoration: 'none' }}>View all →</Link>
+          fontWeight: '600', textDecoration: 'none' }}>{t('dashboard.viewAll')}</Link>
       </div>
       {topInfluencers.length === 0 ? (
-        <p style={{ margin: 0, fontSize: '13px', color: 'var(--pt-text-muted)' }}>No influencers yet.</p>
+        <p style={{ margin: 0, fontSize: '13px', color: 'var(--pt-text-muted)' }}>{t('dashboard.noInfluencers')}</p>
       ) : (
         <div>
           {topInfluencers.map((inf, i) => (
@@ -779,7 +781,7 @@ export default function PortalDashboard() {
                 <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--pt-text)' }}>
                   {inf._count.seedings}
                 </div>
-                <div style={{ fontSize: '11px', color: 'var(--pt-text-muted)' }}>seedings</div>
+                <div style={{ fontSize: '11px', color: 'var(--pt-text-muted)' }}>{t('dashboard.seedings')}</div>
               </div>
               <div style={{ textAlign: 'right', flexShrink: 0, minWidth: '52px' }}>
                 <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--pt-accent)' }}>
@@ -851,7 +853,7 @@ export default function PortalDashboard() {
       {/* ── Header ─────────────────────────────────────────────── */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '36px' }}>
         <h1 style={{ margin: 0, fontSize: '18px', fontWeight: '700', color: 'var(--pt-text)', letterSpacing: '-0.3px' }}>
-          Overview
+          {t('dashboard.overview')}
         </h1>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -899,7 +901,7 @@ export default function PortalDashboard() {
               cursor: 'pointer', fontSize: '12px', fontWeight: '600',
             }}
           >
-            {editMode ? 'Done' : 'Edit'}
+            {editMode ? t('dashboard.done') : t('dashboard.edit')}
           </button>
         </div>
       </div>
@@ -913,7 +915,7 @@ export default function PortalDashboard() {
         }}>
           <span style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase',
             letterSpacing: '0.8px', color: 'var(--pt-text-muted)', flexShrink: 0 }}>
-            Sections
+            {t('dashboard.sections.title')}
           </span>
           {SECTION_DEFS.map(s => (
             <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: '6px',
@@ -922,12 +924,12 @@ export default function PortalDashboard() {
                 style={{ accentColor: 'var(--pt-accent)', width: '13px', height: '13px' }} />
               <span style={{ fontSize: '12px', color: vis(s.id) ? 'var(--pt-text)' : 'var(--pt-text-muted)',
                 fontWeight: '500' }}>
-                {s.label}
+                {t(s.labelKey)}
               </span>
             </label>
           ))}
           <span style={{ fontSize: '11px', color: 'var(--pt-text-muted)', marginLeft: 'auto' }}>
-            Drag rows to reorder
+            {t('dashboard.sections.dragHint')}
           </span>
         </div>
       )}
@@ -938,17 +940,17 @@ export default function PortalDashboard() {
           <span style={{ fontSize: '56px', fontWeight: '800', letterSpacing: '-2.5px', lineHeight: 1, color: 'var(--pt-text)' }}>
             {chartTotal}
           </span>
-          <span style={{ fontSize: '16px', color: 'var(--pt-text-muted)', fontWeight: '400' }}>seedings</span>
+          <span style={{ fontSize: '16px', color: 'var(--pt-text-muted)', fontWeight: '400' }}>{t('dashboard.seedings')}</span>
           <Delta delta={countDelta} />
         </div>
         <div style={{ fontSize: '13px', color: 'var(--pt-text-muted)', marginBottom: '24px' }}>
           {rangeLabel}
           {activeCountry && <span> · {activeCountry}</span>}
           {peakDay.seedings > 0 && (
-            <span> · peak <strong style={{ color: 'var(--pt-text-sub)', fontWeight: '600' }}>{peakDay.label}</strong></span>
+            <span> · {t('dashboard.peak')} <strong style={{ color: 'var(--pt-text-sub)', fontWeight: '600' }}>{peakDay.label}</strong></span>
           )}
         </div>
-        <LineChart days={chartDays} />
+        <LineChart days={chartDays} seedingsLabel={t('dashboard.seedings')} />
       </div>
 
       {/* ── Draggable bands ─────────────────────────────────────── */}

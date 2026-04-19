@@ -6,6 +6,7 @@ import {
   verifyPassword,
   getPortalUser,
 } from '../utils/portal-auth.server';
+import { I18nProvider, useT, SUPPORTED_LANGS, LANG_LABELS } from '../utils/i18n';
 
 // Portal purple palette (hardcoded — login page has no theme provider)
 const P = {
@@ -54,6 +55,15 @@ export async function action({ request }) {
 }
 
 export default function PortalLogin() {
+  return (
+    <I18nProvider>
+      <LoginForm />
+    </I18nProvider>
+  );
+}
+
+function LoginForm() {
+  const { t, lang, changeLang } = useT();
   const actionData   = useActionData();
   const [params]     = useSearchParams();
   const defaultEmail = params.get('email') || '';
@@ -89,16 +99,29 @@ export default function PortalLogin() {
         boxShadow: '0 4px 24px rgba(124,111,247,0.1)',
       }}>
 
-        {/* Logo */}
-        <div style={{ marginBottom: '32px' }}>
+        {/* Logo + language switcher */}
+        <div style={{ marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <img src="/namelogo.svg" alt="ZEEDY" style={{ height: '32px', width: 'auto', display: 'block' }} />
+          <div style={{ display: 'flex', border: `1px solid ${P.border}`, borderRadius: '7px', overflow: 'hidden' }}>
+            {SUPPORTED_LANGS.map(l => (
+              <button key={l} type="button" onClick={() => changeLang(l)}
+                style={{
+                  padding: '5px 9px', fontSize: '10px', fontWeight: '800', letterSpacing: '0.3px',
+                  backgroundColor: lang === l ? P.accent : 'transparent',
+                  color: lang === l ? '#fff' : P.textSub,
+                  border: 'none', cursor: 'pointer',
+                }}>
+                {LANG_LABELS[l]}
+              </button>
+            ))}
+          </div>
         </div>
 
         <h2 style={{ margin: '0 0 6px', fontSize: '20px', fontWeight: '800', color: P.text, letterSpacing: '-0.3px' }}>
-          Welcome back
+          {t('auth.login.title')}
         </h2>
         <p style={{ margin: '0 0 24px', fontSize: '13px', color: P.textSub }}>
-          Sign in to your account to continue.
+          {t('auth.login.subtitle')}
         </p>
 
         {actionData?.error && (
@@ -119,13 +142,14 @@ export default function PortalLogin() {
         <Form method="post" style={{ display: 'grid', gap: '14px' }}>
           <div style={{ display: 'grid', gap: '6px' }}>
             <label style={{ fontSize: '12px', fontWeight: '700', color: P.textSub, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              Email
+              {t('auth.login.email')}
             </label>
             <input
               name="email"
               type="email"
               autoComplete="email"
               defaultValue={defaultEmail}
+              placeholder={t('auth.login.emailPlaceholder')}
               required
               style={inputStyle}
             />
@@ -133,12 +157,13 @@ export default function PortalLogin() {
 
           <div style={{ display: 'grid', gap: '6px' }}>
             <label style={{ fontSize: '12px', fontWeight: '700', color: P.textSub, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              Password
+              {t('auth.login.password')}
             </label>
             <input
               name="password"
               type="password"
               autoComplete="current-password"
+              placeholder={t('auth.login.passwordPlaceholder')}
               required
               style={inputStyle}
             />
@@ -160,7 +185,7 @@ export default function PortalLogin() {
               letterSpacing: '-0.1px',
             }}
           >
-            Sign in →
+            {t('auth.login.signIn')} →
           </button>
         </Form>
       </div>

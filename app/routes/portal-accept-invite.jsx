@@ -5,6 +5,7 @@ import {
   getPortalSession,
   commitPortalSession,
 } from '../utils/portal-auth.server';
+import { I18nProvider, useT } from '../utils/i18n';
 
 // Portal purple palette (hardcoded — page has no theme provider)
 const P = {
@@ -105,6 +106,15 @@ function LogoBlock() {
 }
 
 export default function AcceptInvite() {
+  return (
+    <I18nProvider>
+      <AcceptInviteForm />
+    </I18nProvider>
+  );
+}
+
+function AcceptInviteForm() {
+  const { t } = useT();
   const loaderData = useLoaderData();
   const actionData = useActionData();
   const error      = actionData?.error || loaderData?.error;
@@ -117,7 +127,7 @@ export default function AcceptInvite() {
           <div style={{ fontSize: '32px', marginBottom: '12px' }}>⚠️</div>
           <p style={{ color: P.text, fontWeight: '600', marginBottom: '16px' }}>{loaderData?.error}</p>
           <a href="/portal-login" style={{ color: P.accent, fontWeight: '700', fontSize: '14px', textDecoration: 'none' }}>
-            Go to login →
+            {t('auth.login.signIn')} →
           </a>
         </div>
       </div>
@@ -130,10 +140,10 @@ export default function AcceptInvite() {
         <LogoBlock />
 
         <h2 style={{ margin: '0 0 4px', fontSize: '20px', fontWeight: '800', color: P.text, letterSpacing: '-0.3px' }}>
-          Welcome, {loaderData.name}!
+          {t('auth.invite.title')}
         </h2>
         <p style={{ margin: '0 0 24px', fontSize: '13px', color: P.textSub }}>
-          Set a password to activate your account<br />
+          {t('auth.invite.subtitle')}<br />
           <span style={{ fontWeight: '600', color: P.text }}>{loaderData.email}</span>
         </p>
 
@@ -152,22 +162,22 @@ export default function AcceptInvite() {
 
           <div style={{ display: 'grid', gap: '6px' }}>
             <label style={{ fontSize: '12px', fontWeight: '700', color: P.textSub, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              Password
+              {t('auth.invite.password')}
             </label>
             <input
               name="password" type="password" autoComplete="new-password"
-              placeholder="At least 8 characters" required
+              placeholder={t('auth.invite.passwordPlaceholder')} required
               style={inputStyle}
             />
           </div>
 
           <div style={{ display: 'grid', gap: '6px' }}>
             <label style={{ fontSize: '12px', fontWeight: '700', color: P.textSub, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              Confirm password
+              {t('auth.invite.confirm')}
             </label>
             <input
               name="confirm" type="password" autoComplete="new-password"
-              required style={inputStyle}
+              placeholder={t('auth.invite.confirmPlaceholder')} required style={inputStyle}
             />
           </div>
 
@@ -178,7 +188,7 @@ export default function AcceptInvite() {
             fontSize: '14px', fontWeight: '700', cursor: 'pointer', marginTop: '4px',
             boxShadow: '0 2px 8px rgba(124,111,247,0.35)',
           }}>
-            Activate account →
+            {t('auth.invite.accept')} →
           </button>
         </Form>
       </div>

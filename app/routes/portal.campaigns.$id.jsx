@@ -5,6 +5,7 @@ import { can, requirePermission } from '../utils/portal-permissions';
 import { audit } from '../utils/audit.server.js';
 import { fmtDate, fmtNum } from '../theme';
 import { D } from '../utils/portal-theme';
+import { useT } from '../utils/i18n';
 
 // ── Design tokens (matches portal dashboard) ──────────────────────────────
 
@@ -113,6 +114,7 @@ export async function action({ request, params }) {
 
 export default function PortalCampaignDetail() {
   const { campaign, role, canDelete: canDeleteCampaign } = useLoaderData();
+  const { t } = useT();
   const canEdit   = can.updateSeeding(role);
   const canDelete = can.deleteSeeding(role);
   const canCreate = can.createSeeding(role);
@@ -132,7 +134,7 @@ export default function PortalCampaignDetail() {
 
       {/* Back */}
       <Link to="/portal/campaigns" style={{ fontSize: '13px', color: D.textMuted, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-        ← All Campaigns
+        {t('campaign.backLink')}
       </Link>
 
       {/* Header */}
@@ -144,13 +146,13 @@ export default function PortalCampaignDetail() {
             </h2>
             {campaign.archived && (
               <span style={{ fontSize: '11px', fontWeight: '700', color: D.textMuted, backgroundColor: D.surfaceHigh, border: `1px solid ${D.border}`, borderRadius: '20px', padding: '2px 10px' }}>
-                Archived
+                {t('campaign.archived')}
               </span>
             )}
           </div>
           <div style={{ fontSize: '13px', color: D.textSub, display: 'flex', gap: '14px' }}>
-            <span>Created {fmtDate(campaign.createdAt, 'medium')}</span>
-            {campaign.budget != null && <span style={{ fontWeight: '700', color: D.accent }}>Budget: €{fmtNum(campaign.budget)}</span>}
+            <span>{t('campaign.created', { date: fmtDate(campaign.createdAt, 'medium') })}</span>
+            {campaign.budget != null && <span style={{ fontWeight: '700', color: D.accent }}>{t('campaign.budget', { amount: fmtNum(campaign.budget) })}</span>}
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -160,7 +162,7 @@ export default function PortalCampaignDetail() {
                 <input type="hidden" name="intent" value={campaign.archived ? 'unarchive' : 'archive'} />
                 <button type="submit"
                   style={{ padding: '8px 14px', borderRadius: '8px', border: `1px solid ${D.border}`, backgroundColor: 'transparent', color: D.textSub, cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>
-                  {campaign.archived ? '↩ Restore' : '⬜ Archive'}
+                  {campaign.archived ? t('campaign.restore') : t('campaign.archive')}
                 </button>
               </Form>
               {campaign.archived && (
@@ -168,7 +170,7 @@ export default function PortalCampaignDetail() {
                   <input type="hidden" name="intent" value="deleteCampaign" />
                   <button type="submit"
                     style={{ padding: '8px 14px', borderRadius: '8px', border: `1px solid ${D.errorText}`, backgroundColor: 'transparent', color: D.errorText, cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>
-                    Delete
+                    {t('campaign.delete')}
                   </button>
                 </Form>
               )}
@@ -182,7 +184,7 @@ export default function PortalCampaignDetail() {
               fontSize: '13px', fontWeight: '700',
               boxShadow: '0 2px 6px rgba(124,111,247,0.35)',
             }}>
-              + Add Seeding
+              {t('campaign.addSeeding')}
             </Link>
           )}
         </div>
@@ -191,10 +193,10 @@ export default function PortalCampaignDetail() {
       {/* KPI cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '14px' }}>
         {[
-          { label: 'Seedings',     value: seedings.length },
-          { label: 'Retail Value', value: `€${totalRetail.toFixed(2)}` },
-          { label: 'Products',     value: campaign.products.length },
-          { label: 'Posted',       value: statusCounts['Posted'] },
+          { label: t('campaign.kpi.seedings'),    value: seedings.length },
+          { label: t('campaign.kpi.retailValue'), value: `€${totalRetail.toFixed(2)}` },
+          { label: t('campaign.kpi.products'),    value: campaign.products.length },
+          { label: t('campaign.kpi.posted'),      value: statusCounts['Posted'] },
         ].map(stat => (
           <div key={stat.label} style={{
             backgroundColor: D.surface, border: `1px solid ${D.border}`,
@@ -210,7 +212,7 @@ export default function PortalCampaignDetail() {
       {budgetPct !== null && (
         <div style={{ backgroundColor: D.surface, border: `1px solid ${D.border}`, borderRadius: '12px', padding: '16px 20px', boxShadow: D.shadow }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: D.textSub, marginBottom: '8px' }}>
-            <span style={{ fontWeight: '600' }}>Budget Used</span>
+            <span style={{ fontWeight: '600' }}>{t('campaign.budgetUsed')}</span>
             <span style={{ fontWeight: '700', color: D.text }}>€{totalRetail.toFixed(2)} / €{fmtNum(campaign.budget)} ({budgetPct.toFixed(0)}%)</span>
           </div>
           <div style={{ height: '6px', backgroundColor: D.surfaceHigh, borderRadius: '99px', overflow: 'hidden' }}>
@@ -221,7 +223,7 @@ export default function PortalCampaignDetail() {
 
       {/* Status pipeline */}
       <div style={{ backgroundColor: D.surface, border: `1px solid ${D.border}`, borderRadius: '12px', padding: '18px 20px', boxShadow: D.shadow }}>
-        <div style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.8px', color: D.textMuted, marginBottom: '14px' }}>Pipeline</div>
+        <div style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.8px', color: D.textMuted, marginBottom: '14px' }}>{t('campaign.pipeline')}</div>
         {seedings.length > 0 && (
           <div style={{ display: 'flex', height: '6px', borderRadius: '99px', overflow: 'hidden', marginBottom: '14px', backgroundColor: D.surfaceHigh }}>
             {[[D.statusPending.dot, statusCounts.Pending], [D.statusOrdered.dot, statusCounts.Ordered], [D.statusShipped.dot, statusCounts.Shipped], [D.statusDelivered.dot, statusCounts.Delivered], [D.statusPosted.dot, statusCounts.Posted]].map(([color, count], i) =>
@@ -246,11 +248,11 @@ export default function PortalCampaignDetail() {
       <div style={{ backgroundColor: D.surface, border: `1px solid ${D.border}`, borderRadius: '12px', boxShadow: D.shadow, overflow: 'hidden' }}>
         <div style={{ padding: '16px 20px', borderBottom: `1px solid ${D.border}` }}>
           <span style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.8px', color: D.textMuted }}>
-            Campaign Products ({campaign.products.length})
+            {t('campaign.products.title', { count: campaign.products.length })}
           </span>
         </div>
         {campaign.products.length === 0 ? (
-          <div style={{ padding: '24px', color: D.textMuted, fontSize: '13px' }}>No products attached to this campaign.</div>
+          <div style={{ padding: '24px', color: D.textMuted, fontSize: '13px' }}>{t('campaign.products.empty')}</div>
         ) : (
           <div style={{ padding: '16px 20px', display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
             {campaign.products.map(cp => {
@@ -265,7 +267,7 @@ export default function PortalCampaignDetail() {
                   {cp.imageUrl && <img src={cp.imageUrl} alt={cp.productName} style={{ width: '36px', height: '36px', objectFit: 'cover', borderRadius: '6px', flexShrink: 0 }} />}
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: '13px', fontWeight: '700', color: D.text, marginBottom: '2px' }}>{cp.productName}</div>
-                    <div style={{ fontSize: '11px', color: D.textSub }}>{count} seeded{cp.maxUnits ? ` / ${cp.maxUnits} max` : ''}</div>
+                    <div style={{ fontSize: '11px', color: D.textSub }}>{t('campaign.products.seeded', { count })}{cp.maxUnits ? ` ${t('campaign.products.max', { max: cp.maxUnits })}` : ''}</div>
                     {pct !== null && (
                       <div style={{ height: '3px', backgroundColor: D.border, borderRadius: '99px', marginTop: '5px', overflow: 'hidden' }}>
                         <div style={{ height: '100%', width: `${pct}%`, backgroundColor: pct >= 100 ? D.errorText : D.accent, borderRadius: '99px' }} />
@@ -283,20 +285,20 @@ export default function PortalCampaignDetail() {
       <div style={{ backgroundColor: D.surface, border: `1px solid ${D.border}`, borderRadius: '12px', boxShadow: D.shadow, overflow: 'hidden' }}>
         <div style={{ padding: '16px 20px', borderBottom: `1px solid ${D.border}` }}>
           <span style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.8px', color: D.textMuted }}>
-            Seedings ({seedings.length})
+            {t('campaign.seedings.title', { count: seedings.length })}
           </span>
         </div>
 
         {seedings.length === 0 ? (
           <div style={{ padding: '48px', textAlign: 'center', color: D.textMuted, fontSize: '13px' }}>
-            No seedings yet.{' '}
-            {canCreate && <Link to="/portal/new" style={{ color: D.accent, fontWeight: '700', textDecoration: 'none' }}>Create the first one →</Link>}
+            {t('campaign.seedings.empty')}{' '}
+            {canCreate && <Link to="/portal/new" style={{ color: D.accent, fontWeight: '700', textDecoration: 'none' }}>{t('campaign.seedings.createFirst')}</Link>}
           </div>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
             <thead>
               <tr style={{ backgroundColor: D.bg }}>
-                {['Influencer', 'Country', 'Products', 'Cost', 'Status', 'Tracking', 'Date', ...(canDelete ? [''] : [])].map(h => (
+                {[t('campaign.seedings.table.influencer'), t('campaign.seedings.table.country'), t('campaign.seedings.table.products'), t('campaign.seedings.table.cost'), t('campaign.seedings.table.status'), t('campaign.seedings.table.tracking'), t('campaign.seedings.table.date'), ...(canDelete ? [''] : [])].map(h => (
                   <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.7px', color: D.textMuted, whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
@@ -334,7 +336,7 @@ export default function PortalCampaignDetail() {
                       <Form method="post">
                         <input type="hidden" name="intent" value="updateTracking" />
                         <input type="hidden" name="seedingId" value={s.id} />
-                        <input type="text" name="trackingNumber" defaultValue={s.trackingNumber || ''} placeholder="Add tracking…"
+                        <input type="text" name="trackingNumber" defaultValue={s.trackingNumber || ''} placeholder={t('campaign.seedings.addTracking')}
                           onBlur={e => e.target.form.requestSubmit()}
                           style={{ width: '120px', padding: '4px 8px', border: `1px solid ${D.border}`, borderRadius: '6px', fontSize: '12px', color: D.text, backgroundColor: D.bg }} />
                       </Form>
@@ -347,7 +349,7 @@ export default function PortalCampaignDetail() {
                   </td>
                   {canDelete && (
                     <td style={{ padding: '12px 16px' }}>
-                      <Form method="post" onSubmit={e => { if (!confirm('Delete this seeding?')) e.preventDefault(); }}>
+                      <Form method="post" onSubmit={e => { if (!confirm(t('campaign.seedings.deleteConfirm'))) e.preventDefault(); }}>
                         <input type="hidden" name="intent" value="deleteSeeding" />
                         <input type="hidden" name="seedingId" value={s.id} />
                         <button type="submit" style={{ background: 'none', border: 'none', color: D.textMuted, cursor: 'pointer', fontSize: '18px', lineHeight: 1 }}>×</button>

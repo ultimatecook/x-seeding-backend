@@ -6,6 +6,7 @@ import { can, requirePermission } from '../utils/portal-permissions';
 import { audit } from '../utils/audit.server.js';
 import { fmtNum } from '../theme';
 import { D, InstagramAvatar, FlagImg } from '../utils/portal-theme';
+import { useT } from '../utils/i18n';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 
@@ -187,6 +188,7 @@ export default function PortalInfluencers() {
   const actionData   = useActionData();
   const navigation   = useNavigation();
   const navigate     = useNavigate();
+  const { t }        = useT();
   const [searchParams] = useSearchParams();
   const isSubmitting  = navigation.state === 'submitting';
 
@@ -248,20 +250,20 @@ export default function PortalInfluencers() {
       {/* ── Header ─────────────────────────────────────────────── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: D.text, letterSpacing: '-0.3px' }}>Influencers</h2>
+          <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: D.text, letterSpacing: '-0.3px' }}>{t('influencers.title')}</h2>
           <p style={{ margin: '2px 0 0', fontSize: '13px', color: D.textSub }}>{total} total · {influencers.length} on this page</p>
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
           {canCreate && (
             <button onClick={() => { setShowImport(v => !v); setShowForm(false); }}
               style={{ ...btnBase, backgroundColor: showImport ? D.accentLight : 'transparent', color: showImport ? D.accent : D.textSub, borderColor: showImport ? D.accent : D.border }}>
-              {showImport ? 'Cancel' : '↑ Import CSV'}
+              {showImport ? t('common.cancel') : t('influencers.importCSV')}
             </button>
           )}
           {canCreate && (
             <button onClick={() => { setShowForm(v => !v); setShowImport(false); setTierPick(null); }}
               style={{ padding: '7px 16px', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', border: 'none', background: showForm ? D.surfaceHigh : 'linear-gradient(135deg, #7C6FF7 0%, #9C8FFF 100%)', color: showForm ? D.textSub : '#fff', boxShadow: showForm ? 'none' : '0 2px 6px rgba(124,111,247,0.35)' }}>
-              {showForm ? 'Cancel' : '+ Add Influencer'}
+              {showForm ? t('common.cancel') : t('influencers.addInfluencer')}
             </button>
           )}
         </div>
@@ -476,10 +478,10 @@ export default function PortalInfluencers() {
       {influencers.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '60px', color: D.textMuted, border: `2px dashed ${D.border}`, borderRadius: '12px' }}>
           <p style={{ margin: '0 0 6px', fontSize: '15px', color: D.textSub }}>
-            {view === 'archived' ? 'No archived influencers.' : 'No influencers yet.'}
+            {view === 'archived' ? t('influencers.empty.noArchived') : t('influencers.empty.noInfluencers')}
           </p>
           <p style={{ margin: 0, fontSize: '13px' }}>
-            {view === 'archived' ? 'Archive influencers from the Active tab.' : 'Add one manually or import a CSV.'}
+            {view === 'archived' ? t('influencers.empty.archiveFrom') : t('influencers.empty.addManual')}
           </p>
         </div>
       ) : (
@@ -492,7 +494,7 @@ export default function PortalInfluencers() {
                     <input type="checkbox" checked={allSelected} onChange={toggleAll} style={{ cursor: 'pointer', width: '15px', height: '15px', accentColor: D.accent }} />
                   </th>
                 )}
-                {['Handle', 'Name', 'Followers', 'Country', 'Email', 'Seedings'].map(h => (
+                {[t('influencers.table.handle'), t('influencers.table.name'), t('influencers.table.followers'), t('influencers.table.country'), t('influencers.table.email'), t('influencers.table.seedings')].map(h => (
                   <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontWeight: '700', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.7px', color: D.textMuted }}>{h}</th>
                 ))}
               </tr>

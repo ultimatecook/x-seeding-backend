@@ -10,6 +10,7 @@ import { requirePermission } from '../utils/portal-permissions.js';
 import { audit } from '../utils/audit.server.js';
 import { fmtNum } from '../theme';
 import { D, Pbtn as btn, Pinput as input } from '../utils/portal-theme';
+import { useT } from '../utils/i18n';
 import { guessProductCategory, extractSizeFromVariant } from '../utils/size-helpers';
 import { assignDiscountCodes } from '../utils/discount-codes.server';
 import { getPrimaryLocationId, getInventoryLocations } from '../utils/inventory.server';
@@ -399,6 +400,7 @@ export default function PortalNewSeeding() {
   const { products, productsError, collections, influencers, campaigns, recentlySeededMap, allSavedSizes, shop, enabledLocations } = useLoaderData();
   const actionData = useActionData();
   const navigate   = useNavigate();
+  const { t }      = useT();
 
   const onlineLocations = (enabledLocations ?? []).filter(l => l.locationType === 'Online');
   const storeLocations  = (enabledLocations ?? []).filter(l => l.locationType === 'Store');
@@ -543,7 +545,7 @@ export default function PortalNewSeeding() {
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: '24px', padding: '40px 24px', textAlign: 'center' }}>
         <div style={{ fontSize: '48px' }}>🏪</div>
         <div>
-          <h2 style={{ margin: '0 0 6px', fontSize: '22px', fontWeight: '800', color: D.text }}>In-Store Seeding Created</h2>
+          <h2 style={{ margin: '0 0 6px', fontSize: '22px', fontWeight: '800', color: D.text }}>{t('newSeeding.success.title')}</h2>
           <p style={{ margin: 0, fontSize: '14px', color: D.textSub }}>
             @{influencerHandle} · {storeName}
           </p>
@@ -551,13 +553,13 @@ export default function PortalNewSeeding() {
 
         <div style={{ width: '100%', maxWidth: '420px', backgroundColor: D.surface, border: `1px solid ${D.border}`, borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <p style={{ margin: 0, fontSize: '13px', color: D.textSub }}>
-            Give this code to the retail assistant at <strong style={{ color: D.text }}>{storeName}</strong> to apply at the POS:
+            {t('newSeeding.success.instrAt', { storeName })}
           </p>
 
           {productCode ? (
             <div style={{ backgroundColor: '#F3F0FF', border: '1.5px solid #C4B5FD', borderRadius: '12px', padding: '20px' }}>
               <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.6px', color: '#6D28D9', marginBottom: '8px' }}>
-                Discount Code
+                {t('newSeeding.success.code')}
               </div>
               <div style={{
                 fontFamily: 'monospace', fontSize: '28px', fontWeight: '800',
@@ -569,18 +571,18 @@ export default function PortalNewSeeding() {
                 type="button"
                 onClick={() => navigator.clipboard.writeText(productCode)}
                 style={{ marginTop: '10px', padding: '5px 14px', fontSize: '11px', fontWeight: '700', borderRadius: '6px', border: '1px solid #C4B5FD', backgroundColor: '#EDE9FE', color: '#5B21B6', cursor: 'pointer' }}>
-                Copy code
+                {t('newSeeding.success.copyCode')}
               </button>
             </div>
           ) : (
             <div style={{ padding: '16px', backgroundColor: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: '10px', fontSize: '13px', color: '#92400E' }}>
-              No discount code was assigned — your pool may be empty. Add codes in Admin → Discount Codes.
+              {t('newSeeding.success.noCode')}
             </div>
           )}
 
           {shippingCode && (
             <div style={{ fontSize: '12px', color: D.textSub }}>
-              Shipping code: <code style={{ fontWeight: '700', color: D.text }}>{shippingCode}</code>
+              {t('newSeeding.success.shippingCode')} <code style={{ fontWeight: '700', color: D.text }}>{shippingCode}</code>
             </div>
           )}
         </div>
@@ -588,11 +590,11 @@ export default function PortalNewSeeding() {
         <div style={{ display: 'flex', gap: '12px' }}>
           <button type="button" onClick={() => navigate('/portal/seedings')}
             style={{ padding: '10px 24px', borderRadius: '9px', border: `1px solid ${D.border}`, backgroundColor: D.surface, color: D.textSub, fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>
-            View all seedings
+            {t('newSeeding.success.viewAll')}
           </button>
           <button type="button" onClick={() => window.location.reload()}
             style={{ padding: '10px 24px', borderRadius: '9px', border: 'none', background: `linear-gradient(135deg, ${D.accent} 0%, ${D.purple} 100%)`, color: '#fff', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>
-            New seeding
+            {t('newSeeding.success.newSeeding')}
           </button>
         </div>
       </div>
@@ -613,17 +615,17 @@ export default function PortalNewSeeding() {
       {/* ── Header ── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '800', color: D.text, letterSpacing: '-0.3px' }}>New Seeding</h2>
-          <p style={{ margin: '3px 0 0', fontSize: '13px', color: D.textMuted }}>Send products to an influencer</p>
+          <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '800', color: D.text, letterSpacing: '-0.3px' }}>{t('newSeeding.title')}</h2>
+          <p style={{ margin: '3px 0 0', fontSize: '13px', color: D.textMuted }}>{t('newSeeding.subtitle')}</p>
         </div>
-        <button type="button" onClick={() => navigate('/portal/seedings')} style={{ ...btn.ghost, fontSize: '13px' }}>← Back</button>
+        <button type="button" onClick={() => navigate('/portal/seedings')} style={{ ...btn.ghost, fontSize: '13px' }}>{t('newSeeding.back')}</button>
       </div>
 
       {/* ── Seeding type picker ── */}
       <div style={{ display: 'flex', gap: '0', backgroundColor: D.surface, border: `1px solid ${D.border}`, borderRadius: '10px', padding: '4px', width: 'fit-content', marginBottom: '4px' }}>
         {[
-          { key: 'Online',  icon: '🌐', label: 'Online',   sub: 'Sends checkout link' },
-          { key: 'InStore', icon: '🏪', label: 'In-Store', sub: 'POS discount code' },
+          { key: 'Online',  icon: '🌐', label: t('newSeeding.typeOnline'),  sub: t('newSeeding.typeOnlineSub') },
+          { key: 'InStore', icon: '🏪', label: t('newSeeding.typeInStore'), sub: t('newSeeding.typeInStoreSub') },
         ].map(({ key, icon, label, sub }) => {
           const active = seedingType === key;
           return (
@@ -691,9 +693,9 @@ export default function PortalNewSeeding() {
 
             {/* ── Influencer section ── */}
             <div style={{ padding: '16px 16px 0' }}>
-              <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.6px', color: D.textMuted, marginBottom: '10px' }}>Influencer</div>
+              <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.6px', color: D.textMuted, marginBottom: '10px' }}>{t('newSeeding.sidebar.influencer')}</div>
 
-              <input type="text" placeholder="Search…" value={infSearch}
+              <input type="text" placeholder={t('newSeeding.searchInf')} value={infSearch}
                 onChange={e => setInfSearch(e.target.value)}
                 style={{ ...input.base, width: '100%', boxSizing: 'border-box', fontSize: '13px', marginBottom: '8px' }} />
 
@@ -709,7 +711,7 @@ export default function PortalNewSeeding() {
               {/* Country pills */}
               {topCountries.length > 0 && (
                 <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '10px' }}>
-                  <Pill label="All" active={!infCountry} onClick={() => setInfCountry('')} />
+                  <Pill label={t('newSeeding.allLabel')} active={!infCountry} onClick={() => setInfCountry('')} />
                   {topCountries.map(c => (
                     <Pill key={c} label={`${countryFlag(c)} ${c}`}
                       active={infCountry === c}
@@ -723,7 +725,7 @@ export default function PortalNewSeeding() {
             <div style={{ maxHeight: '260px', overflowY: 'auto', borderTop: `1px solid ${D.borderLight}` }}>
               {filteredInfluencers.length === 0 ? (
                 <div style={{ padding: '20px 16px', textAlign: 'center', fontSize: '12px', color: D.textMuted }}>
-                  No influencers match your filters
+                  {t('newSeeding.noInfFilters')}
                 </div>
               ) : filteredInfluencers.map(inf => {
                 const isSelected = selectedInfluencer?.id === inf.id;
@@ -773,10 +775,10 @@ export default function PortalNewSeeding() {
             {campaigns.length > 0 && (
               <div style={{ padding: '12px 16px', borderTop: `1px solid ${D.border}` }}>
                 <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.6px', color: D.textMuted, marginBottom: '8px' }}>
-                  Campaign <span style={{ fontWeight: '400', textTransform: 'none', color: D.textMuted, opacity: 0.7 }}>— optional</span>
+                  {t('newSeeding.campaign')} <span style={{ fontWeight: '400', textTransform: 'none', color: D.textMuted, opacity: 0.7 }}>{t('newSeeding.campaignOptional')}</span>
                 </div>
                 <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                  <Pill label="None" active={!selectedCampaign} onClick={() => setSelectedCampaign(null)} />
+                  <Pill label={t('newSeeding.noneLabel')} active={!selectedCampaign} onClick={() => setSelectedCampaign(null)} />
                   {campaigns.map(c => (
                     <Pill key={c.id} label={c.title}
                       active={selectedCampaign?.id === c.id}
@@ -790,10 +792,10 @@ export default function PortalNewSeeding() {
             {seedingType === 'InStore' && (
               <div style={{ padding: '12px 16px', borderTop: `1px solid ${D.border}` }}>
                 <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.6px', color: D.textMuted, marginBottom: '8px' }}>
-                  Store location <span style={{ color: D.errorText }}>*</span>
+                  {t('newSeeding.storeLocation')} <span style={{ color: D.errorText }}>*</span>
                 </div>
                 {storeLocations.length === 0 ? (
-                  <p style={{ margin: 0, fontSize: '12px', color: '#92400E' }}>No stores configured. Set a location type to Store in Admin.</p>
+                  <p style={{ margin: 0, fontSize: '12px', color: '#92400E' }}>{t('newSeeding.noStoresConfigured')}</p>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     {storeLocations.map(loc => {
@@ -820,10 +822,10 @@ export default function PortalNewSeeding() {
             {/* ── Notes section ── */}
             <div style={{ padding: '12px 16px', borderTop: `1px solid ${D.border}` }}>
               <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.6px', color: D.textMuted, marginBottom: '6px' }}>
-                Notes <span style={{ fontWeight: '400', textTransform: 'none', opacity: 0.7 }}>— optional</span>
+                {t('newSeeding.notes')} <span style={{ fontWeight: '400', textTransform: 'none', opacity: 0.7 }}>{t('newSeeding.notesOptional')}</span>
               </div>
               <textarea name="notes" value={notes} onChange={e => setNotes(e.target.value)} rows={2}
-                placeholder="Content direction, brief, notes…"
+                placeholder={t('newSeeding.notesPlaceholder')}
                 style={{ ...input.base, width: '100%', resize: 'vertical', boxSizing: 'border-box', fontSize: '12px' }} />
             </div>
 
@@ -852,26 +854,26 @@ export default function PortalNewSeeding() {
                   letterSpacing: '-0.1px',
                 }}>
                 {submitting
-                  ? 'Creating…'
+                  ? t('newSeeding.submitting')
                   : selectedProducts.length > 0
-                    ? `🚀 Create Seeding (${selectedProducts.length})`
-                    : 'Create Seeding'}
+                    ? `🚀 ${t('newSeeding.submit')} (${selectedProducts.length})`
+                    : t('newSeeding.submit')}
               </button>
 
               {/* Validation hints */}
               {!hasEnabledLocation && (
                 <p style={{ margin: '6px 0 0', fontSize: '11px', color: '#92400E', textAlign: 'center', fontWeight: '600' }}>
-                  {seedingType === 'InStore' ? '⚠️ Configure a Store location in Admin first' : '⚠️ Enable an Online location in Admin first'}
+                  {seedingType === 'InStore' ? t('newSeeding.sidebar.validation.noStoreLoc') : t('newSeeding.sidebar.validation.noOnlineLoc')}
                 </p>
               )}
               {hasEnabledLocation && seedingType === 'InStore' && !selectedStore && (
-                <p style={{ margin: '6px 0 0', fontSize: '11px', color: D.textMuted, textAlign: 'center' }}>Select a store location</p>
+                <p style={{ margin: '6px 0 0', fontSize: '11px', color: D.textMuted, textAlign: 'center' }}>{t('newSeeding.sidebar.validation.selectStore')}</p>
               )}
               {hasEnabledLocation && hasSelectedStore && !selectedInfluencer && (
-                <p style={{ margin: '6px 0 0', fontSize: '11px', color: D.textMuted, textAlign: 'center' }}>Select an influencer to continue</p>
+                <p style={{ margin: '6px 0 0', fontSize: '11px', color: D.textMuted, textAlign: 'center' }}>{t('newSeeding.sidebar.validation.selectInfluencer')}</p>
               )}
               {hasEnabledLocation && hasSelectedStore && selectedInfluencer && selectedProducts.length > 0 && !allHaveSizes && (
-                <p style={{ margin: '6px 0 0', fontSize: '11px', color: D.errorText, textAlign: 'center', fontWeight: '600' }}>⚠️ All products need a size</p>
+                <p style={{ margin: '6px 0 0', fontSize: '11px', color: D.errorText, textAlign: 'center', fontWeight: '600' }}>{t('newSeeding.sidebar.validation.sizeRequired')}</p>
               )}
             </div>
           </div>
@@ -883,12 +885,12 @@ export default function PortalNewSeeding() {
             <div style={{ backgroundColor: D.surface, border: `1px solid ${D.border}`, borderRadius: '14px', overflow: 'hidden' }}>
               {/* Toolbar */}
               <div style={{ padding: '14px 16px', borderBottom: `1px solid ${D.border}`, display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-                <input type="text" placeholder="Search products…" value={search}
+                <input type="text" placeholder={t('newSeeding.searchProducts')} value={search}
                   onChange={e => setSearch(e.target.value)}
                   style={{ ...input.base, flex: '1', minWidth: '160px', fontSize: '13px' }} />
                 {collections.length > 0 && (
                   <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                    <Pill label="All" active={!selectedCollection} onClick={() => setSelectedCollection(null)} />
+                    <Pill label={t('newSeeding.allLabel')} active={!selectedCollection} onClick={() => setSelectedCollection(null)} />
                     {collections.map(c => (
                       <Pill key={c.id} label={c.title}
                         active={selectedCollection?.id === c.id}
@@ -909,8 +911,8 @@ export default function PortalNewSeeding() {
                 {!productsError && filteredProducts.length === 0 && (
                   <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '32px 16px', color: D.textMuted, fontSize: '13px' }}>
                     {products.length === 0
-                      ? 'No products found in your Shopify store.'
-                      : `No products match${search ? ` "${search}"` : ''}.`}
+                      ? t('newSeeding.noProductsInShopify')
+                      : t('newSeeding.noProducts')}
                   </div>
                 )}
                 {filteredProducts.map(prod => {
@@ -945,9 +947,9 @@ export default function PortalNewSeeding() {
                       <div style={{ padding: '7px 8px' }}>
                         <div style={{ fontSize: '11px', fontWeight: '700', color: alreadyAdded ? D.accent : D.text, lineHeight: 1.3, marginBottom: '2px', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{prod.name}</div>
                         <div style={{ fontSize: '10px', color: D.textMuted }}>€{prod.price.toFixed(2)}</div>
-                        {recentlySent && <div style={{ fontSize: '9px', color: D.accent, fontWeight: '700', marginTop: '2px' }}>Recently sent</div>}
-                        {outOfStock   && <div style={{ fontSize: '9px', color: D.errorText, fontWeight: '700', marginTop: '2px' }}>Out of stock</div>}
-                        {!hasEnabledLocation && !recentlySent && <div style={{ fontSize: '9px', color: D.textMuted, marginTop: '2px' }}>Stock: —</div>}
+                        {recentlySent && <div style={{ fontSize: '9px', color: D.accent, fontWeight: '700', marginTop: '2px' }}>{t('newSeeding.recentlySent')}</div>}
+                        {outOfStock   && <div style={{ fontSize: '9px', color: D.errorText, fontWeight: '700', marginTop: '2px' }}>{t('newSeeding.outOfStock')}</div>}
+                        {!hasEnabledLocation && !recentlySent && <div style={{ fontSize: '9px', color: D.textMuted, marginTop: '2px' }}>{t('newSeeding.stockNone')}</div>}
                       </div>
                     </div>
                   );
@@ -975,7 +977,7 @@ export default function PortalNewSeeding() {
             >
               {/* Panel header */}
               <div style={{ padding: '12px 16px', borderBottom: `1px solid ${selectedProducts.length > 0 ? D.border : 'transparent'}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: '12px', fontWeight: '700', color: D.text }}>Selected items</span>
+                <span style={{ fontSize: '12px', fontWeight: '700', color: D.text }}>{t('newSeeding.selectedItems')}</span>
                 {selectedProducts.length > 0 && (
                   <span style={{ fontSize: '11px', fontWeight: '700', backgroundColor: D.accent, color: '#fff', borderRadius: '10px', padding: '1px 8px' }}>
                     {selectedProducts.length}
@@ -987,9 +989,9 @@ export default function PortalNewSeeding() {
                 <div style={{ padding: '28px 16px', textAlign: 'center', color: dragOver ? D.accent : D.textMuted, transition: 'color 0.15s' }}>
                   <div style={{ fontSize: '24px', marginBottom: '6px', transform: dragOver ? 'scale(1.15)' : 'scale(1)', transition: 'transform 0.15s' }}>📦</div>
                   <div style={{ fontSize: '13px', fontWeight: dragOver ? '700' : '500' }}>
-                    {dragOver ? 'Drop here' : 'Click or drag products to add them'}
+                    {dragOver ? t('newSeeding.dropHere') : t('newSeeding.clickOrDrag')}
                   </div>
-                  {!dragOver && <div style={{ fontSize: '12px', marginTop: '3px', opacity: 0.7 }}>Select an influencer first to auto-fill sizes</div>}
+                  {!dragOver && <div style={{ fontSize: '12px', marginTop: '3px', opacity: 0.7 }}>{t('newSeeding.autoFillSizes')}</div>}
                 </div>
               ) : (
                 <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: '7px' }}>
@@ -1017,7 +1019,7 @@ export default function PortalNewSeeding() {
                                 ));
                               }}
                               style={{ fontSize: '12px', padding: '3px 7px', borderRadius: '6px', border: `1px solid ${!prod.size ? D.errorText : D.border}`, backgroundColor: !prod.size ? D.errorBg : D.surface, color: D.text }}>
-                              <option value="">Pick size…</option>
+                              <option value="">{t('newSeeding.pickSize')}</option>
                               {prod.variants.map(v => {
                                 const label = extractSizeFromVariant(v.title) || v.title;
                                 return (
@@ -1028,7 +1030,7 @@ export default function PortalNewSeeding() {
                               })}
                             </select>
                           ) : (
-                            <span style={{ fontSize: '11px', color: D.textMuted, backgroundColor: D.surfaceHigh, padding: '2px 7px', borderRadius: '5px' }}>One size</span>
+                            <span style={{ fontSize: '11px', color: D.textMuted, backgroundColor: D.surfaceHigh, padding: '2px 7px', borderRadius: '5px' }}>{t('newSeeding.oneSize')}</span>
                           )}
                           <span style={{ fontSize: '11px', color: D.textSub, fontWeight: '600' }}>€{(prod.selectedVariant?.price ?? prod.price).toFixed(2)}</span>
                         </div>
@@ -1046,11 +1048,11 @@ export default function PortalNewSeeding() {
                   <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '16px', paddingTop: '8px', borderTop: `1px solid ${D.border}`, marginTop: '2px' }}>
                     {selectedProducts.some(p => p.selectedVariant?.cost || p.cost) && (
                       <span style={{ fontSize: '12px', color: D.textSub }}>
-                        Cost: <strong style={{ color: D.text }}>€{selectedProducts.reduce((s, p) => s + (p.selectedVariant?.cost ?? p.cost ?? 0), 0).toFixed(2)}</strong>
+                        {t('newSeeding.costTotal')} <strong style={{ color: D.text }}>€{selectedProducts.reduce((s, p) => s + (p.selectedVariant?.cost ?? p.cost ?? 0), 0).toFixed(2)}</strong>
                       </span>
                     )}
                     <span style={{ fontSize: '14px', fontWeight: '800', color: D.text }}>
-                      Retail: €{totalRetail.toFixed(2)}
+                      {t('newSeeding.retailTotal')} €{totalRetail.toFixed(2)}
                     </span>
                   </div>
                 </div>

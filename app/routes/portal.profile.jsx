@@ -4,6 +4,7 @@ import prisma from '../db.server';
 import { requirePortalUser, hashPassword, verifyPassword } from '../utils/portal-auth.server';
 import { audit } from '../utils/audit.server.js';
 import { D } from '../utils/portal-theme';
+import { useT } from '../utils/i18n';
 
 // ─── Loader ───────────────────────────────────────────────────────────────────
 export async function loader({ request }) {
@@ -112,6 +113,7 @@ export default function PortalProfile() {
   const { portalUser }  = useLoaderData();
   const actionData      = useActionData();
   const navigation      = useNavigation();
+  const { t }           = useT();
   const isSubmitting    = navigation.state === 'submitting';
   const pendingIntent   = navigation.formData?.get('intent');
 
@@ -132,7 +134,7 @@ export default function PortalProfile() {
       {/* Page title */}
       <div style={{ marginBottom: '28px' }}>
         <h1 style={{ margin: 0, fontSize: '22px', fontWeight: '800', color: D.text, letterSpacing: '-0.4px' }}>
-          My Profile
+          {t('profile.title')}
         </h1>
         <p style={{ margin: '4px 0 0', fontSize: '13px', color: D.textSub }}>
           Manage your name, email, and password.
@@ -176,7 +178,7 @@ export default function PortalProfile() {
       {/* ── Edit profile ───────────────────────────────────────────── */}
       <div style={{ ...card({ marginBottom: '20px' }) }}>
         <div style={{ fontSize: '13px', fontWeight: '800', color: D.text, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '18px' }}>
-          Profile Details
+          {t('profile.title')}
         </div>
 
         {profileError && (
@@ -227,7 +229,7 @@ export default function PortalProfile() {
                   opacity: (isSubmitting && pendingIntent === 'updateProfile') ? 0.6 : 1,
                 }}
               >
-                {isSubmitting && pendingIntent === 'updateProfile' ? 'Saving…' : 'Save Changes'}
+                {isSubmitting && pendingIntent === 'updateProfile' ? t('profile.saving') : t('profile.save')}
               </button>
             </div>
           </div>
@@ -237,7 +239,7 @@ export default function PortalProfile() {
       {/* ── Change password ────────────────────────────────────────── */}
       <div style={card()}>
         <div style={{ fontSize: '13px', fontWeight: '800', color: D.text, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '18px' }}>
-          Change Password
+          {t('profile.password.title')}
         </div>
 
         {passwordError && (
@@ -317,7 +319,7 @@ export default function PortalProfile() {
                   opacity: (isSubmitting && pendingIntent === 'changePassword') ? 0.6 : 1,
                 }}
               >
-                {isSubmitting && pendingIntent === 'changePassword' ? 'Updating…' : 'Update Password'}
+                {isSubmitting && pendingIntent === 'changePassword' ? t('profile.password.updating') : t('profile.password.update')}
               </button>
             </div>
           </div>

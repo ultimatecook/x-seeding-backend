@@ -1,0 +1,552 @@
+{
+  "common": {
+    "save":        "Guardar",
+    "saving":      "Guardando…",
+    "cancel":      "Cancelar",
+    "edit":        "Editar",
+    "delete":      "Eliminar",
+    "deleting":    "Eliminando…",
+    "archive":     "Archivar",
+    "unarchive":   "Desarchivar",
+    "restore":     "↩ Restaurar",
+    "add":         "Añadir",
+    "create":      "Crear",
+    "import":      "Importar",
+    "importing":   "Importando…",
+    "search":      "Buscar",
+    "copy":        "Copiar",
+    "copied":      "¡Copiado!",
+    "view":        "Ver",
+    "close":       "Cerrar",
+    "back":        "Volver",
+    "prev":        "← Anterior",
+    "next":        "Siguiente →",
+    "of":          "de",
+    "total":       "total",
+    "optional":    "Opcional",
+    "required":    "Requerido",
+    "noData":      "—",
+    "yes":         "Sí",
+    "no":          "No",
+    "unknown":     "Desconocido"
+  },
+
+  "lang": {
+    "en": "EN",
+    "es": "ES",
+    "switchLabel": "Idioma"
+  },
+
+  "nav": {
+    "dashboard":   "Inicio",
+    "seedings":    "Envíos",
+    "newSeeding":  "Nuevo Envío",
+    "influencers": "Influencers",
+    "campaigns":   "Campañas",
+    "settings":    "Ajustes",
+    "admin":       "Admin",
+    "signOut":     "Cerrar sesión",
+    "theme":       "Tema"
+  },
+
+  "auth": {
+    "login": {
+      "title":               "Bienvenido de nuevo",
+      "subtitle":            "Accede a tu portal de seeding",
+      "email":               "Email",
+      "emailPlaceholder":    "tu@marca.com",
+      "password":            "Contraseña",
+      "passwordPlaceholder": "Tu contraseña",
+      "signIn":              "Entrar",
+      "signingIn":           "Entrando…",
+      "error": {
+        "invalid": "Email o contraseña incorrectos.",
+        "locked":  "Cuenta bloqueada. Contacta con tu administrador."
+      }
+    },
+    "invite": {
+      "title":               "Has sido invitado",
+      "subtitle":            "Establece tu contraseña para aceptar la invitación.",
+      "name":                "Tu Nombre",
+      "namePlaceholder":     "Nombre completo",
+      "password":            "Contraseña",
+      "passwordPlaceholder": "Mín. 8 caracteres",
+      "confirm":             "Confirmar Contraseña",
+      "confirmPlaceholder":  "Repite la contraseña",
+      "accept":              "Aceptar Invitación",
+      "accepting":           "Aceptando…",
+      "error": {
+        "expired":  "La invitación ha expirado o no es válida.",
+        "mismatch": "Las contraseñas no coinciden.",
+        "short":    "La contraseña debe tener al menos 8 caracteres."
+      },
+      "success": "¡Invitación aceptada! Iniciando sesión…"
+    }
+  },
+
+  "status": {
+    "Pending":   "Pendiente",
+    "Ordered":   "Pedido",
+    "Shipped":   "Enviado",
+    "Delivered": "Entregado",
+    "Posted":    "Publicado"
+  },
+
+  "dashboard": {
+    "title":          "Inicio",
+    "overview":       "Resumen",
+    "newSeeding":     "Nuevo Envío",
+    "totalSeedings":  "Total Envíos",
+    "pending":        "Pendiente",
+    "shipped":        "Enviado",
+    "posted":         "Publicado",
+    "retailValue":    "Valor Venta",
+    "pipeline":       "Pipeline",
+    "byCountry":      "Por País",
+    "topInfluencers": "Top Influencers",
+    "topCountries":   "Top Países",
+    "recentSeedings": "Envíos Recientes",
+    "viewAll":        "Ver todos →",
+    "noSeedings":     "Aún no hay envíos.",
+    "noCountries":    "Sin datos aún.",
+    "noInfluencers":  "Sin influencers aún.",
+    "createFirst":    "Crea tu primer envío →",
+    "seedings":       "envíos",
+    "peak":           "pico",
+    "deliveredPct":   "{pct}% entregados",
+    "edit":           "Editar",
+    "done":           "Listo",
+    "stat": {
+      "retailValue": "Valor retail enviado",
+      "cogs":        "Coste de bienes enviados",
+      "units":       "Unidades enviadas",
+      "influencers": "Influencers"
+    },
+    "sections": {
+      "title":       "Secciones",
+      "dragHint":    "Arrastra para reordenar",
+      "stats":       "Estadísticas",
+      "pipeline":    "Pipeline",
+      "recent":      "Envíos recientes",
+      "countries":   "Países",
+      "influencers": "Top Influencers"
+    },
+    "table": {
+      "influencer": "Influencer",
+      "products":   "Productos",
+      "cost":       "Coste",
+      "status":     "Estado",
+      "date":       "Fecha"
+    }
+  },
+
+  "seedings": {
+    "title":        "Envíos",
+    "newSeeding":   "+ Nuevo Envío",
+    "search":       "Buscar influencer…",
+    "allStatuses":  "Todos los estados",
+    "empty":        "Ningún envío coincide con los filtros.",
+    "emptyAll":     "Aún no hay envíos.",
+    "emptyAction":  "Crea el primero →",
+    "copyLink":     "Copiar",
+    "copied":       "¡Copiado!",
+    "inStoreBadge": "🏪 En Tienda",
+    "table": {
+      "influencer": "Influencer",
+      "products":   "Productos",
+      "status":     "Estado",
+      "cost":       "Coste",
+      "link":       "Enlace / Tienda",
+      "date":       "Fecha"
+    }
+  },
+
+  "newSeeding": {
+    "title":               "Nuevo Envío",
+    "subtitle":            "Envía productos a un influencer",
+    "back":                "← Volver",
+    "selectInfluencer":    "Selecciona un influencer",
+    "searchInfluencer":    "Buscar influencer…",
+    "searchInf":           "Buscar…",
+    "noInfluencers":       "No se encontraron influencers.",
+    "noInfFilters":        "Ningún influencer coincide con los filtros",
+    "allLabel":            "Todos",
+    "noneLabel":           "Ninguna",
+    "selectProducts":      "Selecciona Productos",
+    "searchProducts":      "Buscar productos…",
+    "noProducts":          "No se encontraron productos.",
+    "noProductsInShopify": "Sin productos. Abre la app en el admin de Shopify para sincronizar.",
+    "stock":               "Stock",
+    "stockNone":           "Stock: —",
+    "inStock":             "En Stock",
+    "outOfStock":          "Sin Stock",
+    "recentlySent":        "Enviado recientemente",
+    "typeOnline":          "Online",
+    "typeOnlineSub":       "Envía enlace de compra",
+    "typeInStore":         "En Tienda",
+    "typeInStoreSub":      "Código descuento POS",
+    "selectStore":         "Selecciona una tienda",
+    "storeLocation":       "Ubicación de tienda",
+    "noStoresConfigured":  "Sin tiendas configuradas. Cambia el tipo de una ubicación a Tienda en Admin.",
+    "noOnlineLocations":   "No hay ubicaciones online activas. Ve a Admin → Ubicaciones de Inventario para configurarlas.",
+    "noStoreLocations":    "No hay tiendas activas. Ve a Admin → Ubicaciones de Inventario para configurarlas.",
+    "campaign":            "Campaña",
+    "campaignOptional":    "— opcional",
+    "noCampaign":          "Sin campaña",
+    "notes":               "Notas",
+    "notesOptional":       "— opcional",
+    "notesPlaceholder":    "Dirección de contenido, brief, notas…",
+    "selectedItems":       "Productos seleccionados",
+    "dropHere":            "Suelta aquí",
+    "clickOrDrag":         "Haz clic o arrastra productos para añadirlos",
+    "autoFillSizes":       "Selecciona un influencer para autocompletar tallas",
+    "pickSize":            "Elige talla…",
+    "oneSize":             "Talla única",
+    "retailTotal":         "Venta:",
+    "costTotal":           "Coste:",
+    "sidebar": {
+      "summary":            "Resumen",
+      "influencer":         "Influencer",
+      "products":           "Productos seleccionados",
+      "type":               "Tipo",
+      "store":              "Tienda",
+      "campaign":           "Campaña",
+      "validation": {
+        "selectInfluencer": "Selecciona un influencer para continuar.",
+        "selectProduct":    "Selecciona al menos un producto.",
+        "selectStore":      "Selecciona una tienda.",
+        "noOnlineLoc":      "⚠️ Activa una ubicación Online en Admin primero",
+        "noStoreLoc":       "⚠️ Configura una ubicación de Tienda en Admin primero",
+        "sizeRequired":     "⚠️ Todos los productos necesitan talla"
+      }
+    },
+    "submit":     "Crear Envío",
+    "submitting": "Creando…",
+    "success": {
+      "title":        "🏪 Envío en Tienda Creado",
+      "code":         "Código de Descuento",
+      "copyCode":     "Copiar código",
+      "codeCopied":   "¡Copiado!",
+      "instr":        "Da este código al asistente de tienda para aplicarlo en el POS.",
+      "instrAt":      "Da este código al asistente de tienda en {storeName} para aplicarlo en el POS:",
+      "noCode":       "No se asignó ningún código — el pool puede estar vacío. Añade códigos en Admin → Códigos de Descuento.",
+      "shippingCode": "Código de envío:",
+      "viewAll":      "Ver todos los envíos",
+      "newSeeding":   "Nuevo envío"
+    }
+  },
+
+  "influencers": {
+    "title":         "Influencers",
+    "addInfluencer": "+ Añadir Influencer",
+    "importCSV":     "↑ Importar CSV",
+    "search":        "Buscar nombre, handle, país…",
+    "tabs": {
+      "active":   "Activos",
+      "archived": "Archivados"
+    },
+    "tier": {
+      "all":      "Todos",
+      "micro":    "Micro",
+      "microSub": "0 – 50K",
+      "mid":      "Influencer",
+      "midSub":   "50K – 500K",
+      "celeb":    "Celebrity",
+      "celebSub": "500K+"
+    },
+    "table": {
+      "handle":   "Handle",
+      "name":     "Nombre",
+      "followers": "Seguidores",
+      "country":  "País",
+      "email":    "Email",
+      "seedings": "Envíos"
+    },
+    "empty": {
+      "noInfluencers": "Aún no hay influencers.",
+      "noArchived":    "No hay influencers archivados.",
+      "addManual":     "Añade uno manualmente o importa un CSV.",
+      "archiveFrom":   "Archiva influencers desde la pestaña Activos."
+    },
+    "form": {
+      "newInfluencer": "Nuevo Influencer",
+      "handle":        "Handle de Instagram *",
+      "tier":          "Tier *",
+      "country":       "País",
+      "selectCountry": "Selecciona un país…",
+      "add":           "Añadir Influencer",
+      "autoFill":      "Nombre y email se rellenan automáticamente cuando completen su primer checkout."
+    },
+    "csv": {
+      "title":    "Importar desde CSV",
+      "desc":     "Columnas requeridas:",
+      "optional": "Opcional:",
+      "template": "↓ Plantilla",
+      "import":   "Importar",
+      "importing": "Importando…"
+    },
+    "bulk": {
+      "selected":      "{count} seleccionado(s)",
+      "archive":       "Archivar seleccionados",
+      "unarchive":     "Desarchivar seleccionados",
+      "delete":        "Eliminar seleccionados",
+      "confirmDelete": "¿Eliminar permanentemente {count} influencer(s)?",
+      "confirmYes":    "Sí, eliminar",
+      "clear":         "Limpiar"
+    },
+    "banner": {
+      "imported": "✓ {count} influencer(s) importado(s) correctamente.",
+      "updated":  "✓ {count} influencer(s) actualizado(s).",
+      "deleted":  "✓ {count} influencer(s) eliminado(s) permanentemente."
+    },
+    "pagination": {
+      "page": "Página {page} de {total} · {count} en total"
+    }
+  },
+
+  "influencer": {
+    "breadcrumb":       "Influencers",
+    "archived":         "Archivado",
+    "editProfile":      "Editar Perfil",
+    "instagram":        "Instagram",
+    "followers":        "seguidores",
+    "kpi": {
+      "totalSeedings": "Total Envíos",
+      "totalValue":    "Valor Total",
+      "unitsSent":     "Unidades Enviadas",
+      "avgPerSend":    "Media por Envío"
+    },
+    "statusBreakdown":    "Desglose por Estado",
+    "mostSeededProducts": "Productos Más Enviados",
+    "noSeedings":         "Aún no hay envíos.",
+    "noProducts":         "Aún no hay productos.",
+    "notes": {
+      "title":       "Notas",
+      "edit":        "Editar",
+      "add":         "+ Añadir",
+      "placeholder": "p. ej. prefiere DM, esperando dirección, le encanta el unboxing…",
+      "empty":       "Sin notas.",
+      "save":        "Guardar",
+      "saving":      "Guardando…",
+      "cancel":      "Cancelar"
+    },
+    "sizes": {
+      "title":    "Tallas Guardadas",
+      "tops":     "Parte de arriba",
+      "bottoms":  "Parte de abajo",
+      "footwear": "Calzado",
+      "notSet":   "— Sin definir —",
+      "save":     "Guardar Tallas",
+      "saving":   "Guardando…",
+      "noSizes":  "Sin tallas guardadas."
+    },
+    "danger": {
+      "title":         "Zona de Peligro",
+      "archive":       "Archivar influencer",
+      "unarchive":     "Desarchivar",
+      "delete":        "Eliminar influencer",
+      "confirmDelete": "¿Eliminar permanentemente a @{handle} y todos sus envíos?",
+      "confirmYes":    "Sí, eliminar",
+      "deleting":      "Eliminando…",
+      "cancel":        "Cancelar"
+    },
+    "history": {
+      "title":    "Historial de Envíos",
+      "total":    "{count} en total",
+      "empty":    "Aún no hay envíos para este influencer.",
+      "date":     "Fecha",
+      "campaign": "Campaña",
+      "products": "Productos",
+      "value":    "Valor",
+      "status":   "Estado"
+    },
+    "profile": {
+      "handle":        "Handle de Instagram",
+      "fullName":      "Nombre Completo",
+      "followers":     "Seguidores",
+      "email":         "Email",
+      "country":       "País",
+      "selectCountry": "— Seleccionar —",
+      "saveChanges":   "Guardar Cambios",
+      "saving":        "Guardando…",
+      "cancel":        "Cancelar"
+    }
+  },
+
+  "campaigns": {
+    "title":         "Campañas",
+    "archived":      "Campañas Archivadas",
+    "newCampaign":   "+ Nueva Campaña",
+    "active":        "← Activas",
+    "archivedLink":  "Archivadas",
+    "addSeeding":    "+ Añadir Envío",
+    "empty":         "Aún no hay campañas.",
+    "emptyAction":   "Haz clic en \"+ Nueva Campaña\" para crear una.",
+    "seedings_one":  "envío",
+    "seedings_other": "envíos",
+    "products_one":  "producto",
+    "products_other": "productos",
+    "budget":        "€{amount} presupuesto",
+    "view":          "Ver →",
+    "archive":       "⬜ Archivar",
+    "form": {
+      "title":            "Título de Campaña *",
+      "titlePlaceholder": "p. ej. Colección Verano 2025",
+      "budget":           "Presupuesto Total (€) — Opcional",
+      "budgetPlaceholder": "p. ej. 2000",
+      "products":         "Seleccionar Productos",
+      "productsSelected": "{count} seleccionado(s)",
+      "searchProducts":   "Buscar productos…",
+      "noProducts":       "Sin productos — abre la app en el admin de Shopify para autorizar.",
+      "cancel":           "Cancelar",
+      "create":           "Crear Campaña"
+    }
+  },
+
+  "campaign": {
+    "backLink":   "← Todas las Campañas",
+    "archived":   "Archivada",
+    "created":    "Creada {date}",
+    "budget":     "Presupuesto: €{amount}",
+    "addSeeding": "+ Añadir Envío",
+    "kpi": {
+      "seedings":    "Envíos",
+      "retailValue": "Valor Venta",
+      "products":    "Productos",
+      "posted":      "Publicados"
+    },
+    "budgetUsed": "Presupuesto Usado",
+    "pipeline":   "Pipeline",
+    "products": {
+      "title":  "Productos de la Campaña ({count})",
+      "empty":  "No hay productos en esta campaña.",
+      "seeded": "{count} enviado(s)",
+      "max":    "/ {max} máx."
+    },
+    "seedings": {
+      "title":       "Envíos ({count})",
+      "empty":       "Aún no hay envíos.",
+      "createFirst": "Crea el primero →",
+      "table": {
+        "influencer": "Influencer",
+        "country":    "País",
+        "products":   "Productos",
+        "cost":       "Coste",
+        "status":     "Estado",
+        "tracking":   "Seguimiento",
+        "date":       "Fecha"
+      },
+      "addTracking":   "Añadir seguimiento…",
+      "deleteConfirm": "¿Eliminar este envío?"
+    },
+    "archive": "⬜ Archivar",
+    "restore": "↩ Restaurar",
+    "delete":  "Eliminar"
+  },
+
+  "settings": {
+    "title": "Ajustes",
+    "team":  "Equipo",
+    "invite": {
+      "title":            "Invitar a un miembro",
+      "name":             "Nombre",
+      "namePlaceholder":  "Nombre completo",
+      "email":            "Email",
+      "emailPlaceholder": "colega@marca.com",
+      "role":             "Rol",
+      "send":             "Enviar Invitación",
+      "sending":          "Enviando…",
+      "success":          "Invitación enviada a {email}.",
+      "error":            "No se pudo enviar la invitación."
+    },
+    "members": {
+      "title":      "Miembros",
+      "name":       "Nombre",
+      "email":      "Email",
+      "role":       "Rol",
+      "joined":     "Fecha ingreso",
+      "actions":    "Acciones",
+      "changeRole": "Cambiar rol",
+      "remove":     "Eliminar",
+      "removeSelf": "No puedes eliminarte a ti mismo.",
+      "you":        "(tú)"
+    },
+    "pending": {
+      "title":   "Invitaciones Pendientes",
+      "name":    "Nombre",
+      "email":   "Email",
+      "role":    "Rol",
+      "sent":    "Enviada",
+      "expires": "Expira",
+      "revoke":  "Revocar"
+    },
+    "roles": {
+      "Owner":  "Propietario",
+      "Admin":  "Administrador",
+      "Editor": "Editor",
+      "Viewer": "Visualizador"
+    }
+  },
+
+  "profile": {
+    "title":    "Mi Perfil",
+    "name":     "Nombre",
+    "email":    "Email",
+    "role":     "Rol",
+    "password": {
+      "title":           "Cambiar Contraseña",
+      "current":         "Contraseña Actual",
+      "new":             "Nueva Contraseña",
+      "confirm":         "Confirmar Nueva Contraseña",
+      "update":          "Actualizar Contraseña",
+      "updating":        "Actualizando…",
+      "success":         "Contraseña actualizada.",
+      "error": {
+        "mismatch": "Las contraseñas nuevas no coinciden.",
+        "short":    "La contraseña debe tener al menos 8 caracteres.",
+        "wrong":    "La contraseña actual es incorrecta."
+      }
+    },
+    "save":    "Guardar Cambios",
+    "saving":  "Guardando…",
+    "success": "Perfil actualizado."
+  },
+
+  "admin": {
+    "title": "Admin",
+    "tabs": {
+      "inventory": "Ubicaciones de Inventario",
+      "discount":  "Pools de Descuento"
+    },
+    "inventory": {
+      "title":       "Ubicaciones de Inventario",
+      "description": "Los envíos online extraen stock de las ubicaciones Online en orden de prioridad. Asigna tipo Tienda a las ubicaciones físicas (para envíos en tienda).",
+      "sync":        "Sincronizar con Shopify",
+      "syncing":     "Sincronizando…",
+      "empty":       "Sin ubicaciones. Haz clic en \"Sincronizar con Shopify\" para cargar tus ubicaciones.",
+      "table": {
+        "location": "Ubicación",
+        "type":     "Tipo",
+        "enabled":  "Activa",
+        "priority": "Prioridad"
+      },
+      "type": {
+        "Online": "🌐 Online",
+        "Store":  "🏪 Tienda"
+      },
+      "enable":  "Activar",
+      "disable": "Desactivar"
+    },
+    "discount": {
+      "title":       "Pools de Códigos de Descuento",
+      "description": "Sube archivos CSV con códigos de descuento pregenerados de Shopify. Se asigna un código de producto y uno de envío a cada seeding al crearlo.",
+      "product":     "Códigos de Producto",
+      "shipping":    "Códigos de Envío",
+      "available":   "disponibles",
+      "assigned":    "asignados",
+      "upload":      "Subir CSV",
+      "uploading":   "Subiendo…",
+      "empty":       "Sin códigos."
+    }
+  }
+}

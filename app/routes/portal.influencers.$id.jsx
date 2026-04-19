@@ -6,6 +6,7 @@ import { can, requirePermission } from '../utils/portal-permissions';
 import { audit } from '../utils/audit.server.js';
 import { fmtNum, fmtDate } from '../theme';
 import { D, InstagramAvatar } from '../utils/portal-theme';
+import { useT } from '../utils/i18n';
 
 // ── Action ────────────────────────────────────────────────────────────────────
 export async function action({ request, params }) {
@@ -178,6 +179,7 @@ function StatusPill({ status }) {
 export default function PortalInfluencerDetail() {
   const { influencer, canEdit, savedSizes } = useLoaderData();
   const navigation   = useNavigation();
+  const { t }        = useT();
   const isSubmitting = navigation.state === 'submitting';
   const seedings     = influencer.seedings;
 
@@ -233,7 +235,7 @@ export default function PortalInfluencerDetail() {
       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
         <Link to="/portal/influencers"
           style={{ fontSize: '13px', color: 'var(--pt-text-sub)', textDecoration: 'none', fontWeight: '500' }}>
-          Influencers
+          {t('influencer.breadcrumb')}
         </Link>
         <span style={{ color: 'var(--pt-text-muted)', fontSize: '13px' }}>/</span>
         <span style={{ fontSize: '13px', color: 'var(--pt-text)', fontWeight: '600' }}>@{handle}</span>
@@ -278,7 +280,7 @@ export default function PortalInfluencerDetail() {
             <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
               <button type="button" onClick={() => setEditProfile(v => !v)}
                 style={{ ...btnNeutral, color: editProfile ? 'var(--pt-accent)' : 'var(--pt-text-sub)', backgroundColor: editProfile ? 'var(--pt-accent-light)' : 'var(--pt-surface-high)', borderColor: editProfile ? 'var(--pt-accent)' : 'var(--pt-border)' }}>
-                {editProfile ? 'Cancel' : 'Edit Profile'}
+                {editProfile ? t('common.cancel') : t('influencer.editProfile')}
               </button>
               <a href={`https://www.instagram.com/${handle}/`} target="_blank" rel="noopener noreferrer"
                 style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '9px 14px', borderRadius: '8px', fontSize: '13px', fontWeight: '600', textDecoration: 'none', background: 'linear-gradient(135deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)', color: '#fff' }}>
@@ -316,10 +318,10 @@ export default function PortalInfluencerDetail() {
               </div>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button type="submit" disabled={isSubmitting} style={{ ...btnPrimary, opacity: isSubmitting ? 0.7 : 1 }}>
-                  {isSubmitting ? 'Saving…' : 'Save Changes'}
+                  {isSubmitting ? t('influencer.profile.saving') : t('influencer.profile.saveChanges')}
                 </button>
                 <button type="button" onClick={() => setEditProfile(false)} style={btnNeutral}>
-                  Cancel
+                  {t('influencer.profile.cancel')}
                 </button>
               </div>
             </Form>
@@ -330,10 +332,10 @@ export default function PortalInfluencerDetail() {
       {/* ── KPI row (matching dashboard style) ───────────────── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px' }}>
         {[
-          { label: 'Total Seedings', value: seedings.length,              accent: false },
-          { label: 'Total Value',    value: `€${fmtNum(totalValue)}`,     accent: 'var(--pt-accent)' },
-          { label: 'Units Sent',     value: totalUnits,                   accent: false },
-          { label: 'Avg per Send',   value: `€${Math.round(avgValue)}`,   accent: 'var(--pt-purple)' },
+          { label: t('influencer.kpi.totalSeedings'), value: seedings.length,              accent: false },
+          { label: t('influencer.kpi.totalValue'),    value: `€${fmtNum(totalValue)}`,     accent: 'var(--pt-accent)' },
+          { label: t('influencer.kpi.unitsSent'),     value: totalUnits,                   accent: false },
+          { label: t('influencer.kpi.avgPerSend'),    value: `€${Math.round(avgValue)}`,   accent: 'var(--pt-purple)' },
         ].map(({ label, value, accent }) => (
           <div key={label} style={{
             backgroundColor: 'var(--pt-surface)',
@@ -356,7 +358,7 @@ export default function PortalInfluencerDetail() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
 
         <Card>
-          <CardHeader title="Status Breakdown" />
+          <CardHeader title={t('influencer.statusBreakdown')} />
           <div style={{ padding: '8px 0' }}>
             {STATUSES.filter(s => statusCounts[s] > 0).length === 0 ? (
               <div style={{ padding: '20px', fontSize: '13px', color: 'var(--pt-text-muted)' }}>No seedings yet.</div>
@@ -375,7 +377,7 @@ export default function PortalInfluencerDetail() {
         </Card>
 
         <Card>
-          <CardHeader title="Most Seeded Products" />
+          <CardHeader title={t('influencer.mostSeededProducts')} />
           <div style={{ padding: '8px 0' }}>
             {topProducts.length === 0 ? (
               <div style={{ padding: '20px', fontSize: '13px', color: 'var(--pt-text-muted)' }}>No products yet.</div>
@@ -403,11 +405,11 @@ export default function PortalInfluencerDetail() {
         {/* Notes */}
         <Card>
           <CardHeader
-            title="Notes"
+            title={t('influencer.notes.title')}
             right={canEdit && !editNotes && (
               <button type="button" onClick={() => setEditNotes(true)}
                 style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid var(--pt-border)', cursor: 'pointer', fontSize: '11px', fontWeight: '600', backgroundColor: 'transparent', color: 'var(--pt-text-sub)' }}>
-                {influencer.notes ? 'Edit' : '+ Add'}
+                {influencer.notes ? t('influencer.notes.edit') : t('influencer.notes.add')}
               </button>
             )}
           />
@@ -422,10 +424,10 @@ export default function PortalInfluencerDetail() {
                 />
                 <div style={{ display: 'flex', gap: '6px' }}>
                   <button type="submit" disabled={isSubmitting} style={{ ...btnPrimary, padding: '8px 18px', opacity: isSubmitting ? 0.7 : 1 }}>
-                    {isSubmitting ? 'Saving…' : 'Save'}
+                    {isSubmitting ? t('influencer.notes.saving') : t('influencer.notes.save')}
                   </button>
                   <button type="button" onClick={() => setEditNotes(false)} style={{ ...btnNeutral, padding: '8px 12px' }}>
-                    Cancel
+                    {t('influencer.notes.cancel')}
                   </button>
                 </div>
               </Form>
@@ -439,24 +441,24 @@ export default function PortalInfluencerDetail() {
 
         {/* Saved Sizes */}
         <Card>
-          <CardHeader title="Saved Sizes" />
+          <CardHeader title={t('influencer.sizes.title')} />
           <div style={{ padding: '16px 20px' }}>
             {canEdit ? (
               <Form method="post">
                 <input type="hidden" name="intent" value="updateSizes" />
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '14px' }}>
                   {[
-                    { category: 'tops',     label: 'Tops',     sizes: ['XS','S','M','L','XL','XXL'] },
-                    { category: 'bottoms',  label: 'Bottoms',  sizes: ['XS','S','M','L','XL','XXL'] },
-                    { category: 'footwear', label: 'Footwear', sizes: ['35','36','37','38','39','40','41','42','43','44','45','5','5.5','6','6.5','7','7.5','8','8.5','9','9.5','10','10.5','11'] },
-                  ].map(({ category, label, sizes }) => {
+                    { category: 'tops',     sizes: ['XS','S','M','L','XL','XXL'] },
+                    { category: 'bottoms',  sizes: ['XS','S','M','L','XL','XXL'] },
+                    { category: 'footwear', sizes: ['35','36','37','38','39','40','41','42','43','44','45','5','5.5','6','6.5','7','7.5','8','8.5','9','9.5','10','10.5','11'] },
+                  ].map(({ category, sizes }) => {
                     const saved = savedSizes.find(s => s.category === category)?.size ?? '';
                     return (
                       <label key={category} style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '12px', fontWeight: '600', color: 'var(--pt-text-sub)' }}>
-                        <span style={{ minWidth: '60px' }}>{label}</span>
+                        <span style={{ minWidth: '60px' }}>{t(`influencer.sizes.${category}`)}</span>
                         <select name={`size_${category}`} defaultValue={saved}
                           style={{ ...fieldStyle, flex: 1 }}>
-                          <option value="">— Not set —</option>
+                          <option value="">{t('influencer.sizes.notSet')}</option>
                           {sizes.map(s => <option key={s} value={s}>{s}</option>)}
                         </select>
                       </label>
@@ -464,7 +466,7 @@ export default function PortalInfluencerDetail() {
                   })}
                 </div>
                 <button type="submit" disabled={isSubmitting} style={{ ...btnPrimary, opacity: isSubmitting ? 0.7 : 1 }}>
-                  {isSubmitting ? 'Saving…' : 'Save Sizes'}
+                  {isSubmitting ? t('influencer.sizes.saving') : t('influencer.sizes.save')}
                 </button>
               </Form>
             ) : (
@@ -486,37 +488,37 @@ export default function PortalInfluencerDetail() {
       {/* ── Danger zone ───────────────────────────────────────── */}
       {canEdit && (
         <Card>
-          <CardHeader title="Danger Zone" />
+          <CardHeader title={t('influencer.danger.title')} />
           <div style={{ padding: '16px 20px', display: 'flex', gap: '10px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
             <Form method="post">
               <input type="hidden" name="intent" value={influencer.archived ? 'unarchive' : 'archive'} />
               <button type="submit" disabled={isSubmitting}
                 style={{ ...btnNeutral, opacity: isSubmitting ? 0.7 : 1 }}>
-                {influencer.archived ? 'Unarchive' : 'Archive influencer'}
+                {influencer.archived ? t('influencer.danger.unarchive') : t('influencer.danger.archive')}
               </button>
             </Form>
 
             {!confirmDelete ? (
               <button type="button" onClick={() => setConfirmDelete(true)}
                 style={{ padding: '9px 18px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: '700', background: 'linear-gradient(135deg, #DC2626 0%, #B91C1C 100%)', color: '#fff', boxShadow: '0 1px 3px rgba(220,38,38,0.2)' }}>
-                Delete influencer
+                {t('influencer.danger.delete')}
               </button>
             ) : (
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', borderRadius: '10px', border: '1px solid var(--pt-border)', backgroundColor: 'var(--pt-surface-high)' }}>
                 <span style={{ fontSize: '13px', color: 'var(--pt-text)' }}>
-                  Permanently delete <strong>@{handle}</strong> and all their seedings?
+                  {t('influencer.danger.confirmDelete', { handle })}
                 </span>
                 <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
                   <Form method="post">
                     <input type="hidden" name="intent" value="delete" />
                     <button type="submit" disabled={isSubmitting}
                       style={{ padding: '7px 14px', borderRadius: '7px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: '700', background: 'linear-gradient(135deg, #DC2626 0%, #B91C1C 100%)', color: '#fff', opacity: isSubmitting ? 0.7 : 1 }}>
-                      {isSubmitting ? 'Deleting…' : 'Yes, delete'}
+                      {isSubmitting ? t('influencer.danger.deleting') : t('influencer.danger.confirmYes')}
                     </button>
                   </Form>
                   <button type="button" onClick={() => setConfirmDelete(false)}
                     style={{ ...btnNeutral, padding: '7px 12px' }}>
-                    Cancel
+                    {t('influencer.danger.cancel')}
                   </button>
                 </div>
               </div>
@@ -528,18 +530,18 @@ export default function PortalInfluencerDetail() {
       {/* ── Seeding history ───────────────────────────────────── */}
       <Card>
         <CardHeader
-          title="Seeding History"
-          right={<span style={{ fontSize: '11px', color: 'var(--pt-text-sub)' }}>{seedings.length} total</span>}
+          title={t('influencer.history.title')}
+          right={<span style={{ fontSize: '11px', color: 'var(--pt-text-sub)' }}>{t('influencer.history.total', { count: seedings.length })}</span>}
         />
         {seedings.length === 0 ? (
           <div style={{ padding: '48px', textAlign: 'center', color: 'var(--pt-text-muted)', fontSize: '13px' }}>
-            No seedings for this influencer yet.
+            {t('influencer.history.empty')}
           </div>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
             <thead>
               <tr style={{ backgroundColor: 'var(--pt-bg)' }}>
-                {['Date', 'Campaign', 'Products', 'Value', 'Status'].map(h => (
+                {[t('influencer.history.date'), t('influencer.history.campaign'), t('influencer.history.products'), t('influencer.history.value'), t('influencer.history.status')].map(h => (
                   <th key={h} style={{ textAlign: 'left', padding: '8px 16px', color: 'var(--pt-text-muted)', fontWeight: '700', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.6px' }}>{h}</th>
                 ))}
               </tr>

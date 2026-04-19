@@ -1,0 +1,552 @@
+{
+  "common": {
+    "save":        "Save",
+    "saving":      "Saving…",
+    "cancel":      "Cancel",
+    "edit":        "Edit",
+    "delete":      "Delete",
+    "deleting":    "Deleting…",
+    "archive":     "Archive",
+    "unarchive":   "Unarchive",
+    "restore":     "↩ Restore",
+    "add":         "Add",
+    "create":      "Create",
+    "import":      "Import",
+    "importing":   "Importing…",
+    "search":      "Search",
+    "copy":        "Copy",
+    "copied":      "Copied!",
+    "view":        "View",
+    "close":       "Close",
+    "back":        "Back",
+    "prev":        "← Prev",
+    "next":        "Next →",
+    "of":          "of",
+    "total":       "total",
+    "optional":    "Optional",
+    "required":    "Required",
+    "noData":      "—",
+    "yes":         "Yes",
+    "no":          "No",
+    "unknown":     "Unknown"
+  },
+
+  "lang": {
+    "en": "EN",
+    "es": "ES",
+    "switchLabel": "Language"
+  },
+
+  "nav": {
+    "dashboard":   "Dashboard",
+    "seedings":    "Seedings",
+    "newSeeding":  "New Seeding",
+    "influencers": "Influencers",
+    "campaigns":   "Campaigns",
+    "settings":    "Settings",
+    "admin":       "Admin",
+    "signOut":     "Sign out",
+    "theme":       "Theme"
+  },
+
+  "auth": {
+    "login": {
+      "title":            "Welcome back",
+      "subtitle":         "Sign in to your seeding portal",
+      "email":            "Email",
+      "emailPlaceholder": "you@brand.com",
+      "password":         "Password",
+      "passwordPlaceholder": "Your password",
+      "signIn":           "Sign in",
+      "signingIn":        "Signing in…",
+      "error": {
+        "invalid": "Invalid email or password.",
+        "locked":  "Account locked. Contact your administrator."
+      }
+    },
+    "invite": {
+      "title":               "You've been invited",
+      "subtitle":            "Set your password to accept the invitation.",
+      "name":                "Your Name",
+      "namePlaceholder":     "Full name",
+      "password":            "Password",
+      "passwordPlaceholder": "Min. 8 characters",
+      "confirm":             "Confirm Password",
+      "confirmPlaceholder":  "Repeat password",
+      "accept":              "Accept Invitation",
+      "accepting":           "Accepting…",
+      "error": {
+        "expired":  "This invitation has expired or is invalid.",
+        "mismatch": "Passwords do not match.",
+        "short":    "Password must be at least 8 characters."
+      },
+      "success": "Invitation accepted! Signing you in…"
+    }
+  },
+
+  "status": {
+    "Pending":   "Pending",
+    "Ordered":   "Ordered",
+    "Shipped":   "Shipped",
+    "Delivered": "Delivered",
+    "Posted":    "Posted"
+  },
+
+  "dashboard": {
+    "title":          "Dashboard",
+    "overview":       "Overview",
+    "newSeeding":     "New Seeding",
+    "totalSeedings":  "Total Seedings",
+    "pending":        "Pending",
+    "shipped":        "Shipped",
+    "posted":         "Posted",
+    "retailValue":    "Retail Value",
+    "pipeline":       "Pipeline",
+    "byCountry":      "By Country",
+    "topInfluencers": "Top Influencers",
+    "topCountries":   "Top Countries",
+    "recentSeedings": "Recent Seedings",
+    "viewAll":        "View all →",
+    "noSeedings":     "No seedings yet.",
+    "noCountries":    "No data yet.",
+    "noInfluencers":  "No influencers yet.",
+    "createFirst":    "Create your first seeding →",
+    "seedings":       "seedings",
+    "peak":           "peak",
+    "deliveredPct":   "{pct}% delivered",
+    "edit":           "Edit",
+    "done":           "Done",
+    "stat": {
+      "retailValue": "Retail Value Seeded",
+      "cogs":        "Cost of Goods Seeded",
+      "units":       "Units Sent",
+      "influencers": "Influencers"
+    },
+    "sections": {
+      "title":       "Sections",
+      "dragHint":    "Drag rows to reorder",
+      "stats":       "Stats",
+      "pipeline":    "Pipeline",
+      "recent":      "Recent Seedings",
+      "countries":   "Countries",
+      "influencers": "Top Influencers"
+    },
+    "table": {
+      "influencer": "Influencer",
+      "products":   "Products",
+      "cost":       "Cost",
+      "status":     "Status",
+      "date":       "Date"
+    }
+  },
+
+  "seedings": {
+    "title":         "Seedings",
+    "newSeeding":    "+ New Seeding",
+    "search":        "Search influencer…",
+    "allStatuses":   "All statuses",
+    "empty":         "No seedings match your filters.",
+    "emptyAll":      "No seedings yet.",
+    "emptyAction":   "Create your first one →",
+    "copyLink":      "Copy",
+    "copied":        "Copied!",
+    "inStoreBadge":  "🏪 In-Store",
+    "table": {
+      "influencer": "Influencer",
+      "products":   "Products",
+      "status":     "Status",
+      "cost":       "Cost",
+      "link":       "Link / Store",
+      "date":       "Date"
+    }
+  },
+
+  "newSeeding": {
+    "title":               "New Seeding",
+    "subtitle":            "Send products to an influencer",
+    "back":                "← Back",
+    "selectInfluencer":    "Select an influencer",
+    "searchInfluencer":    "Search influencer…",
+    "searchInf":           "Search…",
+    "noInfluencers":       "No influencers found.",
+    "noInfFilters":        "No influencers match your filters",
+    "allLabel":            "All",
+    "noneLabel":           "None",
+    "selectProducts":      "Select Products",
+    "searchProducts":      "Search products…",
+    "noProducts":          "No products found.",
+    "noProductsInShopify": "No products found. Open the app in Shopify admin to sync.",
+    "stock":               "Stock",
+    "stockNone":           "Stock: —",
+    "inStock":             "In Stock",
+    "outOfStock":          "Out of Stock",
+    "recentlySent":        "Recently sent",
+    "typeOnline":          "Online",
+    "typeOnlineSub":       "Sends checkout link",
+    "typeInStore":         "In-Store",
+    "typeInStoreSub":      "POS discount code",
+    "selectStore":         "Select a store location",
+    "storeLocation":       "Store location",
+    "noStoresConfigured":  "No stores configured. Set a location type to Store in Admin.",
+    "noOnlineLocations":   "No online inventory locations are enabled. Go to Admin → Inventory Locations to configure.",
+    "noStoreLocations":    "No store locations are enabled. Go to Admin → Inventory Locations to configure.",
+    "campaign":            "Campaign",
+    "campaignOptional":    "— optional",
+    "noCampaign":          "No campaign",
+    "notes":               "Notes",
+    "notesOptional":       "— optional",
+    "notesPlaceholder":    "Content direction, brief, notes…",
+    "selectedItems":       "Selected items",
+    "dropHere":            "Drop here",
+    "clickOrDrag":         "Click or drag products to add them",
+    "autoFillSizes":       "Select an influencer first to auto-fill sizes",
+    "pickSize":            "Pick size…",
+    "oneSize":             "One size",
+    "retailTotal":         "Retail:",
+    "costTotal":           "Cost:",
+    "sidebar": {
+      "summary":            "Summary",
+      "influencer":         "Influencer",
+      "products":           "Products selected",
+      "type":               "Type",
+      "store":              "Store",
+      "campaign":           "Campaign",
+      "validation": {
+        "selectInfluencer": "Select an influencer to continue.",
+        "selectProduct":    "Select at least one product.",
+        "selectStore":      "Select a store location.",
+        "noOnlineLoc":      "⚠️ Enable an Online location in Admin first",
+        "noStoreLoc":       "⚠️ Configure a Store location in Admin first",
+        "sizeRequired":     "⚠️ All products need a size"
+      }
+    },
+    "submit":     "Create Seeding",
+    "submitting": "Creating…",
+    "success": {
+      "title":        "🏪 In-Store Seeding Created",
+      "code":         "Discount Code",
+      "copyCode":     "Copy code",
+      "codeCopied":   "Copied!",
+      "instr":        "Give this code to the retail assistant to apply at POS.",
+      "instrAt":      "Give this code to the retail assistant at {storeName} to apply at the POS:",
+      "noCode":       "No discount code was assigned — your pool may be empty. Add codes in Admin → Discount Codes.",
+      "shippingCode": "Shipping code:",
+      "viewAll":      "View all seedings",
+      "newSeeding":   "New seeding"
+    }
+  },
+
+  "influencers": {
+    "title":          "Influencers",
+    "addInfluencer":  "+ Add Influencer",
+    "importCSV":      "↑ Import CSV",
+    "search":         "Search name, handle, country…",
+    "tabs": {
+      "active":   "Active",
+      "archived": "Archived"
+    },
+    "tier": {
+      "all":      "All",
+      "micro":    "Micro",
+      "microSub": "0 – 50K",
+      "mid":      "Influencer",
+      "midSub":   "50K – 500K",
+      "celeb":    "Celebrity",
+      "celebSub": "500K+"
+    },
+    "table": {
+      "handle":   "Handle",
+      "name":     "Name",
+      "followers": "Followers",
+      "country":  "Country",
+      "email":    "Email",
+      "seedings": "Seedings"
+    },
+    "empty": {
+      "noInfluencers": "No influencers yet.",
+      "noArchived":    "No archived influencers.",
+      "addManual":     "Add one manually or import a CSV.",
+      "archiveFrom":   "Archive influencers from the Active tab."
+    },
+    "form": {
+      "newInfluencer": "New Influencer",
+      "handle":        "Instagram Handle *",
+      "tier":          "Tier *",
+      "country":       "Country",
+      "selectCountry": "Select country…",
+      "add":           "Add Influencer",
+      "autoFill":      "Name & email auto-fill when they complete their first checkout."
+    },
+    "csv": {
+      "title":    "Import from CSV",
+      "desc":     "Required columns:",
+      "optional": "Optional:",
+      "template": "↓ Template",
+      "import":   "Import",
+      "importing": "Importing…"
+    },
+    "bulk": {
+      "selected":       "{count} selected",
+      "archive":        "Archive selected",
+      "unarchive":      "Unarchive selected",
+      "delete":         "Delete selected",
+      "confirmDelete":  "Permanently delete {count} influencer(s)?",
+      "confirmYes":     "Yes, delete",
+      "clear":          "Clear"
+    },
+    "banner": {
+      "imported": "✓ Successfully imported {count} influencer(s).",
+      "updated":  "✓ Updated {count} influencer(s).",
+      "deleted":  "✓ Permanently deleted {count} influencer(s)."
+    },
+    "pagination": {
+      "page": "Page {page} of {total} · {count} total"
+    }
+  },
+
+  "influencer": {
+    "breadcrumb":       "Influencers",
+    "archived":         "Archived",
+    "editProfile":      "Edit Profile",
+    "instagram":        "Instagram",
+    "followers":        "followers",
+    "kpi": {
+      "totalSeedings": "Total Seedings",
+      "totalValue":    "Total Value",
+      "unitsSent":     "Units Sent",
+      "avgPerSend":    "Avg per Send"
+    },
+    "statusBreakdown":    "Status Breakdown",
+    "mostSeededProducts": "Most Seeded Products",
+    "noSeedings":         "No seedings yet.",
+    "noProducts":         "No products yet.",
+    "notes": {
+      "title":       "Notes",
+      "edit":        "Edit",
+      "add":         "+ Add",
+      "placeholder": "e.g. prefers DM, waiting on address, loves unboxing content…",
+      "empty":       "No notes yet.",
+      "save":        "Save",
+      "saving":      "Saving…",
+      "cancel":      "Cancel"
+    },
+    "sizes": {
+      "title":   "Saved Sizes",
+      "tops":    "Tops",
+      "bottoms": "Bottoms",
+      "footwear": "Footwear",
+      "notSet":  "— Not set —",
+      "save":    "Save Sizes",
+      "saving":  "Saving…",
+      "noSizes": "No sizes saved."
+    },
+    "danger": {
+      "title":         "Danger Zone",
+      "archive":       "Archive influencer",
+      "unarchive":     "Unarchive",
+      "delete":        "Delete influencer",
+      "confirmDelete": "Permanently delete @{handle} and all their seedings?",
+      "confirmYes":    "Yes, delete",
+      "deleting":      "Deleting…",
+      "cancel":        "Cancel"
+    },
+    "history": {
+      "title":    "Seeding History",
+      "total":    "{count} total",
+      "empty":    "No seedings for this influencer yet.",
+      "date":     "Date",
+      "campaign": "Campaign",
+      "products": "Products",
+      "value":    "Value",
+      "status":   "Status"
+    },
+    "profile": {
+      "handle":    "Instagram Handle",
+      "fullName":  "Full Name",
+      "followers": "Followers",
+      "email":     "Email",
+      "country":   "Country",
+      "selectCountry": "— Select —",
+      "saveChanges": "Save Changes",
+      "saving":      "Saving…",
+      "cancel":      "Cancel"
+    }
+  },
+
+  "campaigns": {
+    "title":         "Campaigns",
+    "archived":      "Archived Campaigns",
+    "newCampaign":   "+ New Campaign",
+    "active":        "← Active",
+    "archivedLink":  "Archived",
+    "addSeeding":    "+ Add Seeding",
+    "empty":         "No campaigns yet.",
+    "emptyAction":   "Click \"+ New Campaign\" to create one.",
+    "seedings_one":  "seeding",
+    "seedings_other": "seedings",
+    "products_one":  "product",
+    "products_other": "products",
+    "budget":        "€{amount} budget",
+    "view":          "View →",
+    "archive":       "⬜ Archive",
+    "form": {
+      "title":           "Campaign Title *",
+      "titlePlaceholder": "e.g. Summer Drop 2025",
+      "budget":          "Total Budget (€) — Optional",
+      "budgetPlaceholder": "e.g. 2000",
+      "products":        "Select Products",
+      "productsSelected": "{count} selected",
+      "searchProducts":  "Search products…",
+      "noProducts":      "No products loaded — open the app in Shopify admin once to authorize.",
+      "cancel":          "Cancel",
+      "create":          "Create Campaign"
+    }
+  },
+
+  "campaign": {
+    "backLink":    "← All Campaigns",
+    "archived":    "Archived",
+    "created":     "Created {date}",
+    "budget":      "Budget: €{amount}",
+    "addSeeding":  "+ Add Seeding",
+    "kpi": {
+      "seedings":    "Seedings",
+      "retailValue": "Retail Value",
+      "products":    "Products",
+      "posted":      "Posted"
+    },
+    "budgetUsed": "Budget Used",
+    "pipeline":   "Pipeline",
+    "products": {
+      "title":   "Campaign Products ({count})",
+      "empty":   "No products attached to this campaign.",
+      "seeded":  "{count} seeded",
+      "max":     "/ {max} max"
+    },
+    "seedings": {
+      "title":       "Seedings ({count})",
+      "empty":       "No seedings yet.",
+      "createFirst": "Create the first one →",
+      "table": {
+        "influencer": "Influencer",
+        "country":    "Country",
+        "products":   "Products",
+        "cost":       "Cost",
+        "status":     "Status",
+        "tracking":   "Tracking",
+        "date":       "Date"
+      },
+      "addTracking":  "Add tracking…",
+      "deleteConfirm": "Delete this seeding?"
+    },
+    "archive":  "⬜ Archive",
+    "restore":  "↩ Restore",
+    "delete":   "Delete"
+  },
+
+  "settings": {
+    "title":          "Settings",
+    "team":           "Team",
+    "invite": {
+      "title":         "Invite a team member",
+      "name":          "Name",
+      "namePlaceholder": "Full name",
+      "email":         "Email",
+      "emailPlaceholder": "colleague@brand.com",
+      "role":          "Role",
+      "send":          "Send Invite",
+      "sending":       "Sending…",
+      "success":       "Invite sent to {email}.",
+      "error":         "Could not send invite."
+    },
+    "members": {
+      "title":    "Members",
+      "name":     "Name",
+      "email":    "Email",
+      "role":     "Role",
+      "joined":   "Joined",
+      "actions":  "Actions",
+      "changeRole": "Change role",
+      "remove":     "Remove",
+      "removeSelf": "You cannot remove yourself.",
+      "you":        "(you)"
+    },
+    "pending": {
+      "title":    "Pending Invites",
+      "name":     "Name",
+      "email":    "Email",
+      "role":     "Role",
+      "sent":     "Sent",
+      "expires":  "Expires",
+      "revoke":   "Revoke"
+    },
+    "roles": {
+      "Owner":  "Owner",
+      "Admin":  "Admin",
+      "Editor": "Editor",
+      "Viewer": "Viewer"
+    }
+  },
+
+  "profile": {
+    "title":    "My Profile",
+    "name":     "Name",
+    "email":    "Email",
+    "role":     "Role",
+    "password": {
+      "title":           "Change Password",
+      "current":         "Current Password",
+      "new":             "New Password",
+      "confirm":         "Confirm New Password",
+      "update":          "Update Password",
+      "updating":        "Updating…",
+      "success":         "Password updated.",
+      "error": {
+        "mismatch": "New passwords do not match.",
+        "short":    "Password must be at least 8 characters.",
+        "wrong":    "Current password is incorrect."
+      }
+    },
+    "save":    "Save Changes",
+    "saving":  "Saving…",
+    "success": "Profile updated."
+  },
+
+  "admin": {
+    "title":   "Admin",
+    "tabs": {
+      "inventory": "Inventory Locations",
+      "discount":  "Discount Pools"
+    },
+    "inventory": {
+      "title":       "Inventory Locations",
+      "description": "Seedings pull stock from Online locations in priority order. Assign type Store to locations that are physical stores (used for in-store seedings).",
+      "sync":        "Sync from Shopify",
+      "syncing":     "Syncing…",
+      "empty":       "No locations yet. Click \"Sync from Shopify\" to load your Shopify locations.",
+      "table": {
+        "location":  "Location",
+        "type":      "Type",
+        "enabled":   "Enabled",
+        "priority":  "Priority"
+      },
+      "type": {
+        "Online": "🌐 Online",
+        "Store":  "🏪 Store"
+      },
+      "enable":  "Enable",
+      "disable": "Disable"
+    },
+    "discount": {
+      "title":       "Discount Code Pools",
+      "description": "Upload CSV files of pre-generated Shopify discount codes. One product code and one shipping code are assigned to each seeding at creation.",
+      "product":     "Product Codes",
+      "shipping":    "Shipping Codes",
+      "available":   "available",
+      "assigned":    "assigned",
+      "upload":      "Upload CSV",
+      "uploading":   "Uploading…",
+      "empty":       "No codes yet."
+    }
+  }
+}

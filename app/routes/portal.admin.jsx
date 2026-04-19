@@ -10,6 +10,7 @@ import { requirePermission } from '../utils/portal-permissions';
 import { getInventoryLocations, syncLocations } from '../utils/inventory.server';
 import { getPoolStats } from '../utils/discount-codes.server';
 import { D, Pbtn as btn, Pinput as input } from '../utils/portal-theme';
+import { useT } from '../utils/i18n';
 
 // ── Loader ─────────────────────────────────────────────────────────────────────
 export async function loader({ request }) {
@@ -163,6 +164,7 @@ export default function PortalAdmin() {
   const { locations, poolStats } = useLoaderData();
   const actionData  = useActionData();
   const nav         = useNavigation();
+  const { t }       = useT();
   const busy        = nav.state !== 'idle';
 
   const [tab, setTab]           = useState('inventory');
@@ -174,7 +176,7 @@ export default function PortalAdmin() {
     <div style={{ maxWidth: '760px', padding: '32px 24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
 
       <div>
-        <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: D.text, letterSpacing: '-0.3px' }}>Admin</h2>
+        <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: D.text, letterSpacing: '-0.3px' }}>{t('admin.title')}</h2>
         <p style={{ margin: '4px 0 0', fontSize: '13px', color: D.textSub }}>Manage inventory source rules and discount code pools.</p>
       </div>
 
@@ -191,16 +193,16 @@ export default function PortalAdmin() {
 
       {/* Tab bar */}
       <div style={{ display: 'flex', gap: '4px', borderBottom: `1px solid ${D.border}` }}>
-        {['inventory', 'discounts'].map(t => (
-          <button key={t} onClick={() => setTab(t)} style={{
+        {['inventory', 'discounts'].map(tabKey => (
+          <button key={tabKey} onClick={() => setTab(tabKey)} style={{
             padding: '10px 18px', fontSize: '13px',
-            fontWeight: tab === t ? '700' : '500',
-            color: tab === t ? 'var(--pt-accent)' : D.textSub,
+            fontWeight: tab === tabKey ? '700' : '500',
+            color: tab === tabKey ? 'var(--pt-accent)' : D.textSub,
             background: 'none', border: 'none',
-            borderBottom: tab === t ? '2px solid var(--pt-accent)' : '2px solid transparent',
-            marginBottom: '-1px', cursor: 'pointer', textTransform: 'capitalize',
+            borderBottom: tab === tabKey ? '2px solid var(--pt-accent)' : '2px solid transparent',
+            marginBottom: '-1px', cursor: 'pointer',
           }}>
-            {t === 'inventory' ? 'Inventory Rules' : 'Discount Codes'}
+            {tabKey === 'inventory' ? t('admin.tabs.inventory') : t('admin.tabs.discount')}
           </button>
         ))}
       </div>
@@ -217,7 +219,7 @@ export default function PortalAdmin() {
           <Form method="post">
             <input type="hidden" name="intent" value="syncLocations" />
             <button type="submit" disabled={busy} style={{ ...btn.primary, fontSize: '13px' }}>
-              {busy ? 'Syncing…' : '↻ Sync from Shopify'}
+              {busy ? t('admin.inventory.syncing') : t('admin.inventory.sync')}
             </button>
           </Form>
 
@@ -288,7 +290,7 @@ export default function PortalAdmin() {
                       color:      loc.locationType === 'Store' ? '#92400E' : '#1E40AF',
                       cursor: 'pointer', whiteSpace: 'nowrap',
                     }}>
-                      {loc.locationType === 'Store' ? '🏪 Store' : '🌐 Online'}
+                      {loc.locationType === 'Store' ? t('admin.inventory.type.Store') : t('admin.inventory.type.Online')}
                     </button>
                   </Form>
 
@@ -304,7 +306,7 @@ export default function PortalAdmin() {
                       color:      loc.isEnabled ? '#166534' : '#991B1B',
                       cursor: 'pointer',
                     }}>
-                      {loc.isEnabled ? 'Enabled' : 'Disabled'}
+                      {loc.isEnabled ? t('admin.inventory.disable') : t('admin.inventory.enable')}
                     </button>
                   </Form>
 

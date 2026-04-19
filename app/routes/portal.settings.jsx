@@ -5,6 +5,7 @@ import { requirePortalUser, generateInviteToken } from '../utils/portal-auth.ser
 import { can, requirePermission } from '../utils/portal-permissions';
 import { audit } from '../utils/audit.server.js';
 import { D, Pbtn as btn, Pinput as input } from '../utils/portal-theme';
+import { useT } from '../utils/i18n';
 
 const ROLES = ['Owner', 'Editor', 'Viewer'];
 
@@ -129,6 +130,7 @@ function RoleBadge({ role }) {
 export default function PortalSettings() {
   const { users, currentUserId } = useLoaderData();
   const actionData = useActionData();
+  const { t } = useT();
 
   const [showForm, setShowForm]   = useState(false);
   const [copied,   setCopied]     = useState(false);
@@ -150,10 +152,10 @@ export default function PortalSettings() {
       {/* Header */}
       <div>
         <h2 style={{ margin: '0 0 4px', fontSize: '18px', fontWeight: '800', color: D.text, letterSpacing: '-0.3px' }}>
-          Team &amp; Access
+          {t('settings.team')}
         </h2>
         <p style={{ margin: 0, fontSize: '13px', color: D.textMuted }}>
-          Invite team members and manage their portal access.
+          {t('settings.invite.title')}
         </p>
       </div>
 
@@ -161,10 +163,10 @@ export default function PortalSettings() {
       <div style={{ backgroundColor: D.surface, border: `1px solid ${D.border}`, borderRadius: '14px', overflow: 'hidden', boxShadow: D.shadow }}>
         <div style={{ padding: '18px 20px', borderBottom: showForm || actionData?.inviteUrl ? `1px solid ${D.border}` : 'none',
           display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontSize: '13px', fontWeight: '700', color: D.text }}>Invite a team member</span>
+          <span style={{ fontSize: '13px', fontWeight: '700', color: D.text }}>{t('settings.invite.title')}</span>
           <button type="button" onClick={() => setShowForm(v => !v)}
             style={{ ...btn.primary, padding: '7px 16px', fontSize: '12px' }}>
-            {showForm ? 'Cancel' : '+ Invite'}
+            {showForm ? t('common.cancel') : '+ Invite'}
           </button>
         </div>
 
@@ -184,7 +186,7 @@ export default function PortalSettings() {
               </code>
               <button type="button" onClick={copyUrl}
                 style={{ ...btn.primary, fontSize: '12px', padding: '7px 14px', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                {copied ? '✓ Copied!' : 'Copy'}
+                {copied ? `✓ ${t('common.copied')}` : t('common.copy')}
               </button>
             </div>
           </div>
@@ -204,22 +206,22 @@ export default function PortalSettings() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
               <div>
                 <label style={{ fontSize: '11px', fontWeight: '700', color: D.textMuted, textTransform: 'uppercase', letterSpacing: '0.6px', display: 'block', marginBottom: '6px' }}>
-                  Full Name *
+                  {t('settings.invite.name')} *
                 </label>
-                <input name="name" type="text" required placeholder="Jane Smith" autoFocus
+                <input name="name" type="text" required placeholder={t('settings.invite.namePlaceholder')} autoFocus
                   style={{ ...input.base, width: '100%', boxSizing: 'border-box' }} />
               </div>
               <div>
                 <label style={{ fontSize: '11px', fontWeight: '700', color: D.textMuted, textTransform: 'uppercase', letterSpacing: '0.6px', display: 'block', marginBottom: '6px' }}>
-                  Email *
+                  {t('settings.invite.email')} *
                 </label>
-                <input name="email" type="email" required placeholder="jane@brand.com"
+                <input name="email" type="email" required placeholder={t('settings.invite.emailPlaceholder')}
                   style={{ ...input.base, width: '100%', boxSizing: 'border-box' }} />
               </div>
             </div>
             <div style={{ marginBottom: '18px' }}>
               <label style={{ fontSize: '11px', fontWeight: '700', color: D.textMuted, textTransform: 'uppercase', letterSpacing: '0.6px', display: 'block', marginBottom: '6px' }}>
-                Role
+                {t('settings.invite.role')}
               </label>
               <div style={{ display: 'flex', gap: '8px' }}>
                 {ROLES.map(r => (
@@ -227,19 +229,19 @@ export default function PortalSettings() {
                     border: `1px solid ${D.border}`, borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600', color: D.textSub }}>
                     <input type="radio" name="role" value={r} defaultChecked={r === 'Editor'}
                       style={{ accentColor: D.accent }} />
-                    {r}
+                    {t(`settings.roles.${r}`)}
                   </label>
                 ))}
               </div>
               <div style={{ marginTop: '8px', fontSize: '12px', color: D.textMuted, lineHeight: 1.5 }}>
-                <strong style={{ color: D.textSub }}>Owner</strong> — full access incl. team management ·{' '}
-                <strong style={{ color: D.textSub }}>Editor</strong> — create/edit seedings, influencers, campaigns ·{' '}
-                <strong style={{ color: D.textSub }}>Viewer</strong> — read-only
+                <strong style={{ color: D.textSub }}>{t('settings.roles.Owner')}</strong> — full access incl. team management ·{' '}
+                <strong style={{ color: D.textSub }}>{t('settings.roles.Editor')}</strong> — create/edit seedings, influencers, campaigns ·{' '}
+                <strong style={{ color: D.textSub }}>{t('settings.roles.Viewer')}</strong> — read-only
               </div>
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
               <button type="submit" style={{ ...btn.primary, padding: '9px 22px', fontSize: '13px' }}>
-                Generate invite link
+                {t('settings.invite.send')}
               </button>
             </div>
           </Form>
@@ -250,7 +252,7 @@ export default function PortalSettings() {
       <div style={{ backgroundColor: D.surface, border: `1px solid ${D.border}`, borderRadius: '14px', overflow: 'hidden', boxShadow: D.shadow }}>
         <div style={{ padding: '16px 20px', borderBottom: `1px solid ${D.border}` }}>
           <span style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.8px', color: D.textMuted }}>
-            Active Members ({accepted.length})
+            {t('settings.members.title')} ({accepted.length})
           </span>
         </div>
         {accepted.length === 0 ? (
@@ -271,7 +273,7 @@ export default function PortalSettings() {
                   <div>
                     <div style={{ fontSize: '13px', fontWeight: '700', color: D.text, display: 'flex', alignItems: 'center', gap: '7px' }}>
                       {user.name}
-                      {user.id === currentUserId && <span style={{ fontSize: '10px', color: D.textMuted, fontWeight: '600' }}>(you)</span>}
+                      {user.id === currentUserId && <span style={{ fontSize: '10px', color: D.textMuted, fontWeight: '600' }}>{t('settings.members.you')}</span>}
                       <RoleBadge role={user.role} />
                     </div>
                     <div style={{ fontSize: '12px', color: D.textMuted, marginTop: '2px' }}>{user.email}</div>
@@ -286,13 +288,13 @@ export default function PortalSettings() {
                       <select name="role" defaultValue={user.role}
                         onChange={e => e.target.form.requestSubmit()}
                         style={{ ...input.base, fontSize: '12px', padding: '5px 8px', minWidth: '90px' }}>
-                        {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                        {ROLES.map(r => <option key={r} value={r}>{t(`settings.roles.${r}`)}</option>)}
                       </select>
                     </Form>
                     <Form method="post" onSubmit={e => { if (!confirm(`Remove ${user.name} from the portal?`)) e.preventDefault(); }}>
                       <input type="hidden" name="intent" value="revoke" />
                       <input type="hidden" name="userId" value={user.id} />
-                      <button type="submit" title="Remove"
+                      <button type="submit" title={t('settings.members.remove')}
                         style={{ background: 'none', border: 'none', color: D.textMuted, cursor: 'pointer', fontSize: '19px', lineHeight: 1, padding: '2px 4px' }}>
                         ×
                       </button>
@@ -310,7 +312,7 @@ export default function PortalSettings() {
         <div style={{ backgroundColor: D.surface, border: `1px solid ${D.border}`, borderRadius: '14px', overflow: 'hidden', boxShadow: D.shadow }}>
           <div style={{ padding: '16px 20px', borderBottom: `1px solid ${D.border}` }}>
             <span style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.8px', color: D.textMuted }}>
-              Pending Invites ({pending.length})
+              {t('settings.pending.title')} ({pending.length})
             </span>
           </div>
           <div>
@@ -349,7 +351,7 @@ export default function PortalSettings() {
                   <Form method="post" onSubmit={e => { if (!confirm(`Cancel invite for ${user.name}?`)) e.preventDefault(); }}>
                     <input type="hidden" name="intent" value="revoke" />
                     <input type="hidden" name="userId" value={user.id} />
-                    <button type="submit" title="Cancel invite"
+                    <button type="submit" title={t('settings.pending.revoke')}
                       style={{ background: 'none', border: 'none', color: D.textMuted, cursor: 'pointer', fontSize: '19px', lineHeight: 1, padding: '2px 4px' }}>
                       ×
                     </button>

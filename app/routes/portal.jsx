@@ -3,6 +3,7 @@ import { Outlet, NavLink, useLoaderData, redirect, Form } from 'react-router';
 import { requirePortalUser, destroyPortalSession, getPortalSession } from '../utils/portal-auth.server';
 import { can } from '../utils/portal-permissions';
 import { PORTAL_THEME_CSS } from '../utils/portal-theme';
+import { I18nProvider, useT, SUPPORTED_LANGS, LANG_LABELS } from '../utils/i18n';
 
 export async function loader({ request }) {
   const { portalUser, shop } = await requirePortalUser(request);
@@ -195,7 +196,16 @@ function IconBtn({ onClick, title, children, type = 'button' }) {
 
 // ── Layout ────────────────────────────────────────────────────────────────────
 export default function PortalLayout() {
+  return (
+    <I18nProvider>
+      <PortalLayoutInner />
+    </I18nProvider>
+  );
+}
+
+function PortalLayoutInner() {
   const { portalUser, role } = useLoaderData();
+  const { t, lang, changeLang } = useT();
 
   const [dark,      setDark]      = useState(null);
   const [collapsed, setCollapsed] = useState(false);
@@ -326,22 +336,22 @@ export default function PortalLayout() {
         {/* ── Nav ────────────────────────────────────────────────── */}
         <nav style={{ flex: 1, padding: collapsed ? '10px 8px' : '12px 8px',
           display: 'flex', flexDirection: 'column', gap: '2px' }}>
-          <NavItem to="/portal"             end   icon={<IconHome     />} label="Dashboard"   collapsed={collapsed} />
-          <NavItem to="/portal/seedings"          icon={<IconBox      />} label="Seedings"    collapsed={collapsed} />
-          <NavItem to="/portal/influencers"       icon={<IconUsers    />} label="Influencers" collapsed={collapsed} />
-          <NavItem to="/portal/campaigns"         icon={<IconTarget   />} label="Campaigns"   collapsed={collapsed} />
+          <NavItem to="/portal"             end   icon={<IconHome     />} label={t('nav.dashboard')}   collapsed={collapsed} />
+          <NavItem to="/portal/seedings"          icon={<IconBox      />} label={t('nav.seedings')}    collapsed={collapsed} />
+          <NavItem to="/portal/influencers"       icon={<IconUsers    />} label={t('nav.influencers')} collapsed={collapsed} />
+          <NavItem to="/portal/campaigns"         icon={<IconTarget   />} label={t('nav.campaigns')}   collapsed={collapsed} />
           {can.manageUsers(role) && (
-            <NavItem to="/portal/settings"        icon={<IconSettings />} label="Team"        collapsed={collapsed} />
+            <NavItem to="/portal/settings"        icon={<IconSettings />} label={t('nav.settings')}    collapsed={collapsed} />
           )}
           {can.manageUsers(role) && (
-            <NavItem to="/portal/admin"           icon={<IconAdmin    />} label="Admin"       collapsed={collapsed} />
+            <NavItem to="/portal/admin"           icon={<IconAdmin    />} label={t('nav.admin')}       collapsed={collapsed} />
           )}
 
           {can.createSeeding(role) && (
             <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid var(--pt-border)' }}>
               <NavLink
                 to="/portal/new"
-                title={collapsed ? 'New Seeding' : undefined}
+                title={collapsed ? t('nav.newSeeding') : undefined}
                 style={({ isActive }) => ({
                   display:        'flex',
                   alignItems:     'center',
@@ -362,7 +372,7 @@ export default function PortalLayout() {
                 })}
               >
                 <IconPlus />
-                {!collapsed && 'New Seeding'}
+                {!collapsed && t('nav.newSeeding')}
               </NavLink>
             </div>
           )}
@@ -415,10 +425,15 @@ export default function PortalLayout() {
                 {dark ? <IconSun /> : <IconMoon />}
               </IconBtn>
 
+              {/* Language */}
+              <IconBtn onClick={() => changeLang(lang === 'en' ? 'es' : 'en')} title={t('lang.switchLabel')}>
+                <span style={{ fontSize: '9px', fontWeight: '800', letterSpacing: '0.3px' }}>{LANG_LABELS[lang]}</span>
+              </IconBtn>
+
               {/* Sign out */}
               <Form method="post">
                 <input type="hidden" name="intent" value="logout" />
-                <IconBtn type="submit" title="Sign out">
+                <IconBtn type="submit" title={t('nav.signOut')}>
                   <IconLogout />
                 </IconBtn>
               </Form>
@@ -474,9 +489,24 @@ export default function PortalLayout() {
                     borderRadius: '7px', fontSize: '11px', color: 'var(--pt-text-sub)',
                     cursor: 'pointer', fontWeight: '600', textAlign: 'left',
                   }}>
-                    Sign out
+                    {t('nav.signOut')}
                   </button>
                 </Form>
+
+                {/* Language toggle */}
+                <div style={{ display: 'flex', border: '1px solid var(--pt-border)', borderRadius: '7px', overflow: 'hidden', flexShrink: 0 }}>
+                  {SUPPORTED_LANGS.map(l => (
+                    <button key={l} type="button" onClick={() => changeLang(l)}
+                      style={{
+                        padding: '7px 7px', fontSize: '9px', fontWeight: '800', letterSpacing: '0.3px',
+                        backgroundColor: lang === l ? 'var(--pt-accent)' : 'transparent',
+                        color: lang === l ? '#fff' : 'var(--pt-text-muted)',
+                        border: 'none', cursor: 'pointer',
+                      }}>
+                      {LANG_LABELS[l]}
+                    </button>
+                  ))}
+                </div>
 
                 <button
                   type="button"

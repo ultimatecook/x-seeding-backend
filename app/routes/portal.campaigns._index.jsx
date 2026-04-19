@@ -6,6 +6,7 @@ import { can, requirePermission } from '../utils/portal-permissions';
 import { audit } from '../utils/audit.server.js';
 import { fmtDate, fmtNum } from '../theme';
 import { D, Pbtn as btn, Pinput as input, FlagImg } from '../utils/portal-theme';
+import { useT } from '../utils/i18n';
 
 // ── Loader ────────────────────────────────────────────────────────────────────
 export async function loader({ request }) {
@@ -116,6 +117,7 @@ export async function action({ request }) {
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function PortalCampaigns() {
   const { campaigns, shopifyProducts, showArchived, canCreate, canDelete } = useLoaderData();
+  const { t } = useT();
   const [showForm,      setShowForm]      = useState(false);
   const [productSearch, setProductSearch] = useState('');
   const [selectedProds, setSelectedProds] = useState([]);
@@ -145,18 +147,18 @@ export default function PortalCampaigns() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: D.text, letterSpacing: '-0.3px' }}>
-            {showArchived ? 'Archived Campaigns' : 'Campaigns'}{' '}
+            {showArchived ? t('campaigns.archived') : t('campaigns.title')}{' '}
             {campaigns.length > 0 && <span style={{ fontSize: '14px', fontWeight: '600', color: D.textMuted }}>({campaigns.length})</span>}
           </h2>
           <Link to={showArchived ? '/portal/campaigns' : '/portal/campaigns?archived=1'}
             style={{ fontSize: '12px', color: D.textMuted, textDecoration: 'none', padding: '4px 10px', border: `1px solid ${D.border}`, borderRadius: '20px', fontWeight: '600' }}>
-            {showArchived ? '← Active' : 'Archived'}
+            {showArchived ? t('campaigns.active') : t('campaigns.archivedLink')}
           </Link>
         </div>
         {canCreate && !showArchived && (
           <button type="button" onClick={() => showForm ? handleCancel() : setShowForm(true)}
             style={{ ...btn.primary, padding: '9px 18px', fontSize: '13px' }}>
-            {showForm ? 'Cancel' : '+ New Campaign'}
+            {showForm ? t('common.cancel') : t('campaigns.newCampaign')}
           </button>
         )}
       </div>
@@ -178,16 +180,16 @@ export default function PortalCampaigns() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
               <div>
                 <label style={{ fontSize: '11px', fontWeight: '700', color: D.textMuted, textTransform: 'uppercase', letterSpacing: '0.6px', display: 'block', marginBottom: '6px' }}>
-                  Campaign Title *
+                  {t('campaigns.form.title')}
                 </label>
-                <input name="title" required placeholder="e.g. Summer Drop 2025" autoFocus
+                <input name="title" required placeholder={t('campaigns.form.titlePlaceholder')} autoFocus
                   style={{ ...input.base, width: '100%', boxSizing: 'border-box' }} />
               </div>
               <div>
                 <label style={{ fontSize: '11px', fontWeight: '700', color: D.textMuted, textTransform: 'uppercase', letterSpacing: '0.6px', display: 'block', marginBottom: '6px' }}>
-                  Total Budget (€) — Optional
+                  {t('campaigns.form.budget')}
                 </label>
-                <input name="budget" type="number" min="0" step="0.01" placeholder="e.g. 2000"
+                <input name="budget" type="number" min="0" step="0.01" placeholder={t('campaigns.form.budgetPlaceholder')}
                   style={{ ...input.base, width: '100%', boxSizing: 'border-box' }} />
               </div>
             </div>
@@ -195,16 +197,16 @@ export default function PortalCampaigns() {
             {/* Product picker */}
             <div style={{ marginBottom: '20px' }}>
               <label style={{ fontSize: '11px', fontWeight: '700', color: D.textMuted, textTransform: 'uppercase', letterSpacing: '0.6px', display: 'block', marginBottom: '8px' }}>
-                Select Products {selectedProds.length > 0 && <span style={{ color: D.accent }}>({selectedProds.length} selected)</span>}
+                {t('campaigns.form.products')} {selectedProds.length > 0 && <span style={{ color: D.accent }}>({t('campaigns.form.productsSelected', { count: selectedProds.length })})</span>}
               </label>
               <input
-                type="text" placeholder="Search products…" value={productSearch}
+                type="text" placeholder={t('campaigns.form.searchProducts')} value={productSearch}
                 onChange={e => setProductSearch(e.target.value)}
                 style={{ ...input.base, width: '100%', boxSizing: 'border-box', marginBottom: '10px' }}
               />
               {shopifyProducts.length === 0 ? (
                 <div style={{ padding: '20px', textAlign: 'center', color: D.textMuted, fontSize: '13px', border: `1px dashed ${D.border}`, borderRadius: '8px' }}>
-                  No products loaded — open the app in Shopify admin once to authorize.
+                  {t('campaigns.form.noProducts')}
                 </div>
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '8px', maxHeight: '320px', overflowY: 'auto', padding: '2px' }}>
@@ -244,11 +246,11 @@ export default function PortalCampaigns() {
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', paddingTop: '4px', borderTop: `1px solid ${D.border}` }}>
               <button type="button" onClick={handleCancel}
                 style={{ padding: '9px 18px', borderRadius: '8px', border: `1px solid ${D.border}`, backgroundColor: 'transparent', color: D.textSub, cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
-                Cancel
+                {t('campaigns.form.cancel')}
               </button>
               <button type="submit"
                 style={{ ...btn.primary, padding: '9px 24px', fontSize: '13px' }}>
-                Create Campaign
+                {t('campaigns.form.create')}
               </button>
             </div>
           </Form>
@@ -258,8 +260,8 @@ export default function PortalCampaigns() {
       {/* ── Campaign list ──────────────────────────────────────── */}
       {campaigns.length === 0 && !showForm ? (
         <div style={{ textAlign: 'center', padding: '60px', border: `2px dashed ${D.border}`, borderRadius: '12px', color: D.textMuted }}>
-          <p style={{ margin: 0, fontSize: '15px', color: D.textSub }}>No campaigns yet.</p>
-          {canCreate && <p style={{ margin: '6px 0 0', fontSize: '13px' }}>Click "+ New Campaign" to create one.</p>}
+          <p style={{ margin: 0, fontSize: '15px', color: D.textSub }}>{t('campaigns.empty')}</p>
+          {canCreate && <p style={{ margin: '6px 0 0', fontSize: '13px' }}>{t('campaigns.emptyAction')}</p>}
         </div>
       ) : (
         <div style={{ display: 'grid', gap: '12px' }}>
@@ -273,9 +275,9 @@ export default function PortalCampaigns() {
               <Link to={`/portal/campaigns/${c.id}`} style={{ textDecoration: 'none', minWidth: 0 }}>
                 <div style={{ fontSize: '15px', fontWeight: '800', color: D.text, marginBottom: '5px' }}>{c.title}</div>
                 <div style={{ fontSize: '12px', color: D.textSub, display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                  <span>{c._count.seedings} seeding{c._count.seedings !== 1 ? 's' : ''}</span>
-                  <span>{c.products.length} product{c.products.length !== 1 ? 's' : ''}</span>
-                  {c.budget != null && <span style={{ color: D.accent, fontWeight: '700' }}>€{fmtNum(c.budget)} budget</span>}
+                  <span>{c._count.seedings} {c._count.seedings === 1 ? t('campaigns.seedings_one') : t('campaigns.seedings_other')}</span>
+                  <span>{c.products.length} {c.products.length === 1 ? t('campaigns.products_one') : t('campaigns.products_other')}</span>
+                  {c.budget != null && <span style={{ color: D.accent, fontWeight: '700' }}>{t('campaigns.budget', { amount: fmtNum(c.budget) })}</span>}
                   <span>{fmtDate(c.createdAt, 'medium')}</span>
                 </div>
                 {c.products.length > 0 && (
@@ -293,24 +295,24 @@ export default function PortalCampaigns() {
                 )}
               </Link>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                <Link to={`/portal/campaigns/${c.id}`} style={{ fontSize: '13px', color: D.accent, fontWeight: '700', textDecoration: 'none' }}>View →</Link>
+                <Link to={`/portal/campaigns/${c.id}`} style={{ fontSize: '13px', color: D.accent, fontWeight: '700', textDecoration: 'none' }}>{t('campaigns.view')}</Link>
                 {canDelete && (
                   <>
                     <Form method="post">
                       <input type="hidden" name="intent" value={c.archived ? 'unarchive' : 'archive'} />
                       <input type="hidden" name="campaignId" value={c.id} />
-                      <button type="submit" title={c.archived ? 'Unarchive' : 'Archive'}
+                      <button type="submit" title={c.archived ? t('common.unarchive') : t('common.archive')}
                         style={{ background: 'none', border: `1px solid ${D.border}`, borderRadius: '6px', color: D.textMuted, cursor: 'pointer', fontSize: '12px', fontWeight: '600', padding: '4px 10px', whiteSpace: 'nowrap' }}>
-                        {c.archived ? '↩ Restore' : '⬜ Archive'}
+                        {c.archived ? t('common.restore') : t('campaigns.archive')}
                       </button>
                     </Form>
                     {c.archived && (
                       <Form method="post" onSubmit={e => { if (!confirm(`Permanently delete "${c.title}"? This cannot be undone.`)) e.preventDefault(); }}>
                         <input type="hidden" name="intent" value="delete" />
                         <input type="hidden" name="campaignId" value={c.id} />
-                        <button type="submit" title="Delete permanently"
+                        <button type="submit" title={t('campaign.delete')}
                           style={{ background: 'none', border: `1px solid ${D.errorText}`, borderRadius: '6px', color: D.errorText, cursor: 'pointer', fontSize: '12px', fontWeight: '600', padding: '4px 10px' }}>
-                          Delete
+                          {t('campaign.delete')}
                         </button>
                       </Form>
                     )}
