@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Form, useLoaderData, useActionData } from 'react-router';
 import prisma from '../db.server';
 import { requirePortalUser, generateInviteToken } from '../utils/portal-auth.server';
+import { sendInviteEmail } from '../utils/email.server';
 import { can, requirePermission } from '../utils/portal-permissions';
 import { audit } from '../utils/audit.server.js';
 import { D, Pbtn as btn, Pinput as input } from '../utils/portal-theme';
@@ -55,9 +56,10 @@ export async function action({ request }) {
       return { error: 'Could not create invite: ' + e.message };
     }
 
-    const base      = process.env.SHOPIFY_APP_URL || 'https://zeedy.xyz';
+    const base      = process.env.SHOPIFY_APP_URL || 'https://www.zeedy.xyz';
     const inviteUrl = `${base}/portal-accept-invite?token=${token}`;
     await audit({ shop, portalUser, action: 'invited_user', entityType: 'portalUser', entityId: null, detail: `Invited ${name} (${email}) as ${role}` });
+    sendInviteEmail({ to: email, name, inviteUrl }).catch(() => {});
     return { inviteUrl, invitedEmail: email, invitedName: name };
   }
 
@@ -72,9 +74,10 @@ export async function action({ request }) {
     const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     await prisma.portalUser.update({ where: { id }, data: { inviteToken: token, inviteExpires: expires } });
 
-    const base      = process.env.SHOPIFY_APP_URL || 'https://zeedy.xyz';
+    const base      = process.env.SHOPIFY_APP_URL || 'https://www.zeedy.xyz';
     const inviteUrl = `${base}/portal-accept-invite?token=${token}`;
     await audit({ shop, portalUser, action: 'resent_invite', entityType: 'portalUser', entityId: id, detail: `Resent invite to ${existing.email}` });
+    sendInviteEmail({ to: existing.email, name: existing.name, inviteUrl }).catch(() => {});
     return { inviteUrl, invitedEmail: existing.email, invitedName: existing.name };
   }
 

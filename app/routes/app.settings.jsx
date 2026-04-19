@@ -3,6 +3,7 @@ import { Form, useLoaderData, useActionData, useRouteError, useRouteLoaderData }
 import { boundary } from '@shopify/shopify-app-react-router/server';
 import { authenticate } from '../shopify.server';
 import { generateInviteToken } from '../utils/portal-auth.server';
+import { sendInviteEmail } from '../utils/email.server';
 import prisma from '../db.server';
 
 const P = {
@@ -143,7 +144,9 @@ export async function action({ request }) {
     } catch (e) {
       return { error: 'Could not create invite: ' + e.message };
     }
-    return { inviteUrl: `${APP_URL}/portal-accept-invite?token=${token}`, invitedEmail: email, invitedName: name };
+    const inviteUrl = `${APP_URL}/portal-accept-invite?token=${token}`;
+    sendInviteEmail({ to: email, name, inviteUrl }).catch(() => {});
+    return { inviteUrl, invitedEmail: email, invitedName: name };
   }
 
   if (intent === 'resend') {
@@ -153,7 +156,9 @@ export async function action({ request }) {
     const token   = generateInviteToken();
     const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     await prisma.portalUser.update({ where: { id }, data: { inviteToken: token, inviteExpires: expires } });
-    return { inviteUrl: `${APP_URL}/portal-accept-invite?token=${token}`, invitedEmail: row.email, invitedName: row.name };
+    const inviteUrl = `${APP_URL}/portal-accept-invite?token=${token}`;
+    sendInviteEmail({ to: row.email, name: row.name, inviteUrl }).catch(() => {});
+    return { inviteUrl, invitedEmail: row.email, invitedName: row.name };
   }
 
   if (intent === 'updateRole') {

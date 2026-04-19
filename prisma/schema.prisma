@@ -175,15 +175,18 @@ model PortalUser {
   name          String
   passwordHash  String?                       // null until invite is accepted
   role          AppRole   @default(Viewer)
-  inviteToken   String?   @unique             // one-time token for accepting invite
-  inviteExpires DateTime?
-  acceptedAt    DateTime?                     // null = pending invite
+  inviteToken        String?   @unique             // one-time token for accepting invite
+  inviteExpires      DateTime?
+  acceptedAt         DateTime?                     // null = pending invite
+  resetToken         String?   @unique             // password reset token
+  resetTokenExpires  DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
   @@unique([shop, email])
   @@index([shop])
   @@index([inviteToken])
+  @@index([resetToken])
 }
 
 model AuditLog {

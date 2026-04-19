@@ -188,6 +188,15 @@ function LoginForm() {
             {t('auth.login.signIn')} →
           </button>
         </Form>
+
+        <div style={{ marginTop: '16px', textAlign: 'center' }}>
+          <a
+            href="/portal-forgot-password"
+            style={{ fontSize: '13px', color: P.textSub, textDecoration: 'none' }}
+          >
+            Forgot your password?
+          </a>
+        </div>
       </div>
     </div>
   );

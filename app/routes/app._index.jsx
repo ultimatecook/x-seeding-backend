@@ -2,10 +2,11 @@ import { useLoaderData, useRouteError } from 'react-router';
 import { boundary } from '@shopify/shopify-app-react-router/server';
 import { authenticate } from '../shopify.server';
 import { generateInviteToken } from '../utils/portal-auth.server';
+import { sendInviteEmail } from '../utils/email.server';
 import prisma from '../db.server';
 import { syncLocationsWithAdmin } from '../utils/inventory.server';
 
-const APP_URL = process.env.SHOPIFY_APP_URL || 'https://zeedy.xyz';
+const APP_URL = process.env.SHOPIFY_APP_URL || 'https://www.zeedy.xyz';
 
 const P = {
   accent:      '#7C6FF7',
@@ -61,7 +62,9 @@ export async function loader({ request }) {
         await prisma.portalUser.create({
           data: { shop, email: ownerEmail, name: ownerName, role: 'Owner', inviteToken: token, inviteExpires: expires },
         });
-        ownerSetup = { inviteUrl: `${APP_URL}/portal-accept-invite?token=${token}`, email: ownerEmail, isNew: true };
+        const newInviteUrl = `${APP_URL}/portal-accept-invite?token=${token}`;
+        sendInviteEmail({ to: ownerEmail, name: ownerName, inviteUrl: newInviteUrl }).catch(() => {});
+        ownerSetup = { inviteUrl: newInviteUrl, email: ownerEmail, isNew: true };
       } else if (!existing.acceptedAt) {
         // Account exists but password not set yet — refresh the invite link
         const token   = generateInviteToken();
