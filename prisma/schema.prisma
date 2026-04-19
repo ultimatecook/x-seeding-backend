@@ -227,20 +227,27 @@ model Campaign {
   shop         String
   title        String
   budget       Float?
+  startDate    DateTime?
+  endDate      DateTime?
   archived     Boolean            @default(false)
   createdAt    DateTime           @default(now())
   products     CampaignProduct[]
   seedings     Seeding[]
+
+  @@index([shop])
+  @@index([shop, archived])
 }
 
 model CampaignProduct {
-  id          Int      @id @default(autoincrement())
-  campaignId  Int
-  campaign    Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  productId   String
-  productName String
-  imageUrl    String?
-  maxUnits    Int?
+  id             Int      @id @default(autoincrement())
+  campaignId     Int
+  campaign       Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  productId      String
+  productName    String
+  imageUrl       String?
+  allocatedUnits Int?     // hard limit — block seeding creation when exceeded
+
+  @@index([campaignId])
 }
 
 // ── Inventory source rules ────────────────────────────────────────────────────

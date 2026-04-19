@@ -2,7 +2,7 @@
  * Portal version of New Seeding.
  * Fetches Shopify products using the stored offline access token — no Shopify admin session needed.
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLoaderData, useActionData, Form, useNavigate, redirect } from 'react-router';
 import prisma from '../db.server';
 import { requirePortalUser } from '../utils/portal-auth.server';
@@ -234,6 +234,49 @@ export async function action({ request }) {
   const influencer = await prisma.influencer.findUnique({ where: { id: influencerId } });
   if (!influencer || influencer.shop !== shop) return { error: 'Influencer not found.' };
 
+  // ── Campaign validation ──────────────────────────────────────────────────
+  if (campaignId) {
+    const camp = await prisma.campaign.findUnique({
+      where:   { id: campaignId },
+      include: {
+        products: true,
+        seedings: { include: { products: { select: { productId: true } } } },
+      },
+    });
+
+    if (camp && camp.shop === shop) {
+      // Step 1: Hard allocation check — block if any product exceeds its limit
+      const usedUnits = {};
+      for (const s of camp.seedings) {
+        for (const p of s.products) {
+          usedUnits[p.productId] = (usedUnits[p.productId] || 0) + 1;
+        }
+      }
+      for (const cp of camp.products) {
+        if (cp.allocatedUnits == null) continue;
+        const currentlyUsed  = usedUnits[cp.productId] || 0;
+        const newUnitsForThis = productIds.filter(pid => pid === cp.productId).length;
+        if (newUnitsForThis > 0 && currentlyUsed + newUnitsForThis > cp.allocatedUnits) {
+          return {
+            error: `Allocation exceeded for "${cp.productName}": ${currentlyUsed} of ${cp.allocatedUnits} units already used. ${Math.max(0, cp.allocatedUnits - currentlyUsed)} remaining.`,
+          };
+        }
+      }
+
+      // Step 2: Soft budget check — warn but don't block (bypass with bypassBudget=1)
+      const bypassBudget = formData.get('bypassBudget') === '1';
+      if (!bypassBudget && camp.budget != null) {
+        const budgetUsed = camp.seedings.reduce((sum, s) => sum + (s.totalCost || 0), 0);
+        if (budgetUsed + totalCost > camp.budget) {
+          return {
+            budgetWarning:  true,
+            budgetMessage:  `This seeding (€${totalCost.toFixed(2)}) will exceed the campaign budget of €${camp.budget.toFixed(2)}. Currently used: €${budgetUsed.toFixed(2)} of €${camp.budget.toFixed(2)}.`,
+          };
+        }
+      }
+    }
+  }
+
   let shopifyDraftOrderId = null;
   let shopifyOrderName    = null;
   let invoiceUrl          = null;
@@ -425,6 +468,9 @@ export default function PortalNewSeeding() {
   const [dragProductId,      setDragProductId]      = useState(null);
   const [submitError,        setSubmitError]        = useState(null);
   const [submitting,         setSubmitting]         = useState(false);
+
+  const formRef          = useRef(null);
+  const bypassBudgetRef  = useRef(null);
 
   const recentlySeedMapForInfluencer = selectedInfluencer
     ? (recentlySeededMap[selectedInfluencer.id] ?? {})
@@ -670,7 +716,7 @@ export default function PortalNewSeeding() {
         </div>
       )}
 
-      <Form method="post" onSubmit={handleSubmit}>
+      <Form method="post" onSubmit={handleSubmit} ref={formRef}>
         {/* Hidden inputs */}
         <input type="hidden" name="shop"              value={shop} />
         <input type="hidden" name="influencerId"      value={selectedInfluencer?.id ?? ''} />
@@ -678,6 +724,7 @@ export default function PortalNewSeeding() {
         <input type="hidden" name="seedingType"       value={seedingType} />
         <input type="hidden" name="storeLocationId"   value={selectedStore?.shopifyLocationId ?? ''} />
         <input type="hidden" name="storeLocationName" value={selectedStore?.name ?? ''} />
+        <input type="hidden" name="bypassBudget"      value="0" ref={bypassBudgetRef} />
         {selectedProducts.map(p => (
           <span key={p.id}>
             <input type="hidden" name="productIds"        value={p.id} />
@@ -836,9 +883,36 @@ export default function PortalNewSeeding() {
 
             {/* ── CTA ── */}
             <div style={{ padding: '12px 16px', borderTop: `1px solid ${D.border}` }}>
+              {/* Budget warning — returned from server when budget would be exceeded */}
+              {actionData?.budgetWarning && (
+                <div style={{ marginBottom: '10px', padding: '12px 14px', backgroundColor: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: '8px' }}>
+                  <div style={{ fontSize: '12px', fontWeight: '700', color: '#92400E', marginBottom: '8px' }}>
+                    ⚠ Budget exceeded
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#92400E', marginBottom: '10px', lineHeight: 1.5 }}>
+                    {actionData.budgetMessage}
+                  </div>
+                  <button type="button"
+                    onClick={() => {
+                      if (bypassBudgetRef.current) bypassBudgetRef.current.value = '1';
+                      setSubmitting(true);
+                      formRef.current?.submit();
+                    }}
+                    style={{ padding: '7px 16px', borderRadius: '7px', border: '1px solid #D97706', backgroundColor: 'transparent', color: '#92400E', cursor: 'pointer', fontSize: '12px', fontWeight: '700' }}>
+                    Proceed anyway →
+                  </button>
+                </div>
+              )}
+
               {submitError && (
                 <div style={{ marginBottom: '8px', padding: '8px 12px', backgroundColor: D.errorBg, color: D.errorText, borderRadius: '7px', fontSize: '12px', fontWeight: '600' }}>
                   {submitError}
+                </div>
+              )}
+              {/* Allocation error from server */}
+              {actionData?.error && !actionData?.budgetWarning && (
+                <div style={{ marginBottom: '8px', padding: '8px 12px', backgroundColor: D.errorBg, color: D.errorText, borderRadius: '7px', fontSize: '12px', fontWeight: '600' }}>
+                  {actionData.error}
                 </div>
               )}
               <button type="submit" disabled={!canSubmit}

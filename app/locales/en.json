@@ -394,16 +394,21 @@
     "view":          "View →",
     "archive":       "⬜ Archive",
     "form": {
-      "title":           "Campaign Title *",
-      "titlePlaceholder": "e.g. Summer Drop 2025",
-      "budget":          "Total Budget (€) — Optional",
+      "title":             "Campaign Title *",
+      "titlePlaceholder":  "e.g. Summer Drop 2025",
+      "budget":            "Total Budget (€) — Optional",
       "budgetPlaceholder": "e.g. 2000",
-      "products":        "Select Products",
-      "productsSelected": "{count} selected",
-      "searchProducts":  "Search products…",
-      "noProducts":      "No products loaded — open the app in Shopify admin once to authorize.",
-      "cancel":          "Cancel",
-      "create":          "Create Campaign"
+      "startDate":         "Start Date — Optional",
+      "endDate":           "End Date — Optional",
+      "products":          "Select Products",
+      "productsSelected":  "{count} selected",
+      "searchProducts":    "Search products…",
+      "noProducts":        "No products loaded — open the app in Shopify admin once to authorize.",
+      "allocations":       "Unit Allocation per Product",
+      "maxUnits":          "Max units",
+      "allocationsHint":   "Leave blank for unlimited. When a limit is set, seedings will be blocked once reached.",
+      "cancel":            "Cancel",
+      "create":            "Create Campaign"
     }
   },
 
@@ -420,12 +425,23 @@
       "posted":      "Posted"
     },
     "budgetUsed": "Budget Used",
+    "budgetPanel": {
+      "title":      "Budget",
+      "total":      "Total",
+      "used":       "Used",
+      "remaining":  "Remaining",
+      "exceeded":   "Exceeded by",
+      "overBudget": "Over budget"
+    },
     "pipeline":   "Pipeline",
     "products": {
-      "title":   "Campaign Products ({count})",
-      "empty":   "No products attached to this campaign.",
-      "seeded":  "{count} seeded",
-      "max":     "/ {max} max"
+      "title":          "Product Allocations ({count})",
+      "allocationNote": "Allocation is a hard limit — seedings are blocked when reached.",
+      "empty":          "No products attached to this campaign.",
+      "seeded":         "units seeded",
+      "ofUnits":        "of {total} units used",
+      "remaining":      "remaining",
+      "fullAlert":      "FULL — allocation reached"
     },
     "seedings": {
       "title":       "Seedings ({count})",

@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { useLoaderData, Link, Form, redirect } from 'react-router';
+import { useLoaderData, Link, Form, redirect, useActionData } from 'react-router';
 import prisma from '../db.server';
 import { requirePortalUser } from '../utils/portal-auth.server';
 import { can, requirePermission } from '../utils/portal-permissions';
 import { audit } from '../utils/audit.server.js';
 import { fmtDate, fmtNum } from '../theme';
-import { D, Pbtn as btn, Pinput as input, FlagImg } from '../utils/portal-theme';
+import { D, Pbtn as btn, Pinput as input } from '../utils/portal-theme';
 import { useT } from '../utils/i18n';
 
 // ── Loader ────────────────────────────────────────────────────────────────────
@@ -22,7 +22,43 @@ export async function loader({ request }) {
     orderBy: { createdAt: 'desc' },
   });
 
-  // Fetch Shopify products for the product picker (same offline token approach)
+  // Compute used units per product per campaign for allocation display
+  const campaignIds = campaigns.map(c => c.id);
+  let usedUnitsMap = {}; // campaignId → productId → count
+  let budgetUsedMap = {}; // campaignId → total spend
+  if (campaignIds.length > 0) {
+    const seedingProducts = await prisma.seedingProduct.findMany({
+      where:  { seeding: { campaignId: { in: campaignIds } } },
+      select: { productId: true, seeding: { select: { campaignId: true, totalCost: true } } },
+    });
+    for (const sp of seedingProducts) {
+      const cid = sp.seeding.campaignId;
+      if (cid == null) continue;
+      if (!usedUnitsMap[cid])   usedUnitsMap[cid]   = {};
+      if (!budgetUsedMap[cid])  budgetUsedMap[cid]  = 0;
+      usedUnitsMap[cid][sp.productId] = (usedUnitsMap[cid][sp.productId] || 0) + 1;
+    }
+    // budget used per campaign
+    const seedings = await prisma.seeding.findMany({
+      where:  { campaignId: { in: campaignIds } },
+      select: { campaignId: true, totalCost: true },
+    });
+    for (const s of seedings) {
+      if (s.campaignId == null) continue;
+      budgetUsedMap[s.campaignId] = (budgetUsedMap[s.campaignId] || 0) + (s.totalCost || 0);
+    }
+  }
+
+  const campaignsWithData = campaigns.map(c => ({
+    ...c,
+    budgetUsed: budgetUsedMap[c.id] || 0,
+    products: c.products.map(cp => ({
+      ...cp,
+      usedUnits: usedUnitsMap[c.id]?.[cp.productId] || 0,
+    })),
+  }));
+
+  // Fetch Shopify products for the product picker
   let shopifyProducts = [];
   try {
     let session = await prisma.session.findFirst({ where: { shop, isOnline: false, expires: null } });
@@ -34,7 +70,7 @@ export async function loader({ request }) {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': session.accessToken },
         body: JSON.stringify({ query: `query {
-          products(first: 100, sortKey: TITLE) { edges { node {
+          products(first: 100, sortKey: TITLE, query: "status:active") { edges { node {
             id title featuredImage { url }
             variants(first: 1) { edges { node { price } } }
           } } }
@@ -52,7 +88,7 @@ export async function loader({ request }) {
     console.error('Portal campaigns: failed to fetch products', e.message);
   }
 
-  return { campaigns, shopifyProducts, showArchived, canCreate: can.createCampaign(portalUser.role), canDelete: can.deleteCampaign(portalUser.role) };
+  return { campaigns: campaignsWithData, shopifyProducts, showArchived, canCreate: can.createCampaign(portalUser.role), canDelete: can.deleteCampaign(portalUser.role) };
 }
 
 // ── Action ────────────────────────────────────────────────────────────────────
@@ -62,7 +98,6 @@ export async function action({ request }) {
   const formData = await request.formData();
   const intent   = formData.get('intent');
 
-  // ── Archive / Unarchive ──────────────────────────────────────────────────
   if (intent === 'archive' || intent === 'unarchive') {
     requirePermission(portalUser.role, 'editCampaign');
     const id       = parseInt(formData.get('campaignId'));
@@ -74,7 +109,6 @@ export async function action({ request }) {
     return null;
   }
 
-  // ── Delete ───────────────────────────────────────────────────────────────
   if (intent === 'delete') {
     requirePermission(portalUser.role, 'deleteCampaign');
     const id       = parseInt(formData.get('campaignId'));
@@ -91,20 +125,27 @@ export async function action({ request }) {
   const title         = String(formData.get('title') || '').trim();
   const budgetRaw     = formData.get('budget');
   const budget        = budgetRaw ? parseFloat(budgetRaw) : null;
-  const productIds    = formData.getAll('productIds');
-  const productNames  = formData.getAll('productNames');
-  const productImages = formData.getAll('productImages');
+  const startDateRaw  = formData.get('startDate');
+  const endDateRaw    = formData.get('endDate');
+  const startDate     = startDateRaw ? new Date(startDateRaw) : null;
+  const endDate       = endDateRaw   ? new Date(endDateRaw)   : null;
+
+  const productIds       = formData.getAll('productIds');
+  const productNames     = formData.getAll('productNames');
+  const productImages    = formData.getAll('productImages');
+  const productAllocs    = formData.getAll('productAllocs'); // allocatedUnits per product
 
   if (!title) return { error: 'Campaign title is required.' };
 
   const campaign = await prisma.campaign.create({
     data: {
-      shop, title, budget,
+      shop, title, budget, startDate, endDate,
       products: {
         create: productIds.map((productId, i) => ({
           productId,
-          productName: productNames[i] || '',
-          imageUrl:    productImages[i] || null,
+          productName:    productNames[i]  || '',
+          imageUrl:       productImages[i] || null,
+          allocatedUnits: productAllocs[i] ? parseInt(productAllocs[i]) : null,
         })),
       },
     },
@@ -117,9 +158,12 @@ export async function action({ request }) {
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function PortalCampaigns() {
   const { campaigns, shopifyProducts, showArchived, canCreate, canDelete } = useLoaderData();
+  const actionData = useActionData();
   const { t } = useT();
+
   const [showForm,      setShowForm]      = useState(false);
   const [productSearch, setProductSearch] = useState('');
+  // selectedProds: array of { id, name, image, allocatedUnits: number|'' }
   const [selectedProds, setSelectedProds] = useState([]);
 
   const filteredProducts = shopifyProducts.filter(p =>
@@ -127,17 +171,35 @@ export default function PortalCampaigns() {
   );
 
   function toggleProduct(prod) {
-    setSelectedProds(prev =>
-      prev.find(p => p.id === prod.id)
-        ? prev.filter(p => p.id !== prod.id)
-        : [...prev, prod]
-    );
+    setSelectedProds(prev => {
+      const exists = prev.find(p => p.id === prod.id);
+      if (exists) return prev.filter(p => p.id !== prod.id);
+      return [...prev, { id: prod.id, name: prod.name, image: prod.image, allocatedUnits: '' }];
+    });
+  }
+
+  function setAlloc(prodId, val) {
+    setSelectedProds(prev => prev.map(p => p.id === prodId ? { ...p, allocatedUnits: val } : p));
   }
 
   function handleCancel() {
     setShowForm(false);
     setSelectedProds([]);
     setProductSearch('');
+  }
+
+  const ALLOC_COLORS = {
+    ok:   { bg: 'rgba(16,185,129,0.08)', text: '#10B981', bar: '#10B981' },
+    warn: { bg: 'rgba(245,158,11,0.10)', text: '#D97706', bar: '#F59E0B' },
+    over: { bg: 'rgba(239,68,68,0.08)',  text: '#DC2626', bar: '#EF4444' },
+  };
+
+  function allocState(used, allocated) {
+    if (!allocated) return null;
+    const pct = (used / allocated) * 100;
+    if (pct >= 100) return 'over';
+    if (pct >= 80)  return 'warn';
+    return 'ok';
   }
 
   return (
@@ -163,7 +225,7 @@ export default function PortalCampaigns() {
         )}
       </div>
 
-      {/* ── Create form ────────────────────────────────────────── */}
+      {/* ── Create form ─────────────────────────────────────────── */}
       {showForm && canCreate && (
         <div style={{ backgroundColor: D.surface, border: `1px solid ${D.accent}`, borderRadius: '12px', padding: '24px', boxShadow: D.shadow }}>
           <Form method="post" onSubmit={handleCancel}>
@@ -173,30 +235,41 @@ export default function PortalCampaigns() {
                 <input type="hidden" name="productIds"    value={p.id} />
                 <input type="hidden" name="productNames"  value={p.name} />
                 <input type="hidden" name="productImages" value={p.image ?? ''} />
+                <input type="hidden" name="productAllocs" value={p.allocatedUnits ?? ''} />
               </span>
             ))}
 
             {/* Title + Budget */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
               <div>
-                <label style={{ fontSize: '11px', fontWeight: '700', color: D.textMuted, textTransform: 'uppercase', letterSpacing: '0.6px', display: 'block', marginBottom: '6px' }}>
-                  {t('campaigns.form.title')}
-                </label>
+                <label style={labelStyle}>{t('campaigns.form.title')}</label>
                 <input name="title" required placeholder={t('campaigns.form.titlePlaceholder')} autoFocus
                   style={{ ...input.base, width: '100%', boxSizing: 'border-box' }} />
               </div>
               <div>
-                <label style={{ fontSize: '11px', fontWeight: '700', color: D.textMuted, textTransform: 'uppercase', letterSpacing: '0.6px', display: 'block', marginBottom: '6px' }}>
-                  {t('campaigns.form.budget')}
-                </label>
+                <label style={labelStyle}>{t('campaigns.form.budget')}</label>
                 <input name="budget" type="number" min="0" step="0.01" placeholder={t('campaigns.form.budgetPlaceholder')}
+                  style={{ ...input.base, width: '100%', boxSizing: 'border-box' }} />
+              </div>
+            </div>
+
+            {/* Dates */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+              <div>
+                <label style={labelStyle}>{t('campaigns.form.startDate')}</label>
+                <input name="startDate" type="date"
+                  style={{ ...input.base, width: '100%', boxSizing: 'border-box' }} />
+              </div>
+              <div>
+                <label style={labelStyle}>{t('campaigns.form.endDate')}</label>
+                <input name="endDate" type="date"
                   style={{ ...input.base, width: '100%', boxSizing: 'border-box' }} />
               </div>
             </div>
 
             {/* Product picker */}
             <div style={{ marginBottom: '20px' }}>
-              <label style={{ fontSize: '11px', fontWeight: '700', color: D.textMuted, textTransform: 'uppercase', letterSpacing: '0.6px', display: 'block', marginBottom: '8px' }}>
+              <label style={labelStyle}>
                 {t('campaigns.form.products')} {selectedProds.length > 0 && <span style={{ color: D.accent }}>({t('campaigns.form.productsSelected', { count: selectedProds.length })})</span>}
               </label>
               <input
@@ -209,7 +282,7 @@ export default function PortalCampaigns() {
                   {t('campaigns.form.noProducts')}
                 </div>
               ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '8px', maxHeight: '320px', overflowY: 'auto', padding: '2px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '8px', maxHeight: '280px', overflowY: 'auto', padding: '2px' }}>
                   {filteredProducts.map(prod => {
                     const selected = selectedProds.some(p => p.id === prod.id);
                     return (
@@ -222,15 +295,15 @@ export default function PortalCampaigns() {
                           transition: 'all 0.12s', position: 'relative',
                         }}>
                         {selected && (
-                          <div style={{ position: 'absolute', top: '6px', right: '6px', width: '18px', height: '18px', borderRadius: '50%', backgroundColor: D.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '900', color: '#000', zIndex: 1 }}>
+                          <div style={{ position: 'absolute', top: '5px', right: '5px', width: '18px', height: '18px', borderRadius: '50%', backgroundColor: D.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '900', color: '#fff', zIndex: 1 }}>
                             ✓
                           </div>
                         )}
                         {prod.image
                           ? <img src={prod.image} alt={prod.name} style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block' }} />
-                          : <div style={{ width: '100%', aspectRatio: '1', backgroundColor: D.surfaceHigh, display: 'flex', alignItems: 'center', justifyContent: 'center', color: D.textMuted, fontSize: '24px' }}>📦</div>
+                          : <div style={{ width: '100%', aspectRatio: '1', backgroundColor: D.surfaceHigh, display: 'flex', alignItems: 'center', justifyContent: 'center', color: D.textMuted, fontSize: '22px' }}>📦</div>
                         }
-                        <div style={{ padding: '6px 8px' }}>
+                        <div style={{ padding: '5px 7px' }}>
                           <div style={{ fontSize: '11px', fontWeight: '700', color: D.text, lineHeight: 1.3, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
                             {prod.name}
                           </div>
@@ -242,7 +315,43 @@ export default function PortalCampaigns() {
               )}
             </div>
 
-            {/* Submit */}
+            {/* Per-product allocation inputs */}
+            {selectedProds.length > 0 && (
+              <div style={{ marginBottom: '20px' }}>
+                <label style={labelStyle}>{t('campaigns.form.allocations')}</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {selectedProds.map(p => (
+                    <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 12px', backgroundColor: D.bg, borderRadius: '8px', border: `1px solid ${D.border}` }}>
+                      {p.image && <img src={p.image} alt={p.name} style={{ width: '30px', height: '30px', objectFit: 'cover', borderRadius: '5px', flexShrink: 0 }} />}
+                      <span style={{ flex: 1, fontSize: '13px', fontWeight: '600', color: D.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {p.name}
+                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                        <label style={{ fontSize: '11px', color: D.textMuted, whiteSpace: 'nowrap' }}>{t('campaigns.form.maxUnits')}</label>
+                        <input
+                          type="number" min="1" step="1"
+                          placeholder="—"
+                          value={p.allocatedUnits}
+                          onChange={e => setAlloc(p.id, e.target.value)}
+                          onClick={e => e.stopPropagation()}
+                          style={{ ...input.base, width: '72px', textAlign: 'center', padding: '5px 8px' }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ fontSize: '11px', color: D.textMuted, marginTop: '6px' }}>
+                  {t('campaigns.form.allocationsHint')}
+                </div>
+              </div>
+            )}
+
+            {actionData?.error && (
+              <div style={{ padding: '10px 14px', backgroundColor: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '8px', color: '#DC2626', fontSize: '13px', marginBottom: '12px' }}>
+                {actionData.error}
+              </div>
+            )}
+
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', paddingTop: '4px', borderTop: `1px solid ${D.border}` }}>
               <button type="button" onClick={handleCancel}
                 style={{ padding: '9px 18px', borderRadius: '8px', border: `1px solid ${D.border}`, backgroundColor: 'transparent', color: D.textSub, cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
@@ -265,64 +374,121 @@ export default function PortalCampaigns() {
         </div>
       ) : (
         <div style={{ display: 'grid', gap: '12px' }}>
-          {campaigns.map(c => (
-            <div key={c.id} style={{
-              backgroundColor: D.surface, border: `1px solid ${D.border}`,
-              borderRadius: '12px', padding: '18px 20px', boxShadow: D.shadow,
-              display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'center', gap: '16px',
-              opacity: c.archived ? 0.65 : 1,
-            }}>
-              <Link to={`/portal/campaigns/${c.id}`} style={{ textDecoration: 'none', minWidth: 0 }}>
-                <div style={{ fontSize: '15px', fontWeight: '800', color: D.text, marginBottom: '5px' }}>{c.title}</div>
-                <div style={{ fontSize: '12px', color: D.textSub, display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                  <span>{c._count.seedings} {c._count.seedings === 1 ? t('campaigns.seedings_one') : t('campaigns.seedings_other')}</span>
-                  <span>{c.products.length} {c.products.length === 1 ? t('campaigns.products_one') : t('campaigns.products_other')}</span>
-                  {c.budget != null && <span style={{ color: D.accent, fontWeight: '700' }}>{t('campaigns.budget', { amount: fmtNum(c.budget) })}</span>}
-                  <span>{fmtDate(c.createdAt, 'medium')}</span>
-                </div>
-                {c.products.length > 0 && (
-                  <div style={{ marginTop: '10px', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                    {c.products.map(p => (
-                      <div key={p.id} style={{
-                        display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: D.textSub,
-                        backgroundColor: D.bg, border: `1px solid ${D.borderLight}`, borderRadius: '6px', padding: '3px 8px',
-                      }}>
-                        {p.imageUrl && <img src={p.imageUrl} alt={p.productName} style={{ width: '16px', height: '16px', objectFit: 'cover', borderRadius: '3px' }} />}
-                        {p.productName}
+          {campaigns.map(c => {
+            const budgetPct   = c.budget ? Math.min(100, (c.budgetUsed / c.budget) * 100) : null;
+            const budgetOver  = c.budget && c.budgetUsed > c.budget;
+            const hasAllocs   = c.products.some(p => p.allocatedUnits != null);
+            const allocFull   = hasAllocs && c.products.some(p => p.allocatedUnits != null && p.usedUnits >= p.allocatedUnits);
+
+            return (
+              <div key={c.id} style={{
+                backgroundColor: D.surface, border: `1px solid ${D.border}`,
+                borderRadius: '12px', padding: '18px 20px', boxShadow: D.shadow,
+                opacity: c.archived ? 0.65 : 1,
+              }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'start', gap: '16px' }}>
+                  <Link to={`/portal/campaigns/${c.id}`} style={{ textDecoration: 'none', minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '5px' }}>
+                      <span style={{ fontSize: '15px', fontWeight: '800', color: D.text }}>{c.title}</span>
+                      {allocFull && <span style={{ fontSize: '10px', fontWeight: '700', color: '#DC2626', backgroundColor: 'rgba(239,68,68,0.1)', borderRadius: '99px', padding: '2px 8px' }}>FULL</span>}
+                      {budgetOver && <span style={{ fontSize: '10px', fontWeight: '700', color: '#D97706', backgroundColor: 'rgba(245,158,11,0.1)', borderRadius: '99px', padding: '2px 8px' }}>OVER BUDGET</span>}
+                    </div>
+                    <div style={{ fontSize: '12px', color: D.textSub, display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                      <span>{c._count.seedings} {c._count.seedings === 1 ? t('campaigns.seedings_one') : t('campaigns.seedings_other')}</span>
+                      <span>{c.products.length} {c.products.length === 1 ? t('campaigns.products_one') : t('campaigns.products_other')}</span>
+                      {c.budget != null && (
+                        <span style={{ color: budgetOver ? '#DC2626' : D.accent, fontWeight: '700' }}>
+                          €{fmtNum(c.budgetUsed)} / €{fmtNum(c.budget)}
+                        </span>
+                      )}
+                      {c.startDate && <span>{fmtDate(c.startDate, 'short')} – {c.endDate ? fmtDate(c.endDate, 'short') : '…'}</span>}
+                      {!c.startDate && <span>{fmtDate(c.createdAt, 'medium')}</span>}
+                    </div>
+
+                    {/* Budget bar */}
+                    {budgetPct !== null && (
+                      <div style={{ height: '3px', backgroundColor: D.border, borderRadius: '99px', marginTop: '8px', overflow: 'hidden', maxWidth: '240px' }}>
+                        <div style={{ height: '100%', width: `${Math.min(budgetPct, 100)}%`, backgroundColor: budgetOver ? '#EF4444' : budgetPct >= 80 ? '#F59E0B' : D.accent, borderRadius: '99px' }} />
                       </div>
-                    ))}
-                  </div>
-                )}
-              </Link>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                <Link to={`/portal/campaigns/${c.id}`} style={{ fontSize: '13px', color: D.accent, fontWeight: '700', textDecoration: 'none' }}>{t('campaigns.view')}</Link>
-                {canDelete && (
-                  <>
-                    <Form method="post">
-                      <input type="hidden" name="intent" value={c.archived ? 'unarchive' : 'archive'} />
-                      <input type="hidden" name="campaignId" value={c.id} />
-                      <button type="submit" title={c.archived ? t('common.unarchive') : t('common.archive')}
-                        style={{ background: 'none', border: `1px solid ${D.border}`, borderRadius: '6px', color: D.textMuted, cursor: 'pointer', fontSize: '12px', fontWeight: '600', padding: '4px 10px', whiteSpace: 'nowrap' }}>
-                        {c.archived ? t('common.restore') : t('campaigns.archive')}
-                      </button>
-                    </Form>
-                    {c.archived && (
-                      <Form method="post" onSubmit={e => { if (!confirm(`Permanently delete "${c.title}"? This cannot be undone.`)) e.preventDefault(); }}>
-                        <input type="hidden" name="intent" value="delete" />
-                        <input type="hidden" name="campaignId" value={c.id} />
-                        <button type="submit" title={t('campaign.delete')}
-                          style={{ background: 'none', border: `1px solid ${D.errorText}`, borderRadius: '6px', color: D.errorText, cursor: 'pointer', fontSize: '12px', fontWeight: '600', padding: '4px 10px' }}>
-                          {t('campaign.delete')}
-                        </button>
-                      </Form>
                     )}
-                  </>
-                )}
+
+                    {/* Product chips with allocation */}
+                    {c.products.length > 0 && (
+                      <div style={{ marginTop: '10px', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                        {c.products.map(p => {
+                          const state = allocState(p.usedUnits, p.allocatedUnits);
+                          const col   = state ? ALLOC_COLORS[state] : null;
+                          return (
+                            <div key={p.id} style={{
+                              display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px',
+                              backgroundColor: col ? col.bg : D.bg,
+                              border: `1px solid ${col ? col.text + '40' : D.borderLight}`,
+                              borderRadius: '6px', padding: '3px 8px',
+                              color: col ? col.text : D.textSub,
+                              fontWeight: state && state !== 'ok' ? '700' : '500',
+                            }}>
+                              {p.imageUrl && <img src={p.imageUrl} alt={p.productName} style={{ width: '14px', height: '14px', objectFit: 'cover', borderRadius: '3px' }} />}
+                              {p.productName}
+                              {p.allocatedUnits != null && (
+                                <span style={{ opacity: 0.85 }}>· {p.usedUnits}/{p.allocatedUnits}</span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </Link>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                    <Link to={`/portal/campaigns/${c.id}`} style={{ fontSize: '13px', color: D.accent, fontWeight: '700', textDecoration: 'none' }}>{t('campaigns.view')}</Link>
+                    {canDelete && (
+                      <>
+                        <Form method="post">
+                          <input type="hidden" name="intent" value={c.archived ? 'unarchive' : 'archive'} />
+                          <input type="hidden" name="campaignId" value={c.id} />
+                          <button type="submit"
+                            style={{ background: 'none', border: `1px solid ${D.border}`, borderRadius: '6px', color: D.textMuted, cursor: 'pointer', fontSize: '12px', fontWeight: '600', padding: '4px 10px', whiteSpace: 'nowrap' }}>
+                            {c.archived ? t('common.restore') : t('campaigns.archive')}
+                          </button>
+                        </Form>
+                        {c.archived && (
+                          <Form method="post" onSubmit={e => { if (!confirm(`Permanently delete "${c.title}"? This cannot be undone.`)) e.preventDefault(); }}>
+                            <input type="hidden" name="intent" value="delete" />
+                            <input type="hidden" name="campaignId" value={c.id} />
+                            <button type="submit"
+                              style={{ background: 'none', border: `1px solid ${D.errorText}`, borderRadius: '6px', color: D.errorText, cursor: 'pointer', fontSize: '12px', fontWeight: '600', padding: '4px 10px' }}>
+                              {t('campaign.delete')}
+                            </button>
+                          </Form>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
   );
+}
+
+const labelStyle = {
+  fontSize: '11px', fontWeight: '700', color: D.textMuted,
+  textTransform: 'uppercase', letterSpacing: '0.6px',
+  display: 'block', marginBottom: '6px',
+};
+
+const ALLOC_COLORS = {
+  ok:   { bg: 'rgba(16,185,129,0.08)', text: '#10B981' },
+  warn: { bg: 'rgba(245,158,11,0.10)', text: '#D97706' },
+  over: { bg: 'rgba(239,68,68,0.08)',  text: '#DC2626' },
+};
+function allocState(used, allocated) {
+  if (!allocated) return null;
+  const pct = (used / allocated) * 100;
+  if (pct >= 100) return 'over';
+  if (pct >= 80)  return 'warn';
+  return 'ok';
 }

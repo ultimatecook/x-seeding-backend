@@ -394,16 +394,21 @@
     "view":          "Ver →",
     "archive":       "⬜ Archivar",
     "form": {
-      "title":            "Título de Campaña *",
-      "titlePlaceholder": "p. ej. Colección Verano 2025",
-      "budget":           "Presupuesto Total (€) — Opcional",
+      "title":             "Título de Campaña *",
+      "titlePlaceholder":  "p. ej. Colección Verano 2025",
+      "budget":            "Presupuesto Total (€) — Opcional",
       "budgetPlaceholder": "p. ej. 2000",
-      "products":         "Seleccionar Productos",
-      "productsSelected": "{count} seleccionado(s)",
-      "searchProducts":   "Buscar productos…",
-      "noProducts":       "Sin productos — abre la app en el admin de Shopify para autorizar.",
-      "cancel":           "Cancelar",
-      "create":           "Crear Campaña"
+      "startDate":         "Fecha de Inicio — Opcional",
+      "endDate":           "Fecha de Fin — Opcional",
+      "products":          "Seleccionar Productos",
+      "productsSelected":  "{count} seleccionado(s)",
+      "searchProducts":    "Buscar productos…",
+      "noProducts":        "Sin productos — abre la app en el admin de Shopify para autorizar.",
+      "allocations":       "Asignación de unidades por producto",
+      "maxUnits":          "Máx. unidades",
+      "allocationsHint":   "Dejar en blanco para ilimitado. Con límite, los envíos se bloquearán al alcanzarlo.",
+      "cancel":            "Cancelar",
+      "create":            "Crear Campaña"
     }
   },
 
@@ -420,12 +425,23 @@
       "posted":      "Publicados"
     },
     "budgetUsed": "Presupuesto Usado",
+    "budgetPanel": {
+      "title":      "Presupuesto",
+      "total":      "Total",
+      "used":       "Usado",
+      "remaining":  "Restante",
+      "exceeded":   "Excedido en",
+      "overBudget": "Presupuesto superado"
+    },
     "pipeline":   "Pipeline",
     "products": {
-      "title":  "Productos de la Campaña ({count})",
-      "empty":  "No hay productos en esta campaña.",
-      "seeded": "{count} enviado(s)",
-      "max":    "/ {max} máx."
+      "title":          "Asignaciones de Producto ({count})",
+      "allocationNote": "La asignación es un límite estricto — los envíos se bloquean al alcanzarlo.",
+      "empty":          "No hay productos en esta campaña.",
+      "seeded":         "unidades enviadas",
+      "ofUnits":        "de {total} unidades usadas",
+      "remaining":      "restantes",
+      "fullAlert":      "LLENO — límite alcanzado"
     },
     "seedings": {
       "title":       "Envíos ({count})",
