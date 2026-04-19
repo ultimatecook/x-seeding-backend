@@ -1,4 +1,4 @@
-import { Outlet, useNavigate, useLocation, useRouteError, useLoaderData } from 'react-router';
+import { Outlet, Link, useLocation, useRouteError, useLoaderData } from 'react-router';
 import { useEffect } from 'react';
 import { authenticate } from '../shopify.server';
 import { boundary } from '@shopify/shopify-app-react-router/server';
@@ -20,7 +20,6 @@ export async function loader({ request }) {
 
 export default function AppLayout() {
   const { apiKey } = useLoaderData();
-  const navigate = useNavigate();
   const { pathname } = useLocation();
 
   useEffect(() => {
@@ -45,16 +44,9 @@ export default function AppLayout() {
     return () => {
       window.fetch = orig;
     };
-  }, [navigate]);
+  }, []);
 
   const isSettings = pathname.startsWith('/app/settings');
-
-  // For internal /app/* routes always use React Router's client-side navigate.
-  // window.shopify.navigate causes a full-frame reload that bypasses the router
-  // and silently fails inside the Shopify admin iframe.
-  function go(path) {
-    navigate(path);
-  }
 
   return (
     <AppProvider embedded apiKey={apiKey}>
@@ -76,8 +68,11 @@ export default function AppLayout() {
           alignItems: 'center',
           gap: '4px',
         }}>
-          <button onClick={() => go('/app')} style={tabStyle(!isSettings)}>Dashboard</button>
-          <button onClick={() => go('/app/settings')} style={tabStyle(isSettings)}>Team &amp; Access</button>
+          {/* Use Link (anchor) not button+navigate — programmatic navigate() triggers
+              App Bridge's postMessage URL-sync which fails inside the Shopify admin
+              iframe due to origin mismatch, aborting the transition entirely. */}
+          <Link to="/app" style={tabStyle(!isSettings)}>Dashboard</Link>
+          <Link to="/app/settings" style={tabStyle(isSettings)}>Team &amp; Access</Link>
         </div>
 
         <Outlet />
@@ -88,6 +83,7 @@ export default function AppLayout() {
 
 function tabStyle(isActive) {
   return {
+    display: 'inline-block',
     padding: '14px 16px',
     fontSize: '13px',
     fontWeight: isActive ? '700' : '500',
@@ -100,6 +96,7 @@ function tabStyle(isActive) {
     transition: 'color 0.12s',
     whiteSpace: 'nowrap',
     fontFamily: 'inherit',
+    textDecoration: 'none',
   };
 }
 
