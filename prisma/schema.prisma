@@ -96,6 +96,7 @@ model Influencer {
   createdAt   DateTime             @default(now())
   seedings    Seeding[]
   savedSizes  InfluencerSavedSize[]
+  guestSlots  CampaignGuest[]
 
   @@index([shop])
   @@index([shop, archived])
@@ -223,19 +224,24 @@ model AuditLog {
 }
 
 model Campaign {
-  id           Int                @id @default(autoincrement())
-  shop         String
-  title        String
-  budget       Float?
-  startDate    DateTime?
-  endDate      DateTime?
-  archived     Boolean            @default(false)
-  createdAt    DateTime           @default(now())
-  products     CampaignProduct[]
-  seedings     Seeding[]
+  id            Int                @id @default(autoincrement())
+  shop          String
+  title         String
+  type          String             @default("seeding") // "seeding" | "event"
+  budget        Float?
+  startDate     DateTime?
+  endDate       DateTime?
+  eventDate     DateTime?          // for type="event"
+  eventLocation String?            // for type="event"
+  archived      Boolean            @default(false)
+  createdAt     DateTime           @default(now())
+  products      CampaignProduct[]
+  seedings      Seeding[]
+  guests        CampaignGuest[]
 
   @@index([shop])
   @@index([shop, archived])
+  @@index([shop, type])
 }
 
 model CampaignProduct {
@@ -248,6 +254,38 @@ model CampaignProduct {
   allocatedUnits Int?     // hard limit — block seeding creation when exceeded
 
   @@index([campaignId])
+}
+
+model CampaignGuest {
+  id           Int           @id @default(autoincrement())
+  campaignId   Int
+  campaign     Campaign      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  influencerId Int?
+  influencer   Influencer?   @relation(fields: [influencerId], references: [id], onDelete: SetNull)
+  name         String
+  email        String?
+  status       String        @default("invited") // "invited" | "confirmed" | "attended"
+  seedingId    Int?          // set when converted to a seeding
+  notes        String?
+  createdAt    DateTime      @default(now())
+  items        GuestItem[]
+
+  @@index([campaignId])
+  @@index([influencerId])
+}
+
+model GuestItem {
+  id          Int           @id @default(autoincrement())
+  guestId     Int
+  guest       CampaignGuest @relation(fields: [guestId], references: [id], onDelete: Cascade)
+  productId   String        // Shopify product GID
+  productName String
+  imageUrl    String?
+  price       Float         @default(0)
+  quantity    Int           @default(1)
+  fulfilled   Boolean       @default(false)
+
+  @@index([guestId])
 }
 
 // ── Inventory source rules ────────────────────────────────────────────────────

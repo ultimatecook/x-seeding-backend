@@ -199,7 +199,31 @@ export async function loader({ request }) {
     where: { shop, poolType: 'Product', status: 'Available' },
   });
 
-  return { products, productsError, collections: collectionsData, influencers, campaigns, recentlySeededMap, allSavedSizes, shop, enabledLocations, availableProductCodes };
+  // ── Guest pre-fill (when coming from "Create seeding" on a campaign guest) ──
+  const url          = new URL(request.url);
+  const guestIdParam = url.searchParams.get('guestId');
+  let prefillGuest   = null;
+  if (guestIdParam) {
+    try {
+      const guest = await prisma.campaignGuest.findUnique({
+        where:   { id: parseInt(guestIdParam) },
+        include: { items: true, influencer: true, campaign: { select: { id: true, shop: true } } },
+      });
+      if (guest && guest.campaign.shop === shop) {
+        prefillGuest = {
+          id:           guest.id,
+          campaignId:   guest.campaignId,
+          influencerId: guest.influencerId,
+          influencer:   guest.influencer,
+          items:        guest.items,
+        };
+      }
+    } catch (e) {
+      console.warn('Portal: could not load prefill guest:', e.message);
+    }
+  }
+
+  return { products, productsError, collections: collectionsData, influencers, campaigns, recentlySeededMap, allSavedSizes, shop, enabledLocations, availableProductCodes, prefillGuest };
 }
 
 // ── Action ────────────────────────────────────────────────────────────────────
@@ -342,6 +366,18 @@ export async function action({ request }) {
     },
   });
 
+  // ── Link guest to seeding if this came from a guest conversion ──────────────
+  const guestIdRaw = formData.get('guestId');
+  const guestId    = guestIdRaw ? parseInt(guestIdRaw) : null;
+  if (guestId) {
+    try {
+      await prisma.campaignGuest.update({ where: { id: guestId }, data: { seedingId: seeding.id } });
+      await prisma.guestItem.updateMany({ where: { guestId }, data: { fulfilled: true } });
+    } catch (e) {
+      console.warn('Portal: could not link guest to seeding:', e.message);
+    }
+  }
+
   // Assign discount codes from pool (best-effort — won't fail seeding creation)
   let assignedCodes = null;
   try {
@@ -391,6 +427,10 @@ export async function action({ request }) {
     };
   }
 
+  // If converted from a campaign guest, redirect back to the campaign
+  if (guestId && campaignId) {
+    return redirect(`/portal/campaigns/${campaignId}`);
+  }
   return redirect('/portal/seedings');
 }
 
@@ -444,7 +484,7 @@ function Pill({ label, active, onClick }) {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function PortalNewSeeding() {
-  const { products, productsError, collections, influencers, campaigns, recentlySeededMap, allSavedSizes, shop, enabledLocations, availableProductCodes } = useLoaderData();
+  const { products, productsError, collections, influencers, campaigns, recentlySeededMap, allSavedSizes, shop, enabledLocations, availableProductCodes, prefillGuest } = useLoaderData();
   const actionData = useActionData();
   const navigate   = useNavigate();
   const { t }      = useT();
@@ -471,6 +511,7 @@ export default function PortalNewSeeding() {
 
   const formRef          = useRef(null);
   const bypassBudgetRef  = useRef(null);
+  const prefillApplied   = useRef(false);
 
   const recentlySeedMapForInfluencer = selectedInfluencer
     ? (recentlySeededMap[selectedInfluencer.id] ?? {})
@@ -492,6 +533,70 @@ export default function PortalNewSeeding() {
       })
     );
   }, [selectedInfluencer?.id]);
+
+  // ── Pre-fill from guest when arriving via "Create seeding" button ────────────
+  useEffect(() => {
+    if (!prefillGuest || prefillApplied.current) return;
+    prefillApplied.current = true;
+
+    // Set campaign
+    if (prefillGuest.campaignId) {
+      const camp = campaigns.find(c => c.id === prefillGuest.campaignId);
+      if (camp) setSelectedCampaign(camp);
+    }
+
+    // Set influencer
+    if (prefillGuest.influencerId) {
+      const inf = influencers.find(i => i.id === prefillGuest.influencerId);
+      if (inf) setSelectedInfluencer(inf);
+    }
+
+    // Set products from guest items — match against Shopify catalogue first
+    if (prefillGuest.items?.length > 0) {
+      const sizeMapForGuest = prefillGuest.influencerId
+        ? (allSavedSizes[prefillGuest.influencerId] ?? {})
+        : {};
+      const prods = prefillGuest.items.map(item => {
+        const shopifyProd = products.find(p => p.id === item.productId);
+        if (shopifyProd) {
+          const category  = guessProductCategory(shopifyProd.name);
+          const savedSize = sizeMapForGuest[category];
+          const isOneSize = !shopifyProd.variants || shopifyProd.variants.length <= 1;
+          let matchedVariant = null;
+          let size           = null;
+          let sizeUnavailable = false;
+          if (isOneSize) {
+            matchedVariant = shopifyProd.variants?.[0] ?? null;
+            size           = 'One Size';
+          } else if (savedSize) {
+            const match = shopifyProd.variants.find(v => extractSizeFromVariant(v.title) === savedSize);
+            if (match) {
+              matchedVariant  = match;
+              size            = extractSizeFromVariant(match.title);
+              sizeUnavailable = match.available === false;
+            } else {
+              sizeUnavailable = true;
+            }
+          }
+          return { ...shopifyProd, selectedVariant: matchedVariant, category, size, sizeUnavailable };
+        }
+        // Fallback: build a minimal product object from guest item data
+        return {
+          id:              item.productId,
+          name:            item.productName,
+          image:           item.imageUrl ?? null,
+          price:           item.price ?? 0,
+          variants:        [],
+          selectedVariant: null,
+          category:        null,
+          size:            'One Size',
+          sizeUnavailable: false,
+        };
+      });
+      setSelectedProducts(prods.filter(Boolean));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Top 5 countries by influencer count
   const countryCounts = {};
@@ -672,6 +777,22 @@ export default function PortalNewSeeding() {
         <button type="button" onClick={() => navigate('/portal/seedings')} style={{ ...btn.ghost, fontSize: '13px' }}>{t('newSeeding.back')}</button>
       </div>
 
+      {/* ── Guest pre-fill banner ── */}
+      {prefillGuest && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: '10px',
+          padding: '10px 14px', marginBottom: '12px',
+          backgroundColor: 'rgba(124,111,247,0.07)', border: '1px solid rgba(124,111,247,0.25)',
+          borderRadius: '10px', fontSize: '13px', color: D.accent, fontWeight: '600',
+        }}>
+          <span>🎯</span>
+          <span>
+            Pre-filled from guest <strong>{prefillGuest.influencer?.name ?? 'guest'}</strong>
+            {prefillGuest.items?.length > 0 && ` · ${prefillGuest.items.length} item${prefillGuest.items.length !== 1 ? 's' : ''} loaded`}
+          </span>
+        </div>
+      )}
+
       {/* ── Seeding type picker ── */}
       <div style={{ display: 'flex', gap: '0', backgroundColor: D.surface, border: `1px solid ${D.border}`, borderRadius: '10px', padding: '4px', width: 'fit-content', marginBottom: '4px' }}>
         {[
@@ -725,6 +846,7 @@ export default function PortalNewSeeding() {
         <input type="hidden" name="storeLocationId"   value={selectedStore?.shopifyLocationId ?? ''} />
         <input type="hidden" name="storeLocationName" value={selectedStore?.name ?? ''} />
         <input type="hidden" name="bypassBudget"      value="0" ref={bypassBudgetRef} />
+        <input type="hidden" name="guestId"           value={prefillGuest?.id ?? ''} />
         {selectedProducts.map(p => (
           <span key={p.id}>
             <input type="hidden" name="productIds"        value={p.id} />

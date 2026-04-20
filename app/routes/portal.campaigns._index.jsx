@@ -122,13 +122,17 @@ export async function action({ request }) {
   // ── Create ───────────────────────────────────────────────────────────────
   requirePermission(portalUser.role, 'createCampaign');
 
-  const title         = String(formData.get('title') || '').trim();
-  const budgetRaw     = formData.get('budget');
-  const budget        = budgetRaw ? parseFloat(budgetRaw) : null;
-  const startDateRaw  = formData.get('startDate');
-  const endDateRaw    = formData.get('endDate');
-  const startDate     = startDateRaw ? new Date(startDateRaw) : null;
-  const endDate       = endDateRaw   ? new Date(endDateRaw)   : null;
+  const title            = String(formData.get('title') || '').trim();
+  const type             = formData.get('campaignType') === 'event' ? 'event' : 'seeding';
+  const budgetRaw        = formData.get('budget');
+  const budget           = budgetRaw ? parseFloat(budgetRaw) : null;
+  const startDateRaw     = formData.get('startDate');
+  const endDateRaw       = formData.get('endDate');
+  const startDate        = startDateRaw ? new Date(startDateRaw) : null;
+  const endDate          = endDateRaw   ? new Date(endDateRaw)   : null;
+  const eventDateRaw     = formData.get('eventDate');
+  const eventDate        = eventDateRaw ? new Date(eventDateRaw) : null;
+  const eventLocation    = formData.get('eventLocation') ? String(formData.get('eventLocation')).trim() : null;
 
   const productIds       = formData.getAll('productIds');
   const productNames     = formData.getAll('productNames');
@@ -139,7 +143,7 @@ export async function action({ request }) {
 
   const campaign = await prisma.campaign.create({
     data: {
-      shop, title, budget, startDate, endDate,
+      shop, title, type, budget, startDate, endDate, eventDate, eventLocation,
       products: {
         create: productIds.map((productId, i) => ({
           productId,
@@ -162,6 +166,7 @@ export default function PortalCampaigns() {
   const { t } = useT();
 
   const [showForm,      setShowForm]      = useState(false);
+  const [campaignType,  setCampaignType]  = useState('seeding'); // 'seeding' | 'event'
   const [productSearch, setProductSearch] = useState('');
   // selectedProds: array of { id, name, image, allocatedUnits: number|'' }
   const [selectedProds, setSelectedProds] = useState([]);
@@ -184,6 +189,7 @@ export default function PortalCampaigns() {
 
   function handleCancel() {
     setShowForm(false);
+    setCampaignType('seeding');
     setSelectedProds([]);
     setProductSearch('');
   }
@@ -238,6 +244,31 @@ export default function PortalCampaigns() {
                 <input type="hidden" name="productAllocs" value={p.allocatedUnits ?? ''} />
               </span>
             ))}
+            <input type="hidden" name="campaignType" value={campaignType} />
+
+            {/* Type toggle */}
+            <div style={{ marginBottom: '20px' }}>
+              <label style={labelStyle}>{t('campaigns.form.type')}</label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {[
+                  { value: 'seeding', label: t('campaigns.form.typeSeeding'), icon: '📦' },
+                  { value: 'event',   label: t('campaigns.form.typeEvent'),   icon: '🎯' },
+                ].map(opt => (
+                  <button key={opt.value} type="button"
+                    onClick={() => setCampaignType(opt.value)}
+                    style={{
+                      padding: '9px 20px', borderRadius: '8px', cursor: 'pointer',
+                      fontSize: '13px', fontWeight: '600',
+                      border: `2px solid ${campaignType === opt.value ? D.accent : D.border}`,
+                      backgroundColor: campaignType === opt.value ? D.accentFaint : D.surface,
+                      color: campaignType === opt.value ? D.accent : D.textSub,
+                      transition: 'all 0.12s',
+                    }}>
+                    {opt.icon} {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
 
             {/* Title + Budget */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
@@ -253,19 +284,35 @@ export default function PortalCampaigns() {
               </div>
             </div>
 
-            {/* Dates */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
-              <div>
-                <label style={labelStyle}>{t('campaigns.form.startDate')}</label>
-                <input name="startDate" type="date"
-                  style={{ ...input.base, width: '100%', boxSizing: 'border-box' }} />
+            {/* Event fields (event type only) */}
+            {campaignType === 'event' ? (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                <div>
+                  <label style={labelStyle}>{t('campaigns.form.eventDate')}</label>
+                  <input name="eventDate" type="date"
+                    style={{ ...input.base, width: '100%', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={labelStyle}>{t('campaigns.form.eventLocation')}</label>
+                  <input name="eventLocation" type="text" placeholder={t('campaigns.form.eventLocationPlaceholder')}
+                    style={{ ...input.base, width: '100%', boxSizing: 'border-box' }} />
+                </div>
               </div>
-              <div>
-                <label style={labelStyle}>{t('campaigns.form.endDate')}</label>
-                <input name="endDate" type="date"
-                  style={{ ...input.base, width: '100%', boxSizing: 'border-box' }} />
+            ) : (
+              /* Seeding dates */
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                <div>
+                  <label style={labelStyle}>{t('campaigns.form.startDate')}</label>
+                  <input name="startDate" type="date"
+                    style={{ ...input.base, width: '100%', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={labelStyle}>{t('campaigns.form.endDate')}</label>
+                  <input name="endDate" type="date"
+                    style={{ ...input.base, width: '100%', boxSizing: 'border-box' }} />
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Product picker */}
             <div style={{ marginBottom: '20px' }}>
@@ -388,8 +435,11 @@ export default function PortalCampaigns() {
               }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'start', gap: '16px' }}>
                   <Link to={`/portal/campaigns/${c.id}`} style={{ textDecoration: 'none', minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '5px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '5px', flexWrap: 'wrap' }}>
                       <span style={{ fontSize: '15px', fontWeight: '800', color: D.text }}>{c.title}</span>
+                      {c.type === 'event' && (
+                        <span style={{ fontSize: '10px', fontWeight: '700', color: '#7C3AED', backgroundColor: 'rgba(124,58,237,0.1)', borderRadius: '99px', padding: '2px 8px' }}>🎯 EVENT</span>
+                      )}
                       {allocFull && <span style={{ fontSize: '10px', fontWeight: '700', color: '#DC2626', backgroundColor: 'rgba(239,68,68,0.1)', borderRadius: '99px', padding: '2px 8px' }}>FULL</span>}
                       {budgetOver && <span style={{ fontSize: '10px', fontWeight: '700', color: '#D97706', backgroundColor: 'rgba(245,158,11,0.1)', borderRadius: '99px', padding: '2px 8px' }}>OVER BUDGET</span>}
                     </div>
@@ -401,8 +451,11 @@ export default function PortalCampaigns() {
                           €{fmtNum(c.budgetUsed)} / €{fmtNum(c.budget)}
                         </span>
                       )}
-                      {c.startDate && <span>{fmtDate(c.startDate, 'short')} – {c.endDate ? fmtDate(c.endDate, 'short') : '…'}</span>}
-                      {!c.startDate && <span>{fmtDate(c.createdAt, 'medium')}</span>}
+                      {c.type === 'event' && c.eventDate && (
+                        <span>📅 {fmtDate(c.eventDate, 'short')}{c.eventLocation ? ` · ${c.eventLocation}` : ''}</span>
+                      )}
+                      {c.type !== 'event' && c.startDate && <span>{fmtDate(c.startDate, 'short')} – {c.endDate ? fmtDate(c.endDate, 'short') : '…'}</span>}
+                      {c.type !== 'event' && !c.startDate && <span>{fmtDate(c.createdAt, 'medium')}</span>}
                     </div>
 
                     {/* Budget bar */}
