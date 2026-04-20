@@ -133,6 +133,8 @@ model Seeding {
   storeLocationName    String?          // Denormalised store name for display
   status               String           @default("Pending")
   trackingNumber       String?
+  trackingUrl          String?
+  trackingCarrier      String?
   notes                String?
   shippingAddress      String?
   totalCost            Float            @default(0)

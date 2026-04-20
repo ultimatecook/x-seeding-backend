@@ -74,9 +74,19 @@ export async function action({ request }) {
     // ── Fulfillment center creates a shipment → Shipped ──────────────────────
     case 'FULFILLMENTS_CREATE': {
       if (data.order_id) {
+        // Extract tracking info from the fulfillment payload
+        const trackingNumber  = data.tracking_number  ?? null;
+        const trackingUrl     = data.tracking_url     ?? (data.tracking_urls?.[0] ?? null);
+        const trackingCarrier = data.tracking_company ?? null;
+
         await prisma.seeding.updateMany({
           where: { shopifyOrderName: `#${data.order_id}`, status: 'Ordered' },
-          data: { status: 'Shipped' },
+          data: {
+            status: 'Shipped',
+            ...(trackingNumber  ? { trackingNumber }  : {}),
+            ...(trackingUrl     ? { trackingUrl }     : {}),
+            ...(trackingCarrier ? { trackingCarrier } : {}),
+          },
         });
       }
       break;
@@ -84,11 +94,24 @@ export async function action({ request }) {
 
     // ── Carrier confirms delivery → Delivered ────────────────────────────────
     case 'FULFILLMENTS_UPDATE': {
-      if (data.order_id && data.shipment_status === 'delivered') {
-        await prisma.seeding.updateMany({
-          where: { shopifyOrderName: `#${data.order_id}`, status: 'Shipped' },
-          data: { status: 'Delivered' },
-        });
+      if (data.order_id) {
+        const trackingNumber  = data.tracking_number  ?? null;
+        const trackingUrl     = data.tracking_url     ?? (data.tracking_urls?.[0] ?? null);
+        const trackingCarrier = data.tracking_company ?? null;
+
+        const updateData = {
+          ...(data.shipment_status === 'delivered' ? { status: 'Delivered' } : {}),
+          ...(trackingNumber  ? { trackingNumber }  : {}),
+          ...(trackingUrl     ? { trackingUrl }     : {}),
+          ...(trackingCarrier ? { trackingCarrier } : {}),
+        };
+
+        if (Object.keys(updateData).length > 0) {
+          await prisma.seeding.updateMany({
+            where: { shopifyOrderName: `#${data.order_id}` },
+            data: updateData,
+          });
+        }
       }
       break;
     }

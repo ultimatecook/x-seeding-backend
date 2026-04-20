@@ -50,7 +50,8 @@ export async function loader({ request }) {
     prisma.seeding.findMany({
       where,
       select: {
-        id: true, status: true, trackingNumber: true, totalCost: true, createdAt: true,
+        id: true, status: true, trackingNumber: true, trackingUrl: true, trackingCarrier: true,
+        totalCost: true, createdAt: true,
         invoiceUrl: true, shopifyOrderName: true, shippingAddress: true,
         seedingType: true, storeLocationName: true,
         productDiscountCode: true, shippingDiscountCode: true,
@@ -280,15 +281,37 @@ export default function PortalSeedings() {
                       </td>
                       <td style={{ padding: '12px 14px' }}>
                         {canEdit ? (
-                          <Form method="post">
-                            <input type="hidden" name="intent" value="updateTracking" />
-                            <input type="hidden" name="id" value={s.id} />
-                            <input type="text" name="trackingNumber" defaultValue={s.trackingNumber || ''} placeholder="Add tracking…"
-                              onBlur={e => e.target.form.requestSubmit()}
-                              style={{ width: '120px', padding: '4px 8px', border: `1px solid ${D.border}`, borderRadius: '6px', fontSize: '12px', color: D.text, backgroundColor: D.bg }} />
-                          </Form>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <Form method="post">
+                              <input type="hidden" name="intent" value="updateTracking" />
+                              <input type="hidden" name="id" value={s.id} />
+                              <input type="text" name="trackingNumber" defaultValue={s.trackingNumber || ''} placeholder="Add tracking…"
+                                onBlur={e => e.target.form.requestSubmit()}
+                                style={{ width: '120px', padding: '4px 8px', border: `1px solid ${D.border}`, borderRadius: '6px', fontSize: '12px', color: D.text, backgroundColor: D.bg }} />
+                            </Form>
+                            {s.trackingUrl ? (
+                              <a href={s.trackingUrl} target="_blank" rel="noopener noreferrer"
+                                style={{ fontSize: '11px', color: D.accent, fontWeight: '600', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                                {s.trackingCarrier ? `${s.trackingCarrier} ↗` : 'Track ↗'}
+                              </a>
+                            ) : s.trackingCarrier ? (
+                              <span style={{ fontSize: '11px', color: D.textMuted }}>{s.trackingCarrier}</span>
+                            ) : null}
+                          </div>
                         ) : (
-                          <span style={{ fontSize: '12px', color: D.textSub }}>{s.trackingNumber || '—'}</span>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                            {s.trackingNumber && (
+                              <span style={{ fontSize: '12px', color: D.textSub }}>{s.trackingNumber}</span>
+                            )}
+                            {s.trackingUrl ? (
+                              <a href={s.trackingUrl} target="_blank" rel="noopener noreferrer"
+                                style={{ fontSize: '11px', color: D.accent, fontWeight: '600', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                                {s.trackingCarrier ? `${s.trackingCarrier} ↗` : 'Track ↗'}
+                              </a>
+                            ) : !s.trackingNumber ? (
+                              <span style={{ fontSize: '11px', color: D.textMuted, fontStyle: 'italic' }}>No tracking available</span>
+                            ) : null}
+                          </div>
                         )}
                       </td>
                       <td style={{ padding: '12px 14px' }}>
