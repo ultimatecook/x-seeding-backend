@@ -257,4 +257,46 @@ export const PORTAL_THEME_CSS = `
 
   /* Images — slight dim in dark mode */
   [data-portal-theme="dark"] img { opacity: 0.92; }
+
+  /* ── Button interaction states ──────────────────────────────────────────── */
+
+  /* Override global * transition to include filter + transform for buttons */
+  [data-portal-theme] button {
+    -webkit-tap-highlight-color: transparent;
+    transition:
+      background-color 0.15s ease,
+      border-color     0.15s ease,
+      color            0.12s ease,
+      box-shadow       0.15s ease,
+      filter           0.15s ease,
+      transform        0.12s ease;
+  }
+
+  /* Remove default browser outline — we add our own below */
+  [data-portal-theme] button:focus { outline: none; }
+
+  /* Hover — subtle brightness drop works for all background types */
+  [data-portal-theme] button:hover:not(:disabled) {
+    filter: brightness(0.92);
+  }
+
+  /* Active — tactile press feel */
+  [data-portal-theme] button:active:not(:disabled) {
+    filter: brightness(0.85);
+    transform: scale(0.98);
+    transition-duration: 0.06s;
+  }
+
+  /* Focus-visible — clean brand ring, only on keyboard nav */
+  [data-portal-theme] button:focus-visible:not(:disabled) {
+    outline: 2px solid rgba(124, 111, 247, 0.45);
+    outline-offset: 2px;
+  }
+
+  /* Disabled — no hover effects */
+  [data-portal-theme] button:disabled {
+    cursor: not-allowed;
+    filter: none;
+    transform: none;
+  }
 `;
