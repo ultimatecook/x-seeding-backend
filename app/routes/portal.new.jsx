@@ -318,59 +318,40 @@ export async function action({ request }) {
       if (!session) session = await prisma.session.findFirst({ where: { shop, isOnline: false }, orderBy: { expires: 'desc' } });
       if (!session) session = await prisma.session.findFirst({ where: { shop }, orderBy: { expires: 'desc' } });
       if (session?.accessToken) {
-        const locationId = await getPrimaryLocationId(shop);
-        const lineItems  = variantIds.filter(v => v && v.length > 0).map(variantId => ({ variantId, quantity: 1 }));
+        const lineItems = variantIds.filter(v => v && v.length > 0).map(variantId => {
+          // REST API expects numeric variant ID, not GID
+          const numId = variantId.includes('/') ? variantId.split('/').pop() : variantId;
+          return { variant_id: parseInt(numId), quantity: 1 };
+        });
         if (lineItems.length === 0) {
           console.warn('Portal: no valid variantIds — skipping draft order. variantIds received:', variantIds);
         } else {
-        const mutation   = `mutation DraftOrderCreate($input: DraftOrderInput!) {
-          draftOrderCreate(input: $input) {
-            draftOrder { id name invoiceUrl }
-            userErrors { field message }
-          }
-        }`;
-        const draftInput = {
-          lineItems,
-          appliedDiscount: { value: 100, valueType: 'PERCENTAGE', title: 'Seeding Gift – 100% Off' },
-          note: `Seeding for ${influencer?.handle ?? ''} (${influencer?.name ?? ''})`,
-          tags: ['seeding'],
-        };
-        if (influencer?.email) draftInput.email = influencer.email;
+          const draftBody = {
+            draft_order: {
+              line_items: lineItems,
+              applied_discount: { value: '100.0', value_type: 'percentage', title: 'Seeding Gift – 100% Off' },
+              note: `Seeding for ${influencer?.handle ?? ''} (${influencer?.name ?? ''})`,
+              tags: 'seeding',
+              ...(influencer?.email ? { email: influencer.email } : {}),
+            },
+          };
 
-        const res  = await fetch(`https://${shop}/admin/api/2025-10/graphql.json`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': session.accessToken },
-          body: JSON.stringify({ query: mutation, variables: { input: draftInput } }),
-        });
-        const body  = await res.json();
-        const errors = body?.data?.draftOrderCreate?.userErrors;
-        if (errors?.length) {
-          console.error('Portal: Shopify draftOrderCreate userErrors:', JSON.stringify(errors));
-        }
-        const draft = body?.data?.draftOrderCreate?.draftOrder;
-        if (draft) {
-          shopifyDraftOrderId = draft.id;
-          shopifyOrderName    = draft.name;
-          invoiceUrl          = draft.invoiceUrl;
-
-          // invoiceUrl is often null from GraphQL — fetch via REST which always returns it
-          if (!invoiceUrl && draft.id) {
-            try {
-              const numericId = draft.id.split('/').pop();
-              const restRes = await fetch(`https://${shop}/admin/api/2025-10/draft_orders/${numericId}.json`, {
-                headers: { 'X-Shopify-Access-Token': session.accessToken },
-              });
-              const restBody = await restRes.json();
-              invoiceUrl = restBody?.draft_order?.invoice_url ?? null;
-              console.log('Portal: fetched invoiceUrl via REST:', invoiceUrl);
-            } catch (e) {
-              console.warn('Portal: could not fetch invoiceUrl via REST:', e.message);
-            }
+          const res  = await fetch(`https://${shop}/admin/api/2025-10/draft_orders.json`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': session.accessToken },
+            body: JSON.stringify(draftBody),
+          });
+          const body = await res.json();
+          const draft = body?.draft_order;
+          if (draft) {
+            shopifyDraftOrderId = `gid://shopify/DraftOrder/${draft.id}`;
+            shopifyOrderName    = draft.name;
+            invoiceUrl          = draft.invoice_url ?? null;
+            console.log('Portal: draft order created via REST, invoiceUrl:', invoiceUrl);
+          } else {
+            console.warn('Portal: REST draft order not returned. Body:', JSON.stringify(body));
           }
-        } else {
-          console.warn('Portal: draft order not returned. Full body:', JSON.stringify(body));
         }
-        } // end lineItems.length check
       }
     } catch (err) {
       console.error('Portal: failed to create Shopify draft order:', err.message);
