@@ -5,7 +5,6 @@ embedded = true
 
 [build]
 automatically_update_urls_on_dev = true
-include_config_on_deploy = true
 
 [webhooks]
 api_version = "2026-07"
@@ -14,17 +13,10 @@ api_version = "2026-07"
   topics = [ "draft_orders/update", "fulfillments/create", "fulfillments/update" ]
   uri = "/webhooks"
 
-  [[webhooks.subscriptions]]
-  topics = [ "customers/data_request" ]
-  uri = "/webhooks/gdpr/customers-data-request"
-
-  [[webhooks.subscriptions]]
-  topics = [ "customers/redact" ]
-  uri = "/webhooks/gdpr/customers-redact"
-
-  [[webhooks.subscriptions]]
-  topics = [ "shop/redact" ]
-  uri = "/webhooks/gdpr/shop-redact"
+[webhooks.privacy_compliance]
+  customer_data_request_url = "/webhooks/gdpr/customers-data-request"
+  customer_deletion_url = "/webhooks/gdpr/customers-redact"
+  shop_deletion_url = "/webhooks/gdpr/shop-redact"
 
 [access_scopes]
 scopes = "read_inventory,read_products,write_draft_orders,read_draft_orders,read_fulfillments,read_locations"
