@@ -172,49 +172,6 @@ export default function BillingPage() {
           </p>
         </div>
 
-        {/* Upcoming paid plan preview */}
-        <div style={{
-          backgroundColor: P.surface, border: `1px solid ${P.border}`,
-          borderRadius: '16px', padding: '28px', boxShadow: P.shadow, marginBottom: '20px',
-          opacity: 0.7,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-            <div style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.8px', color: P.textMuted }}>
-              {planDisplay}
-            </div>
-            <span style={{
-              fontSize: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.6px',
-              backgroundColor: P.amberBg, color: P.amberText, borderRadius: '20px', padding: '2px 10px',
-            }}>Coming Soon</span>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginBottom: '20px' }}>
-            <span style={{ fontSize: '36px', fontWeight: '900', color: P.text, letterSpacing: '-1px' }}>${planPrice}</span>
-            <span style={{ fontSize: '14px', color: P.textSub }}>/month</span>
-          </div>
-
-          {[
-            'Unlimited seedings, campaigns & influencers',
-            'Discount code pool management',
-            'Team access with roles',
-            'Multi-location inventory sync',
-            'Full portal access',
-          ].map(f => (
-            <div key={f} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-              <span style={{ color: P.green, fontSize: '14px', fontWeight: '700' }}>✓</span>
-              <span style={{ fontSize: '13px', color: P.textSub }}>{f}</span>
-            </div>
-          ))}
-
-          <div style={{
-            marginTop: '24px', width: '100%', padding: '14px',
-            background: P.border,
-            color: P.textMuted, border: 'none', borderRadius: '10px',
-            fontSize: '15px', fontWeight: '700', textAlign: 'center',
-          }}>
-            Paid plans coming soon
-          </div>
-        </div>
       </div>
     );
   }
