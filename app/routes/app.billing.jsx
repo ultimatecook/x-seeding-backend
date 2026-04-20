@@ -16,6 +16,7 @@ import {
   PLAN_PRICE_USD,
   PLAN_DISPLAY,
   PLAN_TRIAL_DAYS,
+  BETA_MODE,
 } from '../utils/billing.server';
 
 const APP_URL = process.env.SHOPIFY_APP_URL || 'https://www.zeedy.xyz';
@@ -64,6 +65,7 @@ export async function loader({ request }) {
     planPrice:     PLAN_PRICE_USD,
     planDisplay:   PLAN_DISPLAY,
     trialDays:     PLAN_TRIAL_DAYS,
+    betaMode:      BETA_MODE,
   };
 }
 
@@ -90,7 +92,7 @@ export async function action({ request }) {
 }
 
 export default function BillingPage() {
-  const { billing, daysRemaining, isActive, planPrice, planDisplay, trialDays } = useLoaderData();
+  const { billing, daysRemaining, isActive, planPrice, planDisplay, trialDays, betaMode } = useLoaderData();
   const actionData = useActionData();
 
   // Top-level redirect for embedded app after getting confirmationUrl
@@ -104,6 +106,120 @@ export default function BillingPage() {
   const isPaid    = billing.planStatus === 'active' && billing.billingStatus === 'active';
   const isTrial   = billing.planStatus === 'trial';
 
+  // ── Beta Mode UI ─────────────────────────────────────────────────────────────
+  if (betaMode) {
+    return (
+      <div style={{
+        maxWidth: '560px',
+        margin: '0 auto',
+        padding: '48px 24px',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif',
+      }}>
+        <div style={{ marginBottom: '32px' }}>
+          <img src="/namelogo.svg" alt="ZEEDY" style={{ height: '36px', width: 'auto', display: 'block' }} />
+        </div>
+
+        <h1 style={{ margin: '0 0 4px', fontSize: '24px', fontWeight: '800', color: P.text, letterSpacing: '-0.5px' }}>
+          Plan &amp; Billing
+        </h1>
+        <p style={{ margin: '0 0 32px', fontSize: '14px', color: P.textSub }}>
+          Manage your Zeedy subscription.
+        </p>
+
+        {/* Beta banner */}
+        <div style={{
+          backgroundColor: P.accentFaint, border: `1px solid ${P.accentLight}`,
+          borderRadius: '16px', padding: '24px 28px', marginBottom: '20px',
+          display: 'flex', alignItems: 'flex-start', gap: '16px',
+        }}>
+          <div style={{
+            width: '40px', height: '40px', borderRadius: '10px', flexShrink: 0,
+            background: 'linear-gradient(135deg, #7C6FF7 0%, #5B4CF0 100%)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: '18px',
+          }}>🎁</div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+              <span style={{ fontSize: '16px', fontWeight: '800', color: P.text }}>Beta Access — Free</span>
+              <span style={{
+                fontSize: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.6px',
+                backgroundColor: P.accent, color: '#fff', borderRadius: '20px', padding: '2px 8px',
+              }}>BETA</span>
+            </div>
+            <p style={{ margin: 0, fontSize: '13px', color: P.textSub, lineHeight: '1.5' }}>
+              You have full access to all Zeedy features at no cost during our beta period.
+              Paid plans are coming soon — you'll be notified before anything changes.
+            </p>
+          </div>
+        </div>
+
+        {/* Current plan card */}
+        <div style={{
+          backgroundColor: P.surface, border: `1px solid ${P.border}`,
+          borderRadius: '16px', padding: '28px', boxShadow: P.shadow, marginBottom: '20px',
+        }}>
+          <div style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.8px', color: P.textMuted, marginBottom: '16px' }}>
+            Current plan
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+            <span style={{ fontSize: '20px', fontWeight: '800', color: P.text }}>Free Beta</span>
+            <span style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', backgroundColor: P.greenBg, color: P.greenText, borderRadius: '20px', padding: '2px 10px' }}>
+              Active
+            </span>
+          </div>
+          <p style={{ margin: 0, fontSize: '13px', color: P.textSub }}>
+            Full access included · No credit card required
+          </p>
+        </div>
+
+        {/* Upcoming paid plan preview */}
+        <div style={{
+          backgroundColor: P.surface, border: `1px solid ${P.border}`,
+          borderRadius: '16px', padding: '28px', boxShadow: P.shadow, marginBottom: '20px',
+          opacity: 0.7,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+            <div style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.8px', color: P.textMuted }}>
+              {planDisplay}
+            </div>
+            <span style={{
+              fontSize: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.6px',
+              backgroundColor: P.amberBg, color: P.amberText, borderRadius: '20px', padding: '2px 10px',
+            }}>Coming Soon</span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginBottom: '20px' }}>
+            <span style={{ fontSize: '36px', fontWeight: '900', color: P.text, letterSpacing: '-1px' }}>${planPrice}</span>
+            <span style={{ fontSize: '14px', color: P.textSub }}>/month</span>
+          </div>
+
+          {[
+            'Unlimited seedings, campaigns & influencers',
+            'Discount code pool management',
+            'Team access with roles',
+            'Multi-location inventory sync',
+            'Full portal access',
+          ].map(f => (
+            <div key={f} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+              <span style={{ color: P.green, fontSize: '14px', fontWeight: '700' }}>✓</span>
+              <span style={{ fontSize: '13px', color: P.textSub }}>{f}</span>
+            </div>
+          ))}
+
+          <div style={{
+            marginTop: '24px', width: '100%', padding: '14px',
+            background: P.border,
+            color: P.textMuted, border: 'none', borderRadius: '10px',
+            fontSize: '15px', fontWeight: '700', textAlign: 'center',
+          }}>
+            Paid plans coming soon
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Standard Billing UI ───────────────────────────────────────────────────────
   return (
     <div style={{
       maxWidth: '560px',
@@ -153,7 +269,6 @@ export default function BillingPage() {
           Current plan
         </div>
 
-        {/* Paid / Active */}
         {isPaid && (
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
@@ -168,7 +283,6 @@ export default function BillingPage() {
           </div>
         )}
 
-        {/* Trial */}
         {isTrial && (
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
@@ -183,7 +297,6 @@ export default function BillingPage() {
           </div>
         )}
 
-        {/* Expired */}
         {isExpired && (
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>

@@ -5,7 +5,11 @@
  * Env vars:
  *   BILLING_TRIAL_DAYS   default 14
  *   BILLING_PLAN_PRICE   default 29  (USD/month)
+ *   BETA_MODE            set to "true" to grant free access to all shops (beta period)
  */
+
+// When BETA_MODE=true, all shops get full access regardless of billing status.
+export const BETA_MODE = process.env.BETA_MODE === 'true';
 
 import prisma from '../db.server';
 
@@ -48,8 +52,10 @@ export async function refreshBillingStatus(billing) {
 
 /**
  * Returns true if the shop has full access (trial active or paid plan active).
+ * During BETA_MODE, always returns true.
  */
 export function hasActiveAccess(billing) {
+  if (BETA_MODE) return true;
   if (!billing) return false;
   if (billing.planStatus === 'active' && billing.billingStatus === 'active') return true;
   if (billing.planStatus === 'trial' && new Date() < new Date(billing.trialEndsAt)) return true;
