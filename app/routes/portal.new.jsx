@@ -258,6 +258,12 @@ export async function action({ request }) {
   const influencer = await prisma.influencer.findUnique({ where: { id: influencerId } });
   if (!influencer || influencer.shop !== shop) return { error: 'Influencer not found.' };
 
+  // ── Discount code check ──────────────────────────────────────────────────
+  const availableCodes = await prisma.discountCode.count({ where: { shop, poolType: 'Product', status: 'Available' } });
+  if (availableCodes === 0) {
+    return { error: 'No discount codes available in the pool. Please add codes before creating a seeding.' };
+  }
+
   // ── Campaign validation ──────────────────────────────────────────────────
   if (campaignId) {
     const camp = await prisma.campaign.findUnique({
@@ -347,22 +353,18 @@ export async function action({ request }) {
           shopifyOrderName    = draft.name;
           invoiceUrl          = draft.invoiceUrl;
 
-          // invoiceUrl is sometimes null on creation — fetch it back separately
+          // invoiceUrl is often null from GraphQL — fetch via REST which always returns it
           if (!invoiceUrl && draft.id) {
             try {
-              const fetchRes = await fetch(`https://${shop}/admin/api/2025-10/graphql.json`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': session.accessToken },
-                body: JSON.stringify({
-                  query: `query GetDraftOrder($id: ID!) { draftOrder(id: $id) { invoiceUrl } }`,
-                  variables: { id: draft.id },
-                }),
+              const numericId = draft.id.split('/').pop();
+              const restRes = await fetch(`https://${shop}/admin/api/2025-10/draft_orders/${numericId}.json`, {
+                headers: { 'X-Shopify-Access-Token': session.accessToken },
               });
-              const fetchBody = await fetchRes.json();
-              invoiceUrl = fetchBody?.data?.draftOrder?.invoiceUrl ?? null;
-              console.log('Portal: fetched invoiceUrl separately:', invoiceUrl);
+              const restBody = await restRes.json();
+              invoiceUrl = restBody?.draft_order?.invoice_url ?? null;
+              console.log('Portal: fetched invoiceUrl via REST:', invoiceUrl);
             } catch (e) {
-              console.warn('Portal: could not fetch invoiceUrl separately:', e.message);
+              console.warn('Portal: could not fetch invoiceUrl via REST:', e.message);
             }
           }
         } else {
@@ -727,7 +729,7 @@ export default function PortalNewSeeding() {
     ? onlineLocations.length > 0
     : storeLocations.length > 0;
   const hasSelectedStore = seedingType === 'InStore' ? selectedStore !== null : true;
-  const hasProductCodes = seedingType !== 'InStore' || availableProductCodes > 0;
+  const hasProductCodes = availableProductCodes > 0;
   const canSubmit = !submitting && selectedInfluencer && selectedProducts.length > 0 && allHaveSizes && hasEnabledLocation && hasSelectedStore && hasProductCodes;
 
   async function handleSubmit(e) {
@@ -809,7 +811,7 @@ export default function PortalNewSeeding() {
     ctaLabel = t('newSeeding.submitting');
   } else if (!hasEnabledLocation) {
     ctaLabel = seedingType === 'InStore' ? 'Configure a store location' : 'Configure online location';
-  } else if (seedingType === 'InStore' && !hasProductCodes) {
+  } else if (!hasProductCodes) {
     ctaLabel = 'No discount codes available';
   } else if (seedingType === 'InStore' && !selectedStore) {
     ctaLabel = 'Select a store';
