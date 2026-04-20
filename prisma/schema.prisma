@@ -84,19 +84,26 @@ model UserPreference {
 }
 
 model Influencer {
-  id          Int                  @id @default(autoincrement())
-  shop        String               @default("")
-  name        String
-  handle      String
-  followers   Int                  @default(0)
-  country     String
-  email       String?
-  notes       String?
-  archived    Boolean              @default(false)
-  createdAt   DateTime             @default(now())
-  seedings    Seeding[]
-  savedSizes  InfluencerSavedSize[]
-  guestSlots  CampaignGuest[]
+  id                     Int                  @id @default(autoincrement())
+  shop                   String               @default("")
+  name                   String
+  handle                 String
+  followers              Int                  @default(0)
+  country                String
+  city                   String?
+  gender                 String?
+  email                  String?
+  phone                  String?
+  notes                  String?
+  defaultShippingAddress String?
+  shippingNotes          String?
+  styleTags              String?
+  productPreferences     String?
+  archived               Boolean              @default(false)
+  createdAt              DateTime             @default(now())
+  seedings               Seeding[]
+  savedSizes             InfluencerSavedSize[]
+  guestSlots             CampaignGuest[]
 
   @@index([shop])
   @@index([shop, archived])
