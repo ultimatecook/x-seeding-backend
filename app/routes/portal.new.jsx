@@ -13,7 +13,7 @@ import { D, Pbtn as btn, Pinput as input } from '../utils/portal-theme';
 import { useT } from '../utils/i18n';
 import { guessProductCategory, extractSizeFromVariant } from '../utils/size-helpers';
 import { assignDiscountCodes } from '../utils/discount-codes.server';
-import { getPrimaryLocationId, getInventoryLocations } from '../utils/inventory.server';
+import { getInventoryLocations } from '../utils/inventory.server';
 
 // ── Loader ────────────────────────────────────────────────────────────────────
 export async function loader({ request }) {
