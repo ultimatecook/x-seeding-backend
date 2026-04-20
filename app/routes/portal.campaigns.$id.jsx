@@ -96,9 +96,44 @@ export async function loader({ request, params }) {
     ? await prisma.influencer.findMany({ where: { shop, archived: false }, orderBy: { name: 'asc' }, select: { id: true, handle: true, name: true } })
     : [];
 
+  // ── Shopify products for the product picker ──────────────────────────────
+  let shopifyProducts = [];
+  try {
+    const allSessions = await prisma.session.findMany({ where: { shop }, orderBy: [{ expires: 'desc' }] });
+    allSessions.sort((a, b) => {
+      if (a.expires === null && b.expires !== null) return -1;
+      if (a.expires !== null && b.expires === null) return 1;
+      if (!a.isOnline && b.isOnline) return -1;
+      if (a.isOnline && !b.isOnline) return 1;
+      return 0;
+    });
+    const session = allSessions.find(s => s.accessToken);
+    if (session) {
+      const GQL = `query { products(first: 100, sortKey: TITLE, query: "status:active") { edges { node {
+        id title featuredImage { url }
+        variants(first: 1) { edges { node { price } } }
+      } } } }`;
+      const res  = await fetch(`https://${shop}/admin/api/2025-10/graphql.json`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': session.accessToken },
+        body:    JSON.stringify({ query: GQL }),
+      });
+      const body = await res.json();
+      shopifyProducts = (body?.data?.products?.edges ?? []).map(e => ({
+        id:    e.node.id,
+        name:  e.node.title,
+        image: e.node.featuredImage?.url ?? null,
+        price: parseFloat(e.node.variants.edges[0]?.node?.price || 0),
+      }));
+    }
+  } catch (e) {
+    console.warn('Campaign detail: could not load Shopify products:', e.message);
+  }
+
   return {
     campaign: { ...campaign, products, budgetUsed },
     influencers,
+    shopifyProducts,
     role: portalUser.role,
     canDelete: can.deleteCampaign(portalUser.role),
   };
@@ -160,6 +195,71 @@ export async function action({ request, params }) {
     await prisma.campaign.delete({ where: { id: campId } });
     await audit({ shop, portalUser, action: 'deleted_campaign', entityType: 'campaign', entityId: campId, detail: `Deleted campaign "${existing.title}"` });
     throw redirect('/portal/campaigns');
+  }
+
+  if (intent === 'updateCampaign') {
+    requirePermission(portalUser.role, 'editCampaign');
+    const existing = await prisma.campaign.findUnique({ where: { id: campId }, select: { shop: true } });
+    if (!existing || existing.shop !== shop) return null;
+    const title         = String(formData.get('title') || '').trim();
+    const budgetRaw     = formData.get('budget');
+    const budget        = budgetRaw ? parseFloat(budgetRaw) : null;
+    const type          = formData.get('type') === 'event' ? 'event' : 'seeding';
+    const startDateRaw  = formData.get('startDate');
+    const endDateRaw    = formData.get('endDate');
+    const eventDateRaw  = formData.get('eventDate');
+    const eventLocation = formData.get('eventLocation') ? String(formData.get('eventLocation')).trim() : null;
+    if (!title) return null;
+    await prisma.campaign.update({
+      where: { id: campId },
+      data: {
+        title, budget,
+        type,
+        startDate:     startDateRaw  ? new Date(startDateRaw)  : null,
+        endDate:       endDateRaw    ? new Date(endDateRaw)    : null,
+        eventDate:     eventDateRaw  ? new Date(eventDateRaw)  : null,
+        eventLocation,
+      },
+    });
+    await audit({ shop, portalUser, action: 'updated_campaign', entityType: 'campaign', entityId: campId, detail: `Updated campaign "${title}"` });
+    return null;
+  }
+
+  if (intent === 'addCampaignProduct') {
+    requirePermission(portalUser.role, 'editCampaign');
+    const existing = await prisma.campaign.findUnique({ where: { id: campId }, select: { shop: true } });
+    if (!existing || existing.shop !== shop) return null;
+    const productId      = String(formData.get('productId') || '').trim();
+    const productName    = String(formData.get('productName') || '').trim();
+    const imageUrl       = formData.get('imageUrl') ? String(formData.get('imageUrl')).trim() : null;
+    const allocRaw       = formData.get('allocatedUnits');
+    const allocatedUnits = allocRaw ? parseInt(allocRaw) : null;
+    if (!productId || !productName) return null;
+    // Don't add duplicates
+    const dupe = await prisma.campaignProduct.findFirst({ where: { campaignId: campId, productId } });
+    if (dupe) return null;
+    await prisma.campaignProduct.create({ data: { campaignId: campId, productId, productName, imageUrl, allocatedUnits } });
+    return null;
+  }
+
+  if (intent === 'removeCampaignProduct') {
+    requirePermission(portalUser.role, 'editCampaign');
+    const cpId = parseInt(formData.get('campaignProductId'));
+    const cp   = await prisma.campaignProduct.findUnique({ where: { id: cpId }, include: { campaign: { select: { shop: true } } } });
+    if (!cp || cp.campaign.shop !== shop) return null;
+    await prisma.campaignProduct.delete({ where: { id: cpId } });
+    return null;
+  }
+
+  if (intent === 'updateProductAllocation') {
+    requirePermission(portalUser.role, 'editCampaign');
+    const cpId     = parseInt(formData.get('campaignProductId'));
+    const allocRaw = formData.get('allocatedUnits');
+    const cp       = await prisma.campaignProduct.findUnique({ where: { id: cpId }, include: { campaign: { select: { shop: true } } } });
+    if (!cp || cp.campaign.shop !== shop) return null;
+    const allocatedUnits = allocRaw ? parseInt(allocRaw) : null;
+    await prisma.campaignProduct.update({ where: { id: cpId }, data: { allocatedUnits } });
+    return null;
   }
 
   // ── Guest management ─────────────────────────────────────────────────────
@@ -284,7 +384,7 @@ const sLabel = {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function PortalCampaignDetail() {
-  const { campaign, influencers, role, canDelete: canDeleteCampaign } = useLoaderData();
+  const { campaign, influencers, shopifyProducts, role, canDelete: canDeleteCampaign } = useLoaderData();
   const { t } = useT();
 
   const canEdit   = can.updateSeeding(role);
@@ -310,12 +410,23 @@ export default function PortalCampaignDetail() {
   const totalFulfilled = guests.reduce((s, g) => s + g.items.filter(i => i.fulfilled).reduce((a, i) => a + i.quantity, 0), 0);
 
   // UI state
-  const [expandedGuest,  setExpandedGuest]  = useState(null); // guestId
-  const [showAddGuest,   setShowAddGuest]   = useState(false);
-  const [infSearch,      setInfSearch]      = useState('');
+  const [expandedGuest,    setExpandedGuest]    = useState(null); // guestId
+  const [showAddGuest,     setShowAddGuest]     = useState(false);
+  const [infSearch,        setInfSearch]        = useState('');
+  const [showEditCampaign, setShowEditCampaign] = useState(false);
+  const [editType,         setEditType]         = useState(campaign.type || 'seeding');
+  const [showAddProduct,   setShowAddProduct]   = useState(false);
+  const [prodSearch,       setProdSearch]       = useState('');
 
   const filteredInf = influencers.filter(inf =>
     !infSearch || inf.handle.toLowerCase().includes(infSearch.toLowerCase()) || (inf.name ?? '').toLowerCase().includes(infSearch.toLowerCase())
+  );
+
+  // Products already on the campaign (by Shopify ID) to exclude from picker
+  const existingProductIds = new Set(campaign.products.map(cp => cp.productId));
+  const filteredShopifyProds = (shopifyProducts ?? []).filter(p =>
+    !existingProductIds.has(p.id) &&
+    (!prodSearch || p.name.toLowerCase().includes(prodSearch.toLowerCase()))
   );
 
   return (
@@ -355,6 +466,12 @@ export default function PortalCampaignDetail() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {canManage && !campaign.archived && (
+            <button type="button" onClick={() => setShowEditCampaign(v => !v)}
+              style={{ padding: '8px 14px', borderRadius: '8px', border: `1px solid ${showEditCampaign ? D.accent : D.border}`, backgroundColor: showEditCampaign ? D.accentFaint : 'transparent', color: showEditCampaign ? D.accent : D.textSub, cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>
+              {showEditCampaign ? 'Cancel' : '✏ Edit'}
+            </button>
+          )}
           {canDeleteCampaign && (
             <>
               <Form method="post">
@@ -380,6 +497,84 @@ export default function PortalCampaignDetail() {
           )}
         </div>
       </div>
+
+      {/* ── Inline edit form ─────────────────────────────────────── */}
+      {showEditCampaign && (
+        <div style={{ backgroundColor: D.surface, border: `1px solid ${D.accent}`, borderRadius: '12px', padding: '20px 24px', boxShadow: D.shadow }}>
+          <Form method="post" onSubmit={() => setShowEditCampaign(false)}>
+            <input type="hidden" name="intent" value="updateCampaign" />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+              <div>
+                <label style={sLabel}>Campaign Title *</label>
+                <input name="title" required defaultValue={campaign.title}
+                  style={{ ...input.base, width: '100%', boxSizing: 'border-box' }} />
+              </div>
+              <div>
+                <label style={sLabel}>Budget (€) — Optional</label>
+                <input name="budget" type="number" min="0" step="0.01" defaultValue={campaign.budget ?? ''}
+                  style={{ ...input.base, width: '100%', boxSizing: 'border-box' }} />
+              </div>
+            </div>
+
+            {/* Type toggle */}
+            <div style={{ marginBottom: '16px' }}>
+              <label style={sLabel}>Type</label>
+              <input type="hidden" name="type" value={editType} />
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {[{ value: 'seeding', icon: '📦', label: 'Seeding' }, { value: 'event', icon: '🎯', label: 'PR Event' }].map(opt => (
+                  <button key={opt.value} type="button" onClick={() => setEditType(opt.value)}
+                    style={{ padding: '8px 18px', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600', border: `2px solid ${editType === opt.value ? D.accent : D.border}`, backgroundColor: editType === opt.value ? D.accentFaint : 'transparent', color: editType === opt.value ? D.accent : D.textSub, transition: 'all 0.12s' }}>
+                    {opt.icon} {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Dates */}
+            {editType === 'event' ? (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                <div>
+                  <label style={sLabel}>Event Date</label>
+                  <input name="eventDate" type="date"
+                    defaultValue={campaign.eventDate ? new Date(campaign.eventDate).toISOString().split('T')[0] : ''}
+                    style={{ ...input.base, width: '100%', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={sLabel}>Event Location</label>
+                  <input name="eventLocation" type="text" placeholder="e.g. Hotel Costes, Paris"
+                    defaultValue={campaign.eventLocation ?? ''}
+                    style={{ ...input.base, width: '100%', boxSizing: 'border-box' }} />
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                <div>
+                  <label style={sLabel}>Start Date — Optional</label>
+                  <input name="startDate" type="date"
+                    defaultValue={campaign.startDate ? new Date(campaign.startDate).toISOString().split('T')[0] : ''}
+                    style={{ ...input.base, width: '100%', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={sLabel}>End Date — Optional</label>
+                  <input name="endDate" type="date"
+                    defaultValue={campaign.endDate ? new Date(campaign.endDate).toISOString().split('T')[0] : ''}
+                    style={{ ...input.base, width: '100%', boxSizing: 'border-box' }} />
+                </div>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button type="submit" style={{ padding: '9px 22px', borderRadius: '8px', border: 'none', backgroundColor: D.accent, color: '#fff', cursor: 'pointer', fontSize: '13px', fontWeight: '700' }}>
+                Save Changes
+              </button>
+              <button type="button" onClick={() => setShowEditCampaign(false)}
+                style={{ padding: '9px 18px', borderRadius: '8px', border: `1px solid ${D.border}`, backgroundColor: 'transparent', color: D.textSub, cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
+                Cancel
+              </button>
+            </div>
+          </Form>
+        </div>
+      )}
 
       {/* ── KPI cards ────────────────────────────────────────────── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '14px' }}>
@@ -670,21 +865,65 @@ export default function PortalCampaignDetail() {
           <span style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.8px', color: D.textMuted }}>
             {t('campaign.products.title', { count: campaign.products.length })}
           </span>
-          {isEvent && (
-            <span style={{ fontSize: '11px', color: D.textMuted }}>
-              Includes guest assignments + seedings
-            </span>
-          )}
-          {!isEvent && (
-            <span style={{ fontSize: '11px', color: D.textMuted }}>
-              {t('campaign.products.allocationNote')}
-            </span>
-          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {isEvent && <span style={{ fontSize: '11px', color: D.textMuted }}>Includes guest assignments + seedings</span>}
+            {!isEvent && <span style={{ fontSize: '11px', color: D.textMuted }}>{t('campaign.products.allocationNote')}</span>}
+            {canManage && !campaign.archived && (
+              <button type="button" onClick={() => { setShowAddProduct(v => !v); setProdSearch(''); }}
+                style={{ padding: '5px 12px', borderRadius: '7px', border: `1px solid ${showAddProduct ? D.accent : D.border}`, backgroundColor: showAddProduct ? D.accentFaint : 'transparent', color: showAddProduct ? D.accent : D.textSub, cursor: 'pointer', fontSize: '12px', fontWeight: '700' }}>
+                {showAddProduct ? 'Cancel' : '+ Add Product'}
+              </button>
+            )}
+          </div>
         </div>
 
-        {campaign.products.length === 0 ? (
+        {/* Add product picker */}
+        {showAddProduct && (
+          <div style={{ padding: '14px 20px', borderBottom: `1px solid ${D.border}`, backgroundColor: D.bg }}>
+            <input
+              type="text" placeholder="Search products…" value={prodSearch}
+              onChange={e => setProdSearch(e.target.value)} autoFocus
+              style={{ ...input.base, width: '100%', boxSizing: 'border-box', marginBottom: '10px' }}
+            />
+            <div style={{ maxHeight: '220px', overflowY: 'auto', border: `1px solid ${D.border}`, borderRadius: '9px', backgroundColor: D.surface }}>
+              {filteredShopifyProds.length === 0 ? (
+                <div style={{ padding: '20px', textAlign: 'center', color: D.textMuted, fontSize: '12px' }}>
+                  {(shopifyProducts ?? []).length === 0 ? 'No Shopify products loaded' : 'All products already added'}
+                </div>
+              ) : filteredShopifyProds.map((prod, idx) => (
+                <Form key={prod.id} method="post" onSubmit={() => setShowAddProduct(false)}>
+                  <input type="hidden" name="intent"       value="addCampaignProduct" />
+                  <input type="hidden" name="productId"    value={prod.id} />
+                  <input type="hidden" name="productName"  value={prod.name} />
+                  <input type="hidden" name="imageUrl"     value={prod.image ?? ''} />
+                  <button type="submit"
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '10px',
+                      width: '100%', padding: '9px 14px', textAlign: 'left',
+                      border: 'none', borderBottom: idx < filteredShopifyProds.length - 1 ? `1px solid ${D.borderLight}` : 'none',
+                      backgroundColor: 'transparent', cursor: 'pointer',
+                    }}
+                    onMouseOver={e => { e.currentTarget.style.backgroundColor = D.surfaceHigh; }}
+                    onMouseOut={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}>
+                    {prod.image
+                      ? <img src={prod.image} alt={prod.name} style={{ width: '32px', height: '32px', objectFit: 'cover', borderRadius: '6px', flexShrink: 0 }} />
+                      : <div style={{ width: '32px', height: '32px', backgroundColor: D.surfaceHigh, borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', flexShrink: 0 }}>📦</div>
+                    }
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '13px', fontWeight: '600', color: D.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{prod.name}</div>
+                      <div style={{ fontSize: '11px', color: D.textMuted }}>€{prod.price.toFixed(2)}</div>
+                    </div>
+                    <span style={{ fontSize: '11px', color: D.accent, fontWeight: '700', flexShrink: 0 }}>Add →</span>
+                  </button>
+                </Form>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {campaign.products.length === 0 && !showAddProduct ? (
           <div style={{ padding: '24px', color: D.textMuted, fontSize: '13px' }}>{t('campaign.products.empty')}</div>
-        ) : (
+        ) : campaign.products.length > 0 && (
           <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {campaign.products.map(cp => {
               const tier     = allocTier(cp.usedUnits, cp.allocatedUnits);
@@ -722,13 +961,44 @@ export default function PortalCampaignDetail() {
                       </>
                     )}
                   </div>
-                  <div style={{ textAlign: 'right' }}>
-                    {hasAlloc ? (
-                      <span style={{ display: 'inline-block', fontSize: '12px', fontWeight: '800', color: col.text, backgroundColor: col.badge, borderRadius: '8px', padding: '5px 12px', letterSpacing: '-0.3px' }}>
-                        {cp.usedUnits} / {cp.allocatedUnits}
-                      </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {/* Editable allocation */}
+                    {canManage && !campaign.archived ? (
+                      <Form method="post" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <input type="hidden" name="intent" value="updateProductAllocation" />
+                        <input type="hidden" name="campaignProductId" value={cp.id} />
+                        <input
+                          name="allocatedUnits" type="number" min="0" placeholder="∞"
+                          defaultValue={cp.allocatedUnits ?? ''}
+                          style={{ ...input.base, width: '64px', textAlign: 'center', fontSize: '12px', padding: '5px 8px' }}
+                          title="Unit allocation (leave blank for unlimited)"
+                        />
+                        <button type="submit" title="Save allocation"
+                          style={{ padding: '5px 10px', borderRadius: '6px', border: `1px solid ${D.border}`, backgroundColor: 'transparent', color: D.accent, cursor: 'pointer', fontSize: '11px', fontWeight: '700' }}>
+                          ✓
+                        </button>
+                      </Form>
                     ) : (
-                      <span style={{ fontSize: '12px', color: D.textMuted }}>{cp.usedUnits} used</span>
+                      hasAlloc ? (
+                        <span style={{ display: 'inline-block', fontSize: '12px', fontWeight: '800', color: col.text, backgroundColor: col.badge, borderRadius: '8px', padding: '5px 12px', letterSpacing: '-0.3px' }}>
+                          {cp.usedUnits} / {cp.allocatedUnits}
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: '12px', color: D.textMuted }}>{cp.usedUnits} used</span>
+                      )
+                    )}
+                    {/* Remove product */}
+                    {canManage && !campaign.archived && (
+                      <Form method="post" onSubmit={e => { if (!confirm(`Remove "${cp.productName}" from campaign?`)) e.preventDefault(); }}>
+                        <input type="hidden" name="intent" value="removeCampaignProduct" />
+                        <input type="hidden" name="campaignProductId" value={cp.id} />
+                        <button type="submit" title="Remove from campaign"
+                          style={{ background: 'none', border: 'none', color: D.textMuted, cursor: 'pointer', fontSize: '18px', lineHeight: 1, padding: '0 2px' }}
+                          onMouseOver={e => { e.currentTarget.style.color = '#EF4444'; }}
+                          onMouseOut={e => { e.currentTarget.style.color = D.textMuted; }}>
+                          ×
+                        </button>
+                      </Form>
                     )}
                   </div>
                 </div>
