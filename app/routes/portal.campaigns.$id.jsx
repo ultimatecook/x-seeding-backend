@@ -165,10 +165,15 @@ export async function action({ request, params }) {
   // ── Guest management ─────────────────────────────────────────────────────
   if (intent === 'addGuest') {
     requirePermission(portalUser.role, 'editCampaign');
-    const name         = String(formData.get('guestName') || '').trim();
-    const email        = formData.get('guestEmail') ? String(formData.get('guestEmail')).trim() : null;
     const influencerId = formData.get('guestInfluencerId') ? parseInt(formData.get('guestInfluencerId')) : null;
-    if (!name) return null;
+    if (!influencerId) return null;
+    const inf = await prisma.influencer.findUnique({
+      where:  { id: influencerId },
+      select: { name: true, handle: true, email: true, shop: true },
+    });
+    if (!inf || inf.shop !== shop) return null;
+    const name  = inf.name || `@${inf.handle}`;
+    const email = inf.email || null;
     await prisma.campaignGuest.create({ data: { campaignId: campId, name, email, influencerId } });
     return null;
   }
@@ -439,36 +444,65 @@ export default function PortalCampaignDetail() {
             )}
           </div>
 
-          {/* Add guest form */}
+          {/* Add guest — influencer picker */}
           {showAddGuest && (
             <div style={{ padding: '16px 20px', borderBottom: `1px solid ${D.border}`, backgroundColor: D.bg }}>
-              <Form method="post" onSubmit={() => setShowAddGuest(false)}>
-                <input type="hidden" name="intent" value="addGuest" />
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 200px auto', gap: '10px', alignItems: 'end' }}>
-                  <div>
-                    <label style={sLabel}>Name *</label>
-                    <input name="guestName" required placeholder="Guest name"
-                      style={{ ...input.base, width: '100%', boxSizing: 'border-box' }} />
-                  </div>
-                  <div>
-                    <label style={sLabel}>Email</label>
-                    <input name="guestEmail" type="email" placeholder="guest@example.com"
-                      style={{ ...input.base, width: '100%', boxSizing: 'border-box' }} />
-                  </div>
-                  <div>
-                    <label style={sLabel}>Link to Influencer</label>
-                    <select name="guestInfluencerId" style={{ ...input.base, width: '100%', boxSizing: 'border-box' }}>
-                      <option value="">— optional —</option>
-                      {influencers.map(inf => (
-                        <option key={inf.id} value={inf.id}>{inf.name || `@${inf.handle}`}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <button type="submit" style={{ padding: '9px 20px', borderRadius: '8px', border: 'none', backgroundColor: D.accent, color: '#fff', cursor: 'pointer', fontSize: '13px', fontWeight: '700', whiteSpace: 'nowrap' }}>
-                    Add
-                  </button>
-                </div>
-              </Form>
+              <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.6px', color: D.textMuted, marginBottom: '10px' }}>
+                Select influencer to add as guest
+              </div>
+              <input
+                type="text"
+                placeholder="Search influencers…"
+                value={infSearch}
+                onChange={e => setInfSearch(e.target.value)}
+                autoFocus
+                style={{ ...input.base, width: '100%', boxSizing: 'border-box', marginBottom: '10px' }}
+              />
+              <div style={{ maxHeight: '220px', overflowY: 'auto', border: `1px solid ${D.border}`, borderRadius: '9px', backgroundColor: D.surface }}>
+                {filteredInf.length === 0 ? (
+                  <div style={{ padding: '20px', textAlign: 'center', color: D.textMuted, fontSize: '12px' }}>No influencers found</div>
+                ) : filteredInf.map((inf, idx) => {
+                  const alreadyAdded = guests.some(g => g.influencerId === inf.id);
+                  return (
+                    <Form key={inf.id} method="post" onSubmit={() => { setShowAddGuest(false); setInfSearch(''); }}>
+                      <input type="hidden" name="intent" value="addGuest" />
+                      <input type="hidden" name="guestInfluencerId" value={inf.id} />
+                      <button
+                        type="submit"
+                        disabled={alreadyAdded}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: '10px',
+                          width: '100%', padding: '9px 14px', textAlign: 'left',
+                          border: 'none', borderBottom: idx < filteredInf.length - 1 ? `1px solid ${D.borderLight}` : 'none',
+                          backgroundColor: 'transparent',
+                          cursor: alreadyAdded ? 'default' : 'pointer',
+                          opacity: alreadyAdded ? 0.4 : 1,
+                          transition: 'background-color 0.1s',
+                        }}
+                        onMouseOver={e => { if (!alreadyAdded) e.currentTarget.style.backgroundColor = D.surfaceHigh; }}
+                        onMouseOut={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                      >
+                        <div style={{ width: '28px', height: '28px', borderRadius: '50%', flexShrink: 0, background: `linear-gradient(135deg, ${D.accent}, ${D.purple})`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '800', color: '#fff' }}>
+                          {(inf.handle?.[0] ?? '?').toUpperCase()}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: '13px', fontWeight: '600', color: D.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            @{inf.handle}
+                          </div>
+                          {inf.name && (
+                            <div style={{ fontSize: '11px', color: D.textMuted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {inf.name}
+                            </div>
+                          )}
+                        </div>
+                        {alreadyAdded && (
+                          <span style={{ fontSize: '10px', fontWeight: '700', color: D.textMuted, flexShrink: 0 }}>Added</span>
+                        )}
+                      </button>
+                    </Form>
+                  );
+                })}
+              </div>
             </div>
           )}
 
@@ -620,34 +654,6 @@ export default function PortalCampaignDetail() {
                           </div>
                         )}
 
-                        {/* Link influencer (if not yet linked) */}
-                        {!guest.influencer && canManage && (
-                          <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: `1px solid ${D.border}` }}>
-                            <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.7px', color: D.textMuted, marginBottom: '8px' }}>
-                              Link Influencer (for seeding creation)
-                            </div>
-                            <Form method="post">
-                              <input type="hidden" name="intent" value="updateGuestInfluencer" />
-                              <input type="hidden" name="guestId" value={guest.id} />
-                              <div style={{ display: 'flex', gap: '8px' }}>
-                                <input
-                                  type="text" placeholder="Search…" value={infSearch}
-                                  onChange={e => setInfSearch(e.target.value)}
-                                  style={{ ...input.base, width: '160px', boxSizing: 'border-box' }}
-                                />
-                                <select name="influencerId" style={{ ...input.base, flex: 1, boxSizing: 'border-box' }}>
-                                  <option value="">— Select influencer —</option>
-                                  {filteredInf.map(inf => (
-                                    <option key={inf.id} value={inf.id}>{inf.name || `@${inf.handle}`}</option>
-                                  ))}
-                                </select>
-                                <button type="submit" style={{ padding: '8px 14px', borderRadius: '7px', border: `1px solid ${D.border}`, backgroundColor: 'transparent', color: D.textSub, cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>
-                                  Link
-                                </button>
-                              </div>
-                            </Form>
-                          </div>
-                        )}
                       </div>
                     )}
                   </div>
