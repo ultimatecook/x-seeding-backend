@@ -449,10 +449,22 @@ const COUNTRY_CODES = {
   'Thailand':'TH','Turkey':'TR','Ukraine':'UA','United Arab Emirates':'AE',
   'United Kingdom':'GB','United States':'US','Vietnam':'VN',
 };
-function countryFlag(name) {
-  const code = COUNTRY_CODES[name];
-  if (!code) return '🌍';
-  return [...code].map(c => String.fromCodePoint(0x1F1E0 + c.charCodeAt(0) - 65)).join('');
+
+// Real flag images via flagcdn.com — no broken emoji on all platforms
+function FlagImg({ code, size = 16 }) {
+  if (!code) return null;
+  const lc  = code.toLowerCase();
+  const h   = Math.round(size * 0.75);
+  return (
+    <img
+      src={`https://flagcdn.com/${size}x${h}/${lc}.png`}
+      srcSet={`https://flagcdn.com/${size * 2}x${h * 2}/${lc}.png 2x`}
+      width={size} height={h}
+      alt={code}
+      style={{ display: 'inline-block', verticalAlign: 'middle', borderRadius: '2px', objectFit: 'cover', flexShrink: 0 }}
+      onError={e => { e.currentTarget.style.display = 'none'; }}
+    />
+  );
 }
 
 function fmtFollowers(n) {
@@ -470,16 +482,21 @@ const FOLLOWER_RANGES = [
   { label: '100K+',  min: 100_000,   max: Infinity },
 ];
 
-function Pill({ label, active, onClick }) {
+function Chip({ label, active, onClick }) {
   return (
     <button type="button" onClick={onClick} style={{
-      padding: '3px 10px', fontSize: '11px', fontWeight: '600', borderRadius: '20px',
-      border: `1.5px solid ${active ? D.accent : D.border}`,
-      backgroundColor: active ? D.accentLight : 'transparent',
-      color: active ? D.accent : D.textSub,
-      cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.12s',
+      padding: '3px 9px', fontSize: '11px', fontWeight: active ? '700' : '500',
+      borderRadius: '5px', border: 'none',
+      backgroundColor: active ? D.accentFaint : 'transparent',
+      color: active ? D.accent : D.textMuted,
+      cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.1s',
     }}>{label}</button>
   );
+}
+
+// Backwards compat — some callers still use Pill
+function Pill({ label, active, onClick }) {
+  return <Chip label={label} active={active} onClick={onClick} />;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -757,34 +774,54 @@ export default function PortalNewSeeding() {
     );
   }
 
+  // ── CTA label logic ────────────────────────────────────────────────────────
+  let ctaLabel;
+  if (submitting) {
+    ctaLabel = t('newSeeding.submitting');
+  } else if (!hasEnabledLocation) {
+    ctaLabel = seedingType === 'InStore' ? 'Configure a store location' : 'Configure online location';
+  } else if (seedingType === 'InStore' && !hasProductCodes) {
+    ctaLabel = 'No discount codes available';
+  } else if (seedingType === 'InStore' && !selectedStore) {
+    ctaLabel = 'Select a store';
+  } else if (!selectedInfluencer) {
+    ctaLabel = 'Select an influencer';
+  } else if (selectedProducts.length === 0) {
+    ctaLabel = 'Select products';
+  } else if (!allHaveSizes) {
+    ctaLabel = 'Select sizes for all products';
+  } else {
+    ctaLabel = `Send ${selectedProducts.length} product${selectedProducts.length !== 1 ? 's' : ''} →`;
+  }
+
   return (
     <div>
       <style>{`
         @keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-4px)} 40%{transform:translateX(4px)} 60%{transform:translateX(-3px)} 80%{transform:translateX(3px)} }
-        @keyframes fadeIn { from{opacity:0;transform:translateY(5px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes slideUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
         .inf-row:hover { background: ${D.surfaceHigh} !important; }
-        .inf-row-active:hover { background: ${D.accentLight} !important; }
-        .prod-tile { transition: transform 0.12s ease, box-shadow 0.12s ease; }
-        .prod-tile:hover { transform: scale(1.025); box-shadow: 0 4px 14px rgba(0,0,0,0.08); }
+        .inf-row-selected { background: ${D.accentFaint} !important; }
+        .prod-card { transition: box-shadow 0.12s ease, transform 0.12s ease; cursor: pointer; }
+        .prod-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); transform: translateY(-1px); }
+        .new-seeding-left::-webkit-scrollbar { width: 4px; }
+        .new-seeding-left::-webkit-scrollbar-thumb { background: ${D.border}; border-radius: 4px; }
       `}</style>
 
       {/* ── Header ── */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '28px' }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '800', color: D.text, letterSpacing: '-0.3px' }}>{t('newSeeding.title')}</h2>
-          <p style={{ margin: '3px 0 0', fontSize: '13px', color: D.textMuted }}>{t('newSeeding.subtitle')}</p>
+          <h2 style={{ margin: 0, fontSize: '22px', fontWeight: '800', color: D.text, letterSpacing: '-0.4px' }}>{t('newSeeding.title')}</h2>
+          <p style={{ margin: '4px 0 0', fontSize: '13px', color: D.textMuted }}>{t('newSeeding.subtitle')}</p>
         </div>
-        <button type="button" onClick={() => navigate('/portal/seedings')} style={{ ...btn.ghost, fontSize: '13px' }}>{t('newSeeding.back')}</button>
+        <button type="button" onClick={() => navigate('/portal/seedings')}
+          style={{ padding: '7px 14px', borderRadius: '8px', border: `1px solid ${D.border}`, backgroundColor: 'transparent', color: D.textSub, fontSize: '13px', fontWeight: '500', cursor: 'pointer' }}>
+          ← Back
+        </button>
       </div>
 
       {/* ── Guest pre-fill banner ── */}
       {prefillGuest && (
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: '10px',
-          padding: '10px 14px', marginBottom: '12px',
-          backgroundColor: 'rgba(124,111,247,0.07)', border: '1px solid rgba(124,111,247,0.25)',
-          borderRadius: '10px', fontSize: '13px', color: D.accent, fontWeight: '600',
-        }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', marginBottom: '20px', backgroundColor: D.accentFaint, borderRadius: '10px', fontSize: '13px', color: D.accent, fontWeight: '600' }}>
           <span>🎯</span>
           <span>
             Pre-filled from guest <strong>{prefillGuest.influencer?.name ?? 'guest'}</strong>
@@ -793,52 +830,21 @@ export default function PortalNewSeeding() {
         </div>
       )}
 
-      {/* ── Seeding type picker ── */}
-      <div style={{ display: 'flex', gap: '0', backgroundColor: D.surface, border: `1px solid ${D.border}`, borderRadius: '10px', padding: '4px', width: 'fit-content', marginBottom: '4px' }}>
-        {[
-          { key: 'Online',  icon: '🌐', label: t('newSeeding.typeOnline'),  sub: t('newSeeding.typeOnlineSub') },
-          { key: 'InStore', icon: '🏪', label: t('newSeeding.typeInStore'), sub: t('newSeeding.typeInStoreSub') },
-        ].map(({ key, icon, label, sub }) => {
-          const active = seedingType === key;
-          return (
-            <button key={key} type="button"
-              onClick={() => { setSeedingType(key); setSelectedStore(null); }}
-              style={{
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px',
-                padding: '8px 24px', borderRadius: '7px', border: 'none', cursor: 'pointer',
-                backgroundColor: active ? 'var(--pt-accent)' : 'transparent',
-                color: active ? '#fff' : D.textSub,
-                transition: 'all 0.15s',
-              }}>
-              <span style={{ fontSize: '14px' }}>{icon} <strong style={{ fontSize: '13px' }}>{label}</strong></span>
-              <span style={{ fontSize: '10px', opacity: active ? 0.85 : 0.7 }}>{sub}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* ── No location banner ── */}
+      {/* ── No location warning ── */}
       {!hasEnabledLocation && (
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px',
-          padding: '12px 16px', marginBottom: '8px',
-          backgroundColor: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: '10px',
-          fontSize: '13px', color: '#92400E',
-        }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', padding: '11px 16px', marginBottom: '20px', backgroundColor: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: '10px', fontSize: '13px', color: '#92400E' }}>
           <span>
             {seedingType === 'InStore'
-              ? <>⚠️ <strong>No store locations configured.</strong> Go to Admin, enable a location and set its type to <strong>Store</strong>.</>
-              : <>⚠️ <strong>No online location enabled.</strong> Go to Admin and enable at least one location typed as <strong>Online</strong>.</>
+              ? <>⚠ <strong>No store locations configured.</strong> Go to Admin → Locations.</>
+              : <>⚠ <strong>No online location enabled.</strong> Go to Admin → Locations.</>
             }
           </span>
-          <a href="/portal/admin" style={{ flexShrink: 0, fontWeight: '700', color: '#92400E', textDecoration: 'underline', whiteSpace: 'nowrap' }}>
-            Go to Admin →
-          </a>
+          <a href="/portal/admin" style={{ flexShrink: 0, fontWeight: '700', color: '#92400E', textDecoration: 'underline', whiteSpace: 'nowrap' }}>Admin →</a>
         </div>
       )}
 
       <Form method="post" onSubmit={handleSubmit} ref={formRef}>
-        {/* Hidden inputs */}
+        {/* ── Hidden inputs ── */}
         <input type="hidden" name="shop"              value={shop} />
         <input type="hidden" name="influencerId"      value={selectedInfluencer?.id ?? ''} />
         <input type="hidden" name="campaignId"        value={selectedCampaign?.id ?? ''} />
@@ -860,114 +866,165 @@ export default function PortalNewSeeding() {
           </span>
         ))}
 
-        <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '20px', alignItems: 'start' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '272px 1fr', gap: '32px', alignItems: 'start' }}>
 
-          {/* ══ LEFT SIDEBAR ══ */}
-          <div style={{ backgroundColor: D.surface, border: `1px solid ${D.border}`, borderRadius: '14px', overflow: 'hidden', position: 'sticky', top: '16px' }}>
+          {/* ══════════════════════════════ LEFT PANEL ══════════════════════════════ */}
+          <div style={{ position: 'sticky', top: '20px', display: 'flex', flexDirection: 'column', gap: '22px' }}>
 
-            {/* ── Influencer section ── */}
-            <div style={{ padding: '16px 16px 0' }}>
-              <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.6px', color: D.textMuted, marginBottom: '10px' }}>{t('newSeeding.sidebar.influencer')}</div>
-
-              <input type="text" placeholder={t('newSeeding.searchInf')} value={infSearch}
-                onChange={e => setInfSearch(e.target.value)}
-                style={{ ...input.base, width: '100%', boxSizing: 'border-box', fontSize: '13px', marginBottom: '8px' }} />
-
-              {/* Follower range */}
-              <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '6px' }}>
-                {FOLLOWER_RANGES.map(r => (
-                  <Pill key={r.label} label={r.label}
-                    active={infFollowerRange === r.label}
-                    onClick={() => setInfFollowerRange(r.label)} />
-                ))}
-              </div>
-
-              {/* Country pills */}
-              {topCountries.length > 0 && (
-                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '10px' }}>
-                  <Pill label={t('newSeeding.allLabel')} active={!infCountry} onClick={() => setInfCountry('')} />
-                  {topCountries.map(c => (
-                    <Pill key={c} label={`${countryFlag(c)} ${c}`}
-                      active={infCountry === c}
-                      onClick={() => setInfCountry(infCountry === c ? '' : c)} />
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Influencer list */}
-            <div style={{ maxHeight: '260px', overflowY: 'auto', borderTop: `1px solid ${D.borderLight}` }}>
-              {filteredInfluencers.length === 0 ? (
-                <div style={{ padding: '20px 16px', textAlign: 'center', fontSize: '12px', color: D.textMuted }}>
-                  {t('newSeeding.noInfFilters')}
-                </div>
-              ) : filteredInfluencers.map(inf => {
-                const isSelected = selectedInfluencer?.id === inf.id;
-                const followers  = fmtFollowers(inf.followers);
+            {/* ── Type segmented control ── */}
+            <div style={{ display: 'inline-flex', backgroundColor: D.surfaceHigh, borderRadius: '9px', padding: '3px', gap: 0 }}>
+              {[
+                { key: 'Online',  icon: '🌐', label: t('newSeeding.typeOnline') },
+                { key: 'InStore', icon: '🏪', label: t('newSeeding.typeInStore') },
+              ].map(({ key, icon, label }) => {
+                const active = seedingType === key;
                 return (
-                  <button key={inf.id} type="button"
-                    className={isSelected ? 'inf-row inf-row-active' : 'inf-row'}
-                    onClick={() => setSelectedInfluencer(inf)}
+                  <button key={key} type="button" onClick={() => { setSeedingType(key); setSelectedStore(null); }}
                     style={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      width: '100%', padding: '9px 14px', cursor: 'pointer', textAlign: 'left',
-                      border: 'none', borderBottom: `1px solid ${D.borderLight}`,
-                      backgroundColor: isSelected ? D.accentLight : 'transparent',
-                      transition: 'background-color 0.1s',
+                      flex: 1, padding: '7px 14px', borderRadius: '7px', border: 'none', cursor: 'pointer',
+                      fontSize: '13px', fontWeight: active ? '700' : '500',
+                      backgroundColor: active ? D.surface : 'transparent',
+                      color: active ? D.text : D.textMuted,
+                      boxShadow: active ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
+                      transition: 'all 0.15s',
+                      whiteSpace: 'nowrap',
                     }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-                      <div style={{
-                        width: '26px', height: '26px', borderRadius: '50%', flexShrink: 0,
-                        background: `linear-gradient(135deg, ${D.accent}, ${D.purple})`,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: '10px', fontWeight: '800', color: '#fff',
-                      }}>
-                        {(inf.handle?.[0] ?? '?').toUpperCase()}
-                      </div>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: '13px', fontWeight: isSelected ? '700' : '600', color: isSelected ? D.accent : D.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          @{inf.handle}
-                        </div>
-                        {inf.name && (
-                          <div style={{ fontSize: '11px', color: D.textMuted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {inf.name}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '1px', flexShrink: 0, marginLeft: '8px' }}>
-                      {isSelected && <span style={{ fontSize: '10px', fontWeight: '800', color: D.accent }}>✓</span>}
-                      {followers && <span style={{ fontSize: '10px', fontWeight: '600', color: D.textSub }}>{followers}</span>}
-                      {inf.country && <span style={{ fontSize: '10px', color: D.textMuted }}>{inf.country}</span>}
-                    </div>
+                    {icon} {label}
                   </button>
                 );
               })}
             </div>
 
-            {/* ── Campaign section ── */}
+            {/* ── Influencer section ── */}
+            <div>
+              <p style={{ margin: '0 0 10px', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.7px', color: D.textMuted }}>
+                {t('newSeeding.sidebar.influencer')}
+              </p>
+
+              {/* Selected influencer card */}
+              {selectedInfluencer && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', marginBottom: '12px', backgroundColor: D.accentFaint, borderRadius: '10px', animation: 'slideUp 0.15s ease' }}>
+                  <div style={{ width: '34px', height: '34px', borderRadius: '50%', flexShrink: 0, background: `linear-gradient(135deg, ${D.accent}, ${D.purple})`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: '800', color: '#fff' }}>
+                    {(selectedInfluencer.handle?.[0] ?? '?').toUpperCase()}
+                  </div>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontSize: '14px', fontWeight: '700', color: D.accent, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>@{selectedInfluencer.handle}</div>
+                    {selectedInfluencer.name && <div style={{ fontSize: '11px', color: D.textSub, marginTop: '1px' }}>{selectedInfluencer.name}</div>}
+                  </div>
+                  <button type="button" onClick={() => setSelectedInfluencer(null)}
+                    style={{ background: 'none', border: 'none', color: D.textMuted, cursor: 'pointer', fontSize: '18px', lineHeight: 1, padding: '2px 4px', flexShrink: 0 }}>×</button>
+                </div>
+              )}
+
+              {/* Search */}
+              <input type="text" placeholder={t('newSeeding.searchInf')} value={infSearch}
+                onChange={e => setInfSearch(e.target.value)}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '8px 11px', fontSize: '13px', border: `1px solid ${D.border}`, borderRadius: '8px', backgroundColor: D.bg, color: D.text, outline: 'none', marginBottom: '8px' }} />
+
+              {/* Follower range chips */}
+              <div style={{ display: 'flex', gap: '2px', marginBottom: '6px', flexWrap: 'wrap' }}>
+                {FOLLOWER_RANGES.map(r => (
+                  <Chip key={r.label} label={r.label} active={infFollowerRange === r.label} onClick={() => setInfFollowerRange(r.label)} />
+                ))}
+              </div>
+
+              {/* Country chips — real flags via flagcdn */}
+              {topCountries.length > 0 && (
+                <div style={{ display: 'flex', gap: '2px', marginBottom: '10px', flexWrap: 'wrap' }}>
+                  <Chip label="All" active={!infCountry} onClick={() => setInfCountry('')} />
+                  {topCountries.map(c => {
+                    const code = COUNTRY_CODES[c];
+                    return (
+                      <button key={c} type="button" onClick={() => setInfCountry(infCountry === c ? '' : c)}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: '4px',
+                          padding: '3px 8px', fontSize: '11px', fontWeight: infCountry === c ? '700' : '500',
+                          borderRadius: '5px', border: 'none',
+                          backgroundColor: infCountry === c ? D.accentFaint : 'transparent',
+                          color: infCountry === c ? D.accent : D.textMuted,
+                          cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.1s',
+                        }}>
+                        {code ? <FlagImg code={code} size={14} /> : null}
+                        <span style={{ marginLeft: code ? '2px' : 0 }}>{c}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Influencer list — clean, no per-row borders */}
+              <div className="new-seeding-left" style={{ maxHeight: '252px', overflowY: 'auto', borderRadius: '9px', border: `1px solid ${D.border}`, backgroundColor: D.surface }}>
+                {filteredInfluencers.length === 0 ? (
+                  <div style={{ padding: '24px 16px', textAlign: 'center', fontSize: '12px', color: D.textMuted }}>
+                    {t('newSeeding.noInfFilters')}
+                  </div>
+                ) : filteredInfluencers.map((inf, idx) => {
+                  const isSelected = selectedInfluencer?.id === inf.id;
+                  const followers  = fmtFollowers(inf.followers);
+                  const code       = COUNTRY_CODES[inf.country];
+                  return (
+                    <button key={inf.id} type="button"
+                      className={isSelected ? 'inf-row inf-row-selected' : 'inf-row'}
+                      onClick={() => setSelectedInfluencer(isSelected ? null : inf)}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '9px',
+                        width: '100%', padding: '9px 12px', cursor: 'pointer', textAlign: 'left',
+                        border: 'none',
+                        borderTop: idx > 0 ? `1px solid ${D.borderLight}` : 'none',
+                        backgroundColor: isSelected ? D.accentFaint : 'transparent',
+                        transition: 'background-color 0.1s',
+                      }}>
+                      {/* Avatar */}
+                      <div style={{ width: '28px', height: '28px', borderRadius: '50%', flexShrink: 0, background: isSelected ? `linear-gradient(135deg, ${D.accent}, ${D.purple})` : D.surfaceHigh, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '800', color: isSelected ? '#fff' : D.textSub }}>
+                        {(inf.handle?.[0] ?? '?').toUpperCase()}
+                      </div>
+                      {/* Info */}
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontSize: '13px', fontWeight: '600', color: isSelected ? D.accent : D.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
+                          @{inf.handle}
+                        </div>
+                        {inf.name && (
+                          <div style={{ fontSize: '11px', color: D.textMuted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
+                            {inf.name}
+                          </div>
+                        )}
+                      </div>
+                      {/* Right meta */}
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px', flexShrink: 0 }}>
+                        {followers && <span style={{ fontSize: '10px', fontWeight: '600', color: D.textMuted }}>{followers}</span>}
+                        {code && <FlagImg code={code} size={14} />}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* ── Campaign ── */}
             {campaigns.length > 0 && (
-              <div style={{ padding: '12px 16px', borderTop: `1px solid ${D.border}` }}>
-                <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.6px', color: D.textMuted, marginBottom: '8px' }}>
-                  {t('newSeeding.campaign')} <span style={{ fontWeight: '400', textTransform: 'none', color: D.textMuted, opacity: 0.7 }}>{t('newSeeding.campaignOptional')}</span>
-                </div>
-                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                  <Pill label={t('newSeeding.noneLabel')} active={!selectedCampaign} onClick={() => setSelectedCampaign(null)} />
-                  {campaigns.map(c => (
-                    <Pill key={c.id} label={c.title}
-                      active={selectedCampaign?.id === c.id}
-                      onClick={() => setSelectedCampaign(selectedCampaign?.id === c.id ? null : c)} />
-                  ))}
-                </div>
+              <div>
+                <p style={{ margin: '0 0 8px', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.7px', color: D.textMuted }}>
+                  {t('newSeeding.campaign')} <span style={{ fontWeight: '400', textTransform: 'none', opacity: 0.6 }}>{t('newSeeding.campaignOptional')}</span>
+                </p>
+                <select
+                  value={selectedCampaign?.id ?? ''}
+                  onChange={e => {
+                    const id = e.target.value;
+                    setSelectedCampaign(id ? campaigns.find(c => c.id === parseInt(id)) ?? null : null);
+                  }}
+                  style={{ width: '100%', padding: '8px 11px', fontSize: '13px', border: `1px solid ${D.border}`, borderRadius: '8px', backgroundColor: D.bg, color: D.text, outline: 'none', cursor: 'pointer' }}>
+                  <option value="">No campaign</option>
+                  {campaigns.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
+                </select>
               </div>
             )}
 
             {/* ── Store picker (in-store only) ── */}
             {seedingType === 'InStore' && (
-              <div style={{ padding: '12px 16px', borderTop: `1px solid ${D.border}` }}>
-                <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.6px', color: D.textMuted, marginBottom: '8px' }}>
+              <div>
+                <p style={{ margin: '0 0 8px', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.7px', color: D.textMuted }}>
                   {t('newSeeding.storeLocation')} <span style={{ color: D.errorText }}>*</span>
-                </div>
+                </p>
                 {storeLocations.length === 0 ? (
                   <p style={{ margin: 0, fontSize: '12px', color: '#92400E' }}>{t('newSeeding.noStoresConfigured')}</p>
                 ) : (
@@ -976,15 +1033,9 @@ export default function PortalNewSeeding() {
                       const active = selectedStore?.id === loc.id;
                       return (
                         <button key={loc.id} type="button" onClick={() => setSelectedStore(loc)}
-                          style={{
-                            textAlign: 'left', padding: '8px 12px', borderRadius: '8px', border: `1.5px solid ${active ? 'var(--pt-accent)' : D.border}`,
-                            backgroundColor: active ? 'var(--pt-accent-light)' : 'transparent',
-                            color: active ? 'var(--pt-accent)' : D.text,
-                            cursor: 'pointer', fontSize: '13px', fontWeight: active ? '700' : '500',
-                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                          }}>
+                          style={{ textAlign: 'left', padding: '9px 12px', borderRadius: '8px', border: `1.5px solid ${active ? D.accent : D.border}`, backgroundColor: active ? D.accentFaint : 'transparent', color: active ? D.accent : D.text, cursor: 'pointer', fontSize: '13px', fontWeight: active ? '700' : '500', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                           <span>🏪 {loc.name}</span>
-                          {active && <span style={{ fontSize: '11px', fontWeight: '800' }}>✓</span>}
+                          {active && <span style={{ fontSize: '11px' }}>✓</span>}
                         </button>
                       );
                     })}
@@ -993,110 +1044,43 @@ export default function PortalNewSeeding() {
               </div>
             )}
 
-            {/* ── Notes section ── */}
-            <div style={{ padding: '12px 16px', borderTop: `1px solid ${D.border}` }}>
-              <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.6px', color: D.textMuted, marginBottom: '6px' }}>
-                {t('newSeeding.notes')} <span style={{ fontWeight: '400', textTransform: 'none', opacity: 0.7 }}>{t('newSeeding.notesOptional')}</span>
-              </div>
-              <textarea name="notes" value={notes} onChange={e => setNotes(e.target.value)} rows={2}
+            {/* ── Notes ── */}
+            <div>
+              <p style={{ margin: '0 0 6px', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.7px', color: D.textMuted }}>
+                {t('newSeeding.notes')} <span style={{ fontWeight: '400', textTransform: 'none', opacity: 0.6 }}>{t('newSeeding.notesOptional')}</span>
+              </p>
+              <textarea name="notes" value={notes} onChange={e => setNotes(e.target.value)} rows={3}
                 placeholder={t('newSeeding.notesPlaceholder')}
-                style={{ ...input.base, width: '100%', resize: 'vertical', boxSizing: 'border-box', fontSize: '12px' }} />
+                style={{ width: '100%', boxSizing: 'border-box', padding: '8px 11px', fontSize: '12px', border: `1px solid ${D.border}`, borderRadius: '8px', backgroundColor: D.bg, color: D.text, resize: 'vertical', outline: 'none', fontFamily: 'inherit', lineHeight: 1.5 }} />
             </div>
 
-            {/* ── CTA ── */}
-            <div style={{ padding: '12px 16px', borderTop: `1px solid ${D.border}` }}>
-              {/* Budget warning — returned from server when budget would be exceeded */}
-              {actionData?.budgetWarning && (
-                <div style={{ marginBottom: '10px', padding: '12px 14px', backgroundColor: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: '8px' }}>
-                  <div style={{ fontSize: '12px', fontWeight: '700', color: '#92400E', marginBottom: '8px' }}>
-                    ⚠ Budget exceeded
-                  </div>
-                  <div style={{ fontSize: '12px', color: '#92400E', marginBottom: '10px', lineHeight: 1.5 }}>
-                    {actionData.budgetMessage}
-                  </div>
-                  <button type="button"
-                    onClick={() => {
-                      if (bypassBudgetRef.current) bypassBudgetRef.current.value = '1';
-                      setSubmitting(true);
-                      formRef.current?.submit();
-                    }}
-                    style={{ padding: '7px 16px', borderRadius: '7px', border: '1px solid #D97706', backgroundColor: 'transparent', color: '#92400E', cursor: 'pointer', fontSize: '12px', fontWeight: '700' }}>
-                    Proceed anyway →
-                  </button>
-                </div>
-              )}
-
-              {submitError && (
-                <div style={{ marginBottom: '8px', padding: '8px 12px', backgroundColor: D.errorBg, color: D.errorText, borderRadius: '7px', fontSize: '12px', fontWeight: '600' }}>
-                  {submitError}
-                </div>
-              )}
-              {/* Allocation error from server */}
-              {actionData?.error && !actionData?.budgetWarning && (
-                <div style={{ marginBottom: '8px', padding: '8px 12px', backgroundColor: D.errorBg, color: D.errorText, borderRadius: '7px', fontSize: '12px', fontWeight: '600' }}>
-                  {actionData.error}
-                </div>
-              )}
-              <button type="submit" disabled={!canSubmit}
-                style={{
-                  width: '100%',
-                  padding: '13px',
-                  borderRadius: '10px',
-                  border: 'none',
-                  background: canSubmit
-                    ? `linear-gradient(135deg, ${D.accent} 0%, ${D.purple} 100%)`
-                    : D.surfaceHigh,
-                  color: canSubmit ? '#fff' : D.textMuted,
-                  fontSize: '14px',
-                  fontWeight: '700',
-                  cursor: canSubmit ? 'pointer' : 'not-allowed',
-                  boxShadow: canSubmit ? '0 4px 16px rgba(124,111,247,0.3)' : 'none',
-                  transition: 'all 0.2s ease',
-                  letterSpacing: '-0.1px',
-                }}>
-                {submitting
-                  ? t('newSeeding.submitting')
-                  : selectedProducts.length > 0
-                    ? `🚀 ${t('newSeeding.submit')} (${selectedProducts.length})`
-                    : t('newSeeding.submit')}
-              </button>
-
-              {/* Validation hints */}
-              {!hasEnabledLocation && (
-                <p style={{ margin: '6px 0 0', fontSize: '11px', color: '#92400E', textAlign: 'center', fontWeight: '600' }}>
-                  {seedingType === 'InStore' ? t('newSeeding.sidebar.validation.noStoreLoc') : t('newSeeding.sidebar.validation.noOnlineLoc')}
-                </p>
-              )}
-              {hasEnabledLocation && seedingType === 'InStore' && !selectedStore && (
-                <p style={{ margin: '6px 0 0', fontSize: '11px', color: D.textMuted, textAlign: 'center' }}>{t('newSeeding.sidebar.validation.selectStore')}</p>
-              )}
-              {hasEnabledLocation && hasSelectedStore && !selectedInfluencer && (
-                <p style={{ margin: '6px 0 0', fontSize: '11px', color: D.textMuted, textAlign: 'center' }}>{t('newSeeding.sidebar.validation.selectInfluencer')}</p>
-              )}
-              {hasEnabledLocation && hasSelectedStore && selectedInfluencer && selectedProducts.length > 0 && !allHaveSizes && (
-                <p style={{ margin: '6px 0 0', fontSize: '11px', color: D.errorText, textAlign: 'center', fontWeight: '600' }}>{t('newSeeding.sidebar.validation.sizeRequired')}</p>
-              )}
-              {seedingType === 'InStore' && availableProductCodes === 0 && (
-                <p style={{ margin: '6px 0 0', fontSize: '11px', color: '#92400E', textAlign: 'center', fontWeight: '600' }}>{t('newSeeding.sidebar.validation.noProductCodes')}</p>
-              )}
-            </div>
           </div>
+          {/* ════════════════════════════════ END LEFT ════════════════════════════════ */}
 
-          {/* ══ RIGHT: products + basket ══ */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {/* ══════════════════════════════ RIGHT PANEL ══════════════════════════════ */}
+          <div
+            onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={e => {
+              e.preventDefault(); setDragOver(false);
+              const prod = products.find(p => p.id === dragProductId);
+              if (prod) handleDrop(prod);
+            }}
+            style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}
+          >
 
             {/* ── Product browser ── */}
-            <div style={{ backgroundColor: D.surface, border: `1px solid ${D.border}`, borderRadius: '14px', overflow: 'hidden' }}>
+            <div style={{ backgroundColor: D.surface, borderRadius: '14px', border: `1px solid ${dragOver ? D.accent : D.border}`, overflow: 'hidden', transition: 'border-color 0.15s', boxShadow: dragOver ? `0 0 0 3px ${D.accentFaint}` : 'none' }}>
               {/* Toolbar */}
               <div style={{ padding: '14px 16px', borderBottom: `1px solid ${D.border}`, display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
                 <input type="text" placeholder={t('newSeeding.searchProducts')} value={search}
                   onChange={e => setSearch(e.target.value)}
-                  style={{ ...input.base, flex: '1', minWidth: '160px', fontSize: '13px' }} />
+                  style={{ flex: 1, minWidth: '160px', padding: '8px 11px', fontSize: '13px', border: `1px solid ${D.border}`, borderRadius: '8px', backgroundColor: D.bg, color: D.text, outline: 'none' }} />
                 {collections.length > 0 && (
-                  <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                    <Pill label={t('newSeeding.allLabel')} active={!selectedCollection} onClick={() => setSelectedCollection(null)} />
+                  <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap' }}>
+                    <Chip label="All" active={!selectedCollection} onClick={() => setSelectedCollection(null)} />
                     {collections.map(c => (
-                      <Pill key={c.id} label={c.title}
+                      <Chip key={c.id} label={c.title}
                         active={selectedCollection?.id === c.id}
                         onClick={() => setSelectedCollection(selectedCollection?.id === c.id ? null : c)} />
                     ))}
@@ -1105,18 +1089,19 @@ export default function PortalNewSeeding() {
               </div>
 
               {productsError && (
-                <div style={{ padding: '10px 16px', backgroundColor: D.warningBg, color: D.warningText, fontSize: '13px' }}>
-                  ⚠️ {productsError}
+                <div style={{ padding: '10px 16px', backgroundColor: '#FFF7ED', color: '#92400E', fontSize: '12px' }}>
+                  ⚠ {productsError}
                 </div>
               )}
 
-              {/* Grid */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '10px', padding: '14px 16px', maxHeight: '400px', overflowY: 'auto' }}>
+              {/* Product grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '12px', padding: '16px', maxHeight: '420px', overflowY: 'auto' }}>
                 {!productsError && filteredProducts.length === 0 && (
-                  <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '32px 16px', color: D.textMuted, fontSize: '13px' }}>
-                    {products.length === 0
-                      ? t('newSeeding.noProductsInShopify')
-                      : t('newSeeding.noProducts')}
+                  <div style={{ gridColumn: '1 / -1', padding: '48px 16px', textAlign: 'center', color: D.textMuted }}>
+                    <div style={{ fontSize: '28px', marginBottom: '8px' }}>🛍</div>
+                    <div style={{ fontSize: '13px', fontWeight: '500' }}>
+                      {products.length === 0 ? t('newSeeding.noProductsInShopify') : t('newSeeding.noProducts')}
+                    </div>
                   </div>
                 )}
                 {filteredProducts.map(prod => {
@@ -1131,138 +1116,148 @@ export default function PortalNewSeeding() {
                       onDragStart={() => setDragProductId(prod.id)}
                       onDragEnd={() => setDragProductId(null)}
                       onClick={() => { if (!blocked && !alreadyAdded) handleDrop(prod); }}
-                      className={blocked || alreadyAdded ? '' : 'prod-tile'}
+                      className={blocked || alreadyAdded ? '' : 'prod-card'}
                       style={{
-                        border: `${alreadyAdded ? '2px' : '1px'} solid ${alreadyAdded ? D.accent : D.border}`,
                         borderRadius: '10px', overflow: 'hidden',
                         cursor: blocked ? 'not-allowed' : alreadyAdded ? 'default' : 'pointer',
-                        opacity: blocked ? 0.4 : 1,
-                        backgroundColor: alreadyAdded ? D.accentLight : D.surface,
+                        opacity: blocked ? 0.35 : 1,
+                        backgroundColor: alreadyAdded ? D.accentFaint : D.bg,
+                        border: alreadyAdded ? `1.5px solid ${D.accent}` : `1px solid ${D.border}`,
                         animation: isShaking ? 'shake 0.4s' : 'none',
                         position: 'relative',
                       }}>
+                      {/* Selected checkmark */}
                       {alreadyAdded && (
-                        <div style={{ position: 'absolute', top: '5px', right: '5px', width: '18px', height: '18px', borderRadius: '50%', backgroundColor: D.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', color: '#fff', fontWeight: '800' }}>✓</div>
+                        <div style={{ position: 'absolute', top: '7px', right: '7px', width: '20px', height: '20px', borderRadius: '50%', backgroundColor: D.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', color: '#fff', fontWeight: '800', zIndex: 1 }}>✓</div>
                       )}
                       {prod.image
                         ? <img src={prod.image} alt={prod.name} style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block' }} />
-                        : <div style={{ width: '100%', aspectRatio: '1', backgroundColor: D.surfaceHigh, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '26px' }}>📦</div>
+                        : <div style={{ width: '100%', aspectRatio: '1', backgroundColor: D.surfaceHigh, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px' }}>📦</div>
                       }
-                      <div style={{ padding: '7px 8px' }}>
-                        <div style={{ fontSize: '11px', fontWeight: '700', color: alreadyAdded ? D.accent : D.text, lineHeight: 1.3, marginBottom: '2px', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{prod.name}</div>
-                        <div style={{ fontSize: '10px', color: D.textMuted }}>€{prod.price.toFixed(2)}</div>
-                        {recentlySent && <div style={{ fontSize: '9px', color: D.accent, fontWeight: '700', marginTop: '2px' }}>{t('newSeeding.recentlySent')}</div>}
-                        {outOfStock   && <div style={{ fontSize: '9px', color: D.errorText, fontWeight: '700', marginTop: '2px' }}>{t('newSeeding.outOfStock')}</div>}
-                        {!hasEnabledLocation && !recentlySent && <div style={{ fontSize: '9px', color: D.textMuted, marginTop: '2px' }}>{t('newSeeding.stockNone')}</div>}
+                      <div style={{ padding: '8px 10px' }}>
+                        <div style={{ fontSize: '11px', fontWeight: '600', color: alreadyAdded ? D.accent : D.text, lineHeight: 1.3, marginBottom: '3px', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                          {prod.name}
+                        </div>
+                        <div style={{ fontSize: '11px', color: D.textMuted, fontWeight: '500' }}>€{prod.price.toFixed(2)}</div>
+                        {recentlySent && <div style={{ fontSize: '10px', color: D.accent, fontWeight: '700', marginTop: '2px' }}>Recently sent</div>}
+                        {outOfStock   && <div style={{ fontSize: '10px', color: D.errorText, fontWeight: '600', marginTop: '2px' }}>Out of stock</div>}
                       </div>
                     </div>
                   );
                 })}
               </div>
-            </div>
 
-            {/* ── Selected items / drop zone ── */}
-            <div
-              onDragOver={e => { e.preventDefault(); setDragOver(true); }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={e => {
-                e.preventDefault(); setDragOver(false);
-                const prod = products.find(p => p.id === dragProductId);
-                if (prod) handleDrop(prod);
-              }}
-              style={{
-                backgroundColor: dragOver ? D.accentLight : D.surface,
-                border: `1.5px solid ${dragOver ? D.accent : D.border}`,
-                borderRadius: '14px',
-                overflow: 'hidden',
-                transition: 'all 0.15s ease',
-                boxShadow: dragOver ? `0 0 0 3px ${D.accentLight}` : 'none',
-              }}
-            >
-              {/* Panel header */}
-              <div style={{ padding: '12px 16px', borderBottom: `1px solid ${selectedProducts.length > 0 ? D.border : 'transparent'}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: '12px', fontWeight: '700', color: D.text }}>{t('newSeeding.selectedItems')}</span>
-                {selectedProducts.length > 0 && (
-                  <span style={{ fontSize: '11px', fontWeight: '700', backgroundColor: D.accent, color: '#fff', borderRadius: '10px', padding: '1px 8px' }}>
-                    {selectedProducts.length}
-                  </span>
-                )}
-              </div>
-
-              {selectedProducts.length === 0 ? (
-                <div style={{ padding: '28px 16px', textAlign: 'center', color: dragOver ? D.accent : D.textMuted, transition: 'color 0.15s' }}>
-                  <div style={{ fontSize: '24px', marginBottom: '6px', transform: dragOver ? 'scale(1.15)' : 'scale(1)', transition: 'transform 0.15s' }}>📦</div>
-                  <div style={{ fontSize: '13px', fontWeight: dragOver ? '700' : '500' }}>
-                    {dragOver ? t('newSeeding.dropHere') : t('newSeeding.clickOrDrag')}
-                  </div>
-                  {!dragOver && <div style={{ fontSize: '12px', marginTop: '3px', opacity: 0.7 }}>{t('newSeeding.autoFillSizes')}</div>}
-                </div>
-              ) : (
-                <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: '7px' }}>
-                  {selectedProducts.map(prod => (
-                    <div key={prod.id} style={{
-                      display: 'grid', gridTemplateColumns: '38px 1fr auto', gap: '10px', alignItems: 'center',
-                      backgroundColor: D.surfaceRaised, border: `1px solid ${D.border}`, borderRadius: '10px', padding: '9px 10px',
-                      animation: 'fadeIn 0.18s ease',
-                    }}>
-                      {prod.image
-                        ? <img src={prod.image} alt={prod.name} style={{ width: '38px', height: '38px', objectFit: 'cover', borderRadius: '6px' }} />
-                        : <div style={{ width: '38px', height: '38px', backgroundColor: D.surfaceHigh, borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px' }}>📦</div>
-                      }
-                      <div>
-                        <div style={{ fontSize: '12px', fontWeight: '700', color: D.text, marginBottom: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{prod.name}</div>
-                        <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
-                          {prod.variants && prod.variants.length > 1 ? (
-                            <select
-                              value={prod.size ?? ''}
-                              onChange={e => {
-                                const size    = e.target.value;
-                                const variant = prod.variants.find(v => extractSizeFromVariant(v.title) === size);
-                                setSelectedProducts(prev => prev.map(p =>
-                                  p.id === prod.id ? { ...p, size, selectedVariant: variant ?? p.selectedVariant, sizeUnavailable: false } : p
-                                ));
-                              }}
-                              style={{ fontSize: '12px', padding: '3px 7px', borderRadius: '6px', border: `1px solid ${!prod.size ? D.errorText : D.border}`, backgroundColor: !prod.size ? D.errorBg : D.surface, color: D.text }}>
-                              <option value="">{t('newSeeding.pickSize')}</option>
-                              {prod.variants.map(v => {
-                                const label = extractSizeFromVariant(v.title) || v.title;
-                                return (
-                                  <option key={v.id} value={extractSizeFromVariant(v.title)}>
-                                    {label}{v.available === false ? ' (OOS)' : ''}
-                                  </option>
-                                );
-                              })}
-                            </select>
-                          ) : (
-                            <span style={{ fontSize: '11px', color: D.textMuted, backgroundColor: D.surfaceHigh, padding: '2px 7px', borderRadius: '5px' }}>{t('newSeeding.oneSize')}</span>
-                          )}
-                          <span style={{ fontSize: '11px', color: D.textSub, fontWeight: '600' }}>€{(prod.selectedVariant?.price ?? prod.price).toFixed(2)}</span>
-                        </div>
-                      </div>
-                      <button type="button"
-                        onClick={() => setSelectedProducts(prev => prev.filter(p => p.id !== prod.id))}
-                        style={{ background: 'none', border: 'none', color: D.textMuted, cursor: 'pointer', fontSize: '18px', lineHeight: 1, padding: '4px', transition: 'color 0.12s' }}
-                        onMouseOver={e => e.currentTarget.style.color = '#EF4444'}
-                        onMouseOut={e => e.currentTarget.style.color = D.textMuted}
-                      >×</button>
-                    </div>
-                  ))}
-
-                  {/* Total row */}
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '16px', paddingTop: '8px', borderTop: `1px solid ${D.border}`, marginTop: '2px' }}>
-                    {selectedProducts.some(p => p.selectedVariant?.cost || p.cost) && (
-                      <span style={{ fontSize: '12px', color: D.textSub }}>
-                        {t('newSeeding.costTotal')} <strong style={{ color: D.text }}>€{selectedProducts.reduce((s, p) => s + (p.selectedVariant?.cost ?? p.cost ?? 0), 0).toFixed(2)}</strong>
-                      </span>
-                    )}
-                    <span style={{ fontSize: '14px', fontWeight: '800', color: D.text }}>
-                      {t('newSeeding.retailTotal')} €{totalRetail.toFixed(2)}
-                    </span>
-                  </div>
+              {/* Drag hint */}
+              {dragOver && (
+                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', backgroundColor: 'rgba(124,111,247,0.04)', fontSize: '13px', fontWeight: '700', color: D.accent }}>
+                  Drop to add
                 </div>
               )}
             </div>
+
+            {/* ── Selected items + CTA (sticky cart) ── */}
+            <div style={{ position: 'sticky', bottom: '16px', backgroundColor: D.surface, borderRadius: '14px', border: `1px solid ${D.border}`, boxShadow: '0 8px 32px rgba(0,0,0,0.10)', overflow: 'hidden' }}>
+
+              {/* Items list */}
+              {selectedProducts.length > 0 && (
+                <div style={{ maxHeight: '220px', overflowY: 'auto', borderBottom: `1px solid ${D.border}` }}>
+                  {selectedProducts.map((prod, idx) => (
+                    <div key={prod.id} style={{ display: 'grid', gridTemplateColumns: '36px 1fr auto auto auto', gap: '10px', alignItems: 'center', padding: '10px 14px', borderTop: idx > 0 ? `1px solid ${D.borderLight}` : 'none', animation: 'slideUp 0.15s ease' }}>
+                      {/* Image */}
+                      {prod.image
+                        ? <img src={prod.image} alt={prod.name} style={{ width: '36px', height: '36px', objectFit: 'cover', borderRadius: '7px' }} />
+                        : <div style={{ width: '36px', height: '36px', backgroundColor: D.surfaceHigh, borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px' }}>📦</div>
+                      }
+                      {/* Name */}
+                      <div style={{ fontSize: '12px', fontWeight: '600', color: D.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{prod.name}</div>
+                      {/* Size selector */}
+                      {prod.variants && prod.variants.length > 1 ? (
+                        <select
+                          value={prod.size ?? ''}
+                          onChange={e => {
+                            const size    = e.target.value;
+                            const variant = prod.variants.find(v => extractSizeFromVariant(v.title) === size);
+                            setSelectedProducts(prev => prev.map(p =>
+                              p.id === prod.id ? { ...p, size, selectedVariant: variant ?? p.selectedVariant, sizeUnavailable: false } : p
+                            ));
+                          }}
+                          style={{ fontSize: '12px', padding: '4px 8px', borderRadius: '6px', border: `1px solid ${!prod.size ? D.errorText : D.border}`, backgroundColor: !prod.size ? '#FFF1F0' : D.bg, color: D.text, outline: 'none', cursor: 'pointer' }}>
+                          <option value="">{t('newSeeding.pickSize')}</option>
+                          {prod.variants.map(v => {
+                            const label = extractSizeFromVariant(v.title) || v.title;
+                            return <option key={v.id} value={extractSizeFromVariant(v.title)}>{label}{v.available === false ? ' (OOS)' : ''}</option>;
+                          })}
+                        </select>
+                      ) : (
+                        <span style={{ fontSize: '11px', color: D.textMuted, backgroundColor: D.surfaceHigh, padding: '3px 8px', borderRadius: '5px', whiteSpace: 'nowrap' }}>{t('newSeeding.oneSize')}</span>
+                      )}
+                      {/* Price */}
+                      <span style={{ fontSize: '12px', fontWeight: '600', color: D.textSub, whiteSpace: 'nowrap' }}>€{(prod.selectedVariant?.price ?? prod.price).toFixed(2)}</span>
+                      {/* Remove */}
+                      <button type="button"
+                        onClick={() => setSelectedProducts(prev => prev.filter(p => p.id !== prod.id))}
+                        style={{ background: 'none', border: 'none', color: D.textMuted, cursor: 'pointer', fontSize: '17px', lineHeight: 1, padding: '2px', flexShrink: 0 }}
+                        onMouseOver={e => e.currentTarget.style.color = '#EF4444'}
+                        onMouseOut={e => e.currentTarget.style.color = D.textMuted}>×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Budget warning */}
+              {actionData?.budgetWarning && (
+                <div style={{ padding: '12px 16px', backgroundColor: 'rgba(245,158,11,0.07)', borderBottom: `1px solid rgba(245,158,11,0.2)` }}>
+                  <div style={{ fontSize: '12px', fontWeight: '700', color: '#92400E', marginBottom: '6px' }}>⚠ Budget exceeded</div>
+                  <div style={{ fontSize: '12px', color: '#92400E', marginBottom: '8px', lineHeight: 1.5 }}>{actionData.budgetMessage}</div>
+                  <button type="button"
+                    onClick={() => { if (bypassBudgetRef.current) bypassBudgetRef.current.value = '1'; setSubmitting(true); formRef.current?.submit(); }}
+                    style={{ padding: '6px 14px', borderRadius: '7px', border: '1px solid #D97706', backgroundColor: 'transparent', color: '#92400E', cursor: 'pointer', fontSize: '12px', fontWeight: '700' }}>
+                    Proceed anyway →
+                  </button>
+                </div>
+              )}
+
+              {/* Allocation / submit errors */}
+              {(submitError || (actionData?.error && !actionData?.budgetWarning)) && (
+                <div style={{ padding: '10px 16px', backgroundColor: D.errorBg, color: D.errorText, fontSize: '12px', fontWeight: '600', borderBottom: `1px solid ${D.border}` }}>
+                  {submitError || actionData?.error}
+                </div>
+              )}
+
+              {/* Footer: total + CTA */}
+              <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '14px' }}>
+                {selectedProducts.length > 0 && (
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: '11px', color: D.textMuted }}>{selectedProducts.length} item{selectedProducts.length !== 1 ? 's' : ''}</div>
+                    <div style={{ fontSize: '17px', fontWeight: '800', color: D.text, letterSpacing: '-0.4px' }}>€{totalRetail.toFixed(2)}</div>
+                    {selectedProducts.some(p => p.selectedVariant?.cost || p.cost) && (
+                      <div style={{ fontSize: '11px', color: D.textMuted }}>Cost: €{selectedProducts.reduce((s, p) => s + (p.selectedVariant?.cost ?? p.cost ?? 0), 0).toFixed(2)}</div>
+                    )}
+                  </div>
+                )}
+                {selectedProducts.length === 0 && (
+                  <div style={{ flex: 1, fontSize: '13px', color: D.textMuted }}>Click products above to add them</div>
+                )}
+                <button type="submit" disabled={!canSubmit}
+                  style={{
+                    padding: '11px 22px', borderRadius: '10px', border: 'none', flexShrink: 0,
+                    background: canSubmit ? `linear-gradient(135deg, ${D.accent} 0%, ${D.purple} 100%)` : D.surfaceHigh,
+                    color: canSubmit ? '#fff' : D.textMuted,
+                    fontSize: '13px', fontWeight: '700',
+                    cursor: canSubmit ? 'pointer' : 'not-allowed',
+                    boxShadow: canSubmit ? '0 4px 16px rgba(124,111,247,0.28)' : 'none',
+                    transition: 'all 0.2s ease',
+                    letterSpacing: '-0.1px', whiteSpace: 'nowrap',
+                  }}>
+                  {ctaLabel}
+                </button>
+              </div>
+            </div>
+            {/* ══ END STICKY CART ══ */}
+
           </div>
+          {/* ════════════════════════════════ END RIGHT ════════════════════════════════ */}
+
         </div>
       </Form>
     </div>
