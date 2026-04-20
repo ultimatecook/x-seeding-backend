@@ -1188,7 +1188,10 @@ export default function PortalNewSeeding() {
                           value={prod.size ?? ''}
                           onChange={e => {
                             const size    = e.target.value;
-                            const variant = prod.variants.find(v => extractSizeFromVariant(v.title) === size);
+                            const variant = prod.variants.find(v => {
+                              const extracted = extractSizeFromVariant(v.title);
+                              return (extracted || v.title) === size;
+                            });
                             setSelectedProducts(prev => prev.map(p =>
                               p.id === prod.id ? { ...p, size, selectedVariant: variant ?? p.selectedVariant, sizeUnavailable: false } : p
                             ));
@@ -1196,8 +1199,10 @@ export default function PortalNewSeeding() {
                           style={{ fontSize: '12px', padding: '4px 8px', borderRadius: '6px', border: `1px solid ${!prod.size ? D.errorText : D.border}`, backgroundColor: !prod.size ? '#FFF1F0' : D.bg, color: D.text, outline: 'none', cursor: 'pointer' }}>
                           <option value="">{t('newSeeding.pickSize')}</option>
                           {prod.variants.map(v => {
-                            const label = extractSizeFromVariant(v.title) || v.title;
-                            return <option key={v.id} value={extractSizeFromVariant(v.title)}>{label}{v.available === false ? ' (OOS)' : ''}</option>;
+                            const extracted = extractSizeFromVariant(v.title);
+                            const label = extracted || v.title;
+                            const val = extracted || v.title; // use full title if no size extracted
+                            return <option key={v.id} value={val}>{label}{v.available === false ? ' (OOS)' : ''}</option>;
                           })}
                         </select>
                       ) : (
