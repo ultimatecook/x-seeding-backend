@@ -329,7 +329,6 @@ export async function action({ request }) {
           note: `Seeding for ${influencer?.handle ?? ''} (${influencer?.name ?? ''})`,
           tags: ['seeding'],
         };
-        if (locationId) draftInput.locationId = locationId;
         if (influencer?.email) draftInput.email = influencer.email;
 
         const res  = await fetch(`https://${shop}/admin/api/2025-10/graphql.json`, {
