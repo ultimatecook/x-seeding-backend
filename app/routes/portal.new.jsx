@@ -198,6 +198,9 @@ export async function loader({ request }) {
   const availableProductCodes = await prisma.discountCode.count({
     where: { shop, poolType: 'Product', status: 'Available' },
   });
+  const availableShippingCodes = await prisma.discountCode.count({
+    where: { shop, poolType: 'Shipping', status: 'Available' },
+  });
 
   // ── Guest pre-fill (when coming from "Create seeding" on a campaign guest) ──
   const url          = new URL(request.url);
@@ -223,7 +226,7 @@ export async function loader({ request }) {
     }
   }
 
-  return { products, productsError, collections: collectionsData, influencers, campaigns, recentlySeededMap, allSavedSizes, shop, enabledLocations, availableProductCodes, prefillGuest };
+  return { products, productsError, collections: collectionsData, influencers, campaigns, recentlySeededMap, allSavedSizes, shop, enabledLocations, availableProductCodes, availableShippingCodes, prefillGuest };
 }
 
 // ── Action ────────────────────────────────────────────────────────────────────
@@ -259,9 +262,14 @@ export async function action({ request }) {
   if (!influencer || influencer.shop !== shop) return { error: 'Influencer not found.' };
 
   // ── Discount code check ──────────────────────────────────────────────────
-  const availableCodes = await prisma.discountCode.count({ where: { shop, poolType: 'Product', status: 'Available' } });
-  if (availableCodes === 0) {
-    return { error: 'No discount codes available in the pool. Please add codes before creating a seeding.' };
+  const availableProductCount  = await prisma.discountCode.count({ where: { shop, poolType: 'Product',  status: 'Available' } });
+  const availableShippingCount = await prisma.discountCode.count({ where: { shop, poolType: 'Shipping', status: 'Available' } });
+
+  if (availableProductCount === 0) {
+    return { error: 'No product discount codes available. Please add codes to the pool before creating a seeding.' };
+  }
+  if (seedingType === 'Online' && availableShippingCount === 0) {
+    return { error: 'No shipping discount codes available. Online seedings require a shipping code. Please add codes to the pool.' };
   }
 
   // ── Campaign validation ──────────────────────────────────────────────────
@@ -513,7 +521,7 @@ function Pill({ label, active, onClick }) {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function PortalNewSeeding() {
-  const { products, productsError, collections, influencers, campaigns, recentlySeededMap, allSavedSizes, shop, enabledLocations, availableProductCodes, prefillGuest } = useLoaderData();
+  const { products, productsError, collections, influencers, campaigns, recentlySeededMap, allSavedSizes, shop, enabledLocations, availableProductCodes, availableShippingCodes, prefillGuest } = useLoaderData();
   const actionData = useActionData();
   const navigate   = useNavigate();
   const { t }      = useT();
@@ -710,8 +718,9 @@ export default function PortalNewSeeding() {
     ? onlineLocations.length > 0
     : storeLocations.length > 0;
   const hasSelectedStore = seedingType === 'InStore' ? selectedStore !== null : true;
-  const hasProductCodes = availableProductCodes > 0;
-  const canSubmit = !submitting && selectedInfluencer && selectedProducts.length > 0 && allHaveSizes && hasEnabledLocation && hasSelectedStore && hasProductCodes;
+  const hasProductCodes  = availableProductCodes > 0;
+  const hasShippingCodes = seedingType !== 'Online' || availableShippingCodes > 0;
+  const canSubmit = !submitting && selectedInfluencer && selectedProducts.length > 0 && allHaveSizes && hasEnabledLocation && hasSelectedStore && hasProductCodes && hasShippingCodes;
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -793,7 +802,9 @@ export default function PortalNewSeeding() {
   } else if (!hasEnabledLocation) {
     ctaLabel = seedingType === 'InStore' ? 'Configure a store location' : 'Configure online location';
   } else if (!hasProductCodes) {
-    ctaLabel = 'No discount codes available';
+    ctaLabel = 'No product discount codes available';
+  } else if (!hasShippingCodes) {
+    ctaLabel = 'No shipping discount codes available';
   } else if (seedingType === 'InStore' && !selectedStore) {
     ctaLabel = 'Select a store';
   } else if (!selectedInfluencer) {
