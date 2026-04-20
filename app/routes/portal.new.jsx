@@ -314,6 +314,9 @@ export async function action({ request }) {
       if (session?.accessToken) {
         const locationId = await getPrimaryLocationId(shop);
         const lineItems  = variantIds.filter(v => v && v.length > 0).map(variantId => ({ variantId, quantity: 1 }));
+        if (lineItems.length === 0) {
+          console.warn('Portal: no valid variantIds — skipping draft order. variantIds received:', variantIds);
+        } else {
         const mutation   = `mutation DraftOrderCreate($input: DraftOrderInput!) {
           draftOrderCreate(input: $input) {
             draftOrder { id name invoiceUrl }
@@ -327,6 +330,7 @@ export async function action({ request }) {
           tags: ['seeding'],
         };
         if (locationId) draftInput.locationId = locationId;
+        if (influencer?.email) draftInput.email = influencer.email;
 
         const res  = await fetch(`https://${shop}/admin/api/2025-10/graphql.json`, {
           method: 'POST',
@@ -334,12 +338,19 @@ export async function action({ request }) {
           body: JSON.stringify({ query: mutation, variables: { input: draftInput } }),
         });
         const body  = await res.json();
+        const errors = body?.data?.draftOrderCreate?.userErrors;
+        if (errors?.length) {
+          console.error('Portal: Shopify draftOrderCreate userErrors:', JSON.stringify(errors));
+        }
         const draft = body?.data?.draftOrderCreate?.draftOrder;
         if (draft) {
           shopifyDraftOrderId = draft.id;
           shopifyOrderName    = draft.name;
           invoiceUrl          = draft.invoiceUrl;
+        } else {
+          console.warn('Portal: draft order not returned. Full body:', JSON.stringify(body));
         }
+        } // end lineItems.length check
       }
     } catch (err) {
       console.error('Portal: failed to create Shopify draft order:', err.message);
