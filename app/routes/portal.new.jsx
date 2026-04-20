@@ -346,6 +346,25 @@ export async function action({ request }) {
           shopifyDraftOrderId = draft.id;
           shopifyOrderName    = draft.name;
           invoiceUrl          = draft.invoiceUrl;
+
+          // invoiceUrl is sometimes null on creation — fetch it back separately
+          if (!invoiceUrl && draft.id) {
+            try {
+              const fetchRes = await fetch(`https://${shop}/admin/api/2025-10/graphql.json`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': session.accessToken },
+                body: JSON.stringify({
+                  query: `query GetDraftOrder($id: ID!) { draftOrder(id: $id) { invoiceUrl } }`,
+                  variables: { id: draft.id },
+                }),
+              });
+              const fetchBody = await fetchRes.json();
+              invoiceUrl = fetchBody?.data?.draftOrder?.invoiceUrl ?? null;
+              console.log('Portal: fetched invoiceUrl separately:', invoiceUrl);
+            } catch (e) {
+              console.warn('Portal: could not fetch invoiceUrl separately:', e.message);
+            }
+          }
         } else {
           console.warn('Portal: draft order not returned. Full body:', JSON.stringify(body));
         }
