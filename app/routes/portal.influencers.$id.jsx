@@ -232,7 +232,7 @@ export default function PortalInfluencerDetail() {
   };
 
   return (
-    <div style={{ maxWidth: '1100px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
 
       {/* ── Breadcrumb ────────────────────────────────────────── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
