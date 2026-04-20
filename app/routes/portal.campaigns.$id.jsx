@@ -378,7 +378,7 @@ export default function PortalCampaignDetail() {
 
       {/* ── KPI cards ────────────────────────────────────────────── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '14px' }}>
-        {isEvent ? [
+        {(isEvent ? [
           { label: 'Total Guests',    value: guests.length },
           { label: 'Confirmed',       value: guestConfirmed },
           { label: 'Attended',        value: guestAttended },
@@ -388,7 +388,7 @@ export default function PortalCampaignDetail() {
           { label: t('campaign.kpi.retailValue'), value: `€${fmtNum(budgetUsed)}` },
           { label: t('campaign.kpi.products'),    value: campaign.products.length },
           { label: t('campaign.kpi.posted'),      value: statusCounts['Posted'] },
-        ].map(stat => (
+        ]).map(stat => (
           <div key={stat.label} style={{ backgroundColor: D.surface, border: `1px solid ${D.border}`, borderRadius: '12px', padding: '18px 20px', boxShadow: D.shadow }}>
             <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.8px', color: D.textMuted, marginBottom: '6px' }}>{stat.label}</div>
             <div style={{ fontSize: '26px', fontWeight: '800', color: D.text, letterSpacing: '-0.5px' }}>{stat.value}</div>
