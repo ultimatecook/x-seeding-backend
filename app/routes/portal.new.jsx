@@ -405,17 +405,20 @@ export async function action({ request }) {
     const updated = await prisma.seeding.findUnique({ where: { id: seeding.id }, select: { productDiscountCode: true, shippingDiscountCode: true } });
     if (updated) assignedCodes = updated;
 
-    // Append both pool codes to the invoice URL as ?discount=PROD,SHIP
-    // Invoice URLs bypass the store password and Shopify checkout forwards the
-    // discount query param when processing the invoice redirect.
+    // Append the product code to the invoice URL — Shopify checkout picks up
+    // ?discount= when it processes the invoice redirect.
+    // We only pass the product code here because:
+    //   - Shopify standard plans accept only ONE discount code via URL
+    //   - Comma-separated values get re-encoded as %2C and Shopify treats them
+    //     as a single (non-existent) code name rather than two separate codes
+    // The shipping code is recorded on the seeding and shown in the portal
+    // so staff can give it to the influencer to enter at checkout.
     const productCode  = updated?.productDiscountCode;
-    const shippingCode = updated?.shippingDiscountCode;
-    const codes = [productCode, shippingCode].filter(Boolean).join(',');
-    if (codes && invoiceUrl) {
+    if (productCode && invoiceUrl) {
       const sep          = invoiceUrl.includes('?') ? '&' : '?';
-      const urlWithCodes = `${invoiceUrl}${sep}discount=${codes}`;
-      await prisma.seeding.update({ where: { id: seeding.id }, data: { invoiceUrl: urlWithCodes } });
-      console.log('Portal: invoice URL with discount codes:', codes);
+      const urlWithCode  = `${invoiceUrl}${sep}discount=${productCode}`;
+      await prisma.seeding.update({ where: { id: seeding.id }, data: { invoiceUrl: urlWithCode } });
+      console.log('Portal: invoice URL with product discount code:', productCode);
     }
   } catch (e) {
     console.warn('Portal: could not assign discount codes:', e.message);
