@@ -405,14 +405,29 @@ export async function action({ request }) {
     const updated = await prisma.seeding.findUnique({ where: { id: seeding.id }, select: { productDiscountCode: true, shippingDiscountCode: true } });
     if (updated) assignedCodes = updated;
 
-    // Append the product code to the checkout URL so Shopify auto-applies it
-    // (the code must already exist as a valid Shopify discount code in the store)
-    const productCode = updated?.productDiscountCode;
-    if (productCode && invoiceUrl) {
-      const sep           = invoiceUrl.includes('?') ? '&' : '?';
-      const urlWithCode   = `${invoiceUrl}${sep}discount=${encodeURIComponent(productCode)}`;
-      await prisma.seeding.update({ where: { id: seeding.id }, data: { invoiceUrl: urlWithCode } });
-      console.log('Portal: invoice URL updated with discount code:', productCode);
+    // Build a /discount/ chain URL so Shopify pre-applies both pool codes before
+    // landing on the invoice checkout. Pattern:
+    //   /discount/PRODUCT?redirect=/discount/SHIPPING?redirect=/SHOP_ID/invoices/TOKEN
+    // Each hop applies the code to the session then follows the redirect.
+    const productCode  = updated?.productDiscountCode;
+    const shippingCode = updated?.shippingDiscountCode;
+    if ((productCode || shippingCode) && invoiceUrl) {
+      try {
+        const invoicePath = new URL(invoiceUrl).pathname; // e.g. /66448879930/invoices/TOKEN
+        let discountUrl;
+        if (productCode && shippingCode) {
+          const inner = `/discount/${encodeURIComponent(shippingCode)}?redirect=${encodeURIComponent(invoicePath)}`;
+          discountUrl = `https://${shop}/discount/${encodeURIComponent(productCode)}?redirect=${encodeURIComponent(inner)}`;
+        } else if (productCode) {
+          discountUrl = `https://${shop}/discount/${encodeURIComponent(productCode)}?redirect=${encodeURIComponent(invoicePath)}`;
+        } else {
+          discountUrl = `https://${shop}/discount/${encodeURIComponent(shippingCode)}?redirect=${encodeURIComponent(invoicePath)}`;
+        }
+        await prisma.seeding.update({ where: { id: seeding.id }, data: { invoiceUrl: discountUrl } });
+        console.log('Portal: invoice URL chained with discount codes:', productCode, shippingCode);
+      } catch (urlErr) {
+        console.warn('Portal: could not build discount chain URL:', urlErr.message);
+      }
     }
   } catch (e) {
     console.warn('Portal: could not assign discount codes:', e.message);
