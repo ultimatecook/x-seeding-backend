@@ -20,8 +20,9 @@ const STATUS_META = {
 const STATUSES = ['Pending', 'Ordered', 'Shipped', 'Delivered', 'Posted'];
 
 const GUEST_STATUS = {
-  invited:   { label: 'Invited',   bg: 'rgba(100,116,139,0.10)', text: '#475569', dot: '#94A3B8' },
-  confirmed: { label: 'Confirmed', bg: 'rgba(59,130,246,0.10)',  text: '#2563EB', dot: '#3B82F6' },
+  invited:       { label: 'Invited',       bg: 'rgba(100,116,139,0.10)', text: '#475569', dot: '#94A3B8' },
+  confirmed:     { label: 'Confirmed',     bg: 'rgba(59,130,246,0.10)',  text: '#2563EB', dot: '#3B82F6' },
+  not_available: { label: 'Not Available', bg: 'rgba(239,68,68,0.08)',   text: '#DC2626', dot: '#EF4444' },
 };
 
 const ALLOC = {
@@ -280,7 +281,7 @@ export async function action({ request, params }) {
   if (intent === 'updateGuestStatus') {
     const guestId = parseInt(formData.get('guestId'));
     const status  = formData.get('status');
-    if (!['invited', 'confirmed'].includes(status)) return null;
+    if (!['invited', 'confirmed', 'not_available'].includes(status)) return null;
     const guest = await prisma.campaignGuest.findUnique({ where: { id: guestId }, include: { campaign: true } });
     if (!guest || guest.campaign.shop !== shop) return null;
     await prisma.campaignGuest.update({ where: { id: guestId }, data: { status } });
@@ -356,7 +357,7 @@ export async function action({ request, params }) {
 }
 
 // ── Guest status pill — uses fetcher for instant optimistic update ────────────
-const GUEST_CYCLE = ['invited', 'confirmed'];
+const GUEST_CYCLE = ['invited', 'confirmed', 'not_available'];
 
 function GuestStatusPill({ guest, canManage }) {
   const fetcher = useFetcher();
@@ -731,14 +732,14 @@ export default function PortalCampaignDetail() {
           {/* Filter bar */}
           {guests.length > 0 && (
             <div style={{ padding: '8px 20px', borderBottom: `1px solid ${D.borderLight}`, display: 'flex', gap: '4px', flexWrap: 'wrap', alignItems: 'center' }}>
-              {[['all','All'], ['invited','Invited'], ['confirmed','Confirmed']].map(([k, l]) => {
+              {[['all','All'], ['invited','Invited'], ['confirmed','Confirmed'], ['not_available','Not Available']].map(([k, l]) => {
                 const isActive = guestStatusFilter === k;
-                const statusColor = k === 'confirmed' ? '#2563EB' : k === 'invited' ? '#475569' : null;
+                const statusColor = k === 'confirmed' ? '#2563EB' : k === 'invited' ? '#475569' : k === 'not_available' ? '#DC2626' : null;
                 return (
                   <button key={k} type="button" onClick={() => setGuestStatusFilter(k)} style={{
                     padding: '3px 10px', borderRadius: '99px', cursor: 'pointer', fontSize: '11px', fontWeight: '600',
                     border: `1.5px solid ${isActive ? (statusColor || D.border) : 'transparent'}`,
-                    backgroundColor: isActive ? (k === 'confirmed' ? 'rgba(59,130,246,0.08)' : k === 'invited' ? 'rgba(71,85,105,0.08)' : D.surfaceHigh) : 'transparent',
+                    backgroundColor: isActive ? (k === 'confirmed' ? 'rgba(59,130,246,0.08)' : k === 'invited' ? 'rgba(71,85,105,0.08)' : k === 'not_available' ? 'rgba(239,68,68,0.08)' : D.surfaceHigh) : 'transparent',
                     color: isActive ? (statusColor || D.textSub) : D.textMuted,
                   }}>
                     {l}{k !== 'all' && <span style={{ marginLeft: '4px', opacity: 0.65 }}>{guests.filter(g => g.status === k).length}</span>}
