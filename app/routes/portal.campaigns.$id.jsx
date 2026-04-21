@@ -57,7 +57,7 @@ export async function loader({ request, params }) {
         orderBy: { createdAt: 'desc' },
       },
       guests: {
-        include: { items: true, influencer: { select: { id: true, handle: true, name: true } } },
+        include: { items: true, influencer: { select: { id: true, handle: true, name: true, gender: true, followers: true } } },
         orderBy: { createdAt: 'asc' },
       },
     },
@@ -409,12 +409,29 @@ export default function PortalCampaignDetail() {
   const totalAssigned  = guests.reduce((s, g) => s + g.items.reduce((a, i) => a + i.quantity, 0), 0);
   const totalFulfilled = guests.reduce((s, g) => s + g.items.filter(i => i.fulfilled).reduce((a, i) => a + i.quantity, 0), 0);
 
+  // Guest gender analytics
+  const genderStats = (() => {
+    const known  = guests.filter(g => g.influencer?.gender);
+    const female = known.filter(g => g.influencer.gender.toLowerCase() === 'female').length;
+    const male   = known.filter(g => g.influencer.gender.toLowerCase() === 'male').length;
+    return { female, male, total: known.length };
+  })();
+
   // UI state
-  const [expandedGuest,    setExpandedGuest]    = useState(null); // guestId
-  const [showAddGuest,     setShowAddGuest]     = useState(false);
-  const [infSearch,        setInfSearch]        = useState('');
+  const [expandedGuest,       setExpandedGuest]       = useState(null);
+  const [showAddGuest,        setShowAddGuest]        = useState(false);
+  const [infSearch,           setInfSearch]           = useState('');
   const [guestGenderFilter,   setGuestGenderFilter]   = useState('all');
   const [guestFollowerFilter, setGuestFollowerFilter] = useState('all');
+  const [guestStatusFilter,   setGuestStatusFilter]   = useState('all');
+  const [guestGenderListFilter, setGuestGenderListFilter] = useState('all');
+
+  // Filtered guests (for the list display)
+  const filteredGuests = guests.filter(g => {
+    if (guestStatusFilter !== 'all' && g.status !== guestStatusFilter) return false;
+    if (guestGenderListFilter !== 'all' && (g.influencer?.gender || '').toLowerCase() !== guestGenderListFilter.toLowerCase()) return false;
+    return true;
+  });
   const [showEditCampaign, setShowEditCampaign] = useState(false);
   const [editType,         setEditType]         = useState(campaign.type || 'seeding');
   const [showAddProduct,   setShowAddProduct]   = useState(false);
@@ -635,17 +652,87 @@ export default function PortalCampaignDetail() {
         <div style={{ backgroundColor: D.surface, border: `1px solid ${D.border}`, borderRadius: '12px', boxShadow: D.shadow, overflow: 'hidden' }}>
 
           {/* Header */}
-          <div style={{ padding: '16px 20px', borderBottom: `1px solid ${D.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.8px', color: D.textMuted }}>
-              Guest List ({guests.length})
-            </span>
+          <div style={{ padding: '16px 20px', borderBottom: `1px solid ${D.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.8px', color: D.textMuted }}>
+                Guest List
+              </span>
+              {guests.length > 0 && (
+                <>
+                  <span style={{ padding: '2px 9px', borderRadius: '99px', backgroundColor: D.surfaceHigh, fontSize: '11px', fontWeight: '700', color: D.textSub }}>
+                    {guests.length} total
+                  </span>
+                  {guestConfirmed > 0 && (
+                    <span style={{ padding: '2px 9px', borderRadius: '99px', backgroundColor: 'rgba(59,130,246,0.10)', fontSize: '11px', fontWeight: '700', color: '#2563EB' }}>
+                      ✓ {guestConfirmed} confirmed
+                    </span>
+                  )}
+                  {guestAttended > 0 && (
+                    <span style={{ padding: '2px 9px', borderRadius: '99px', backgroundColor: 'rgba(16,185,129,0.10)', fontSize: '11px', fontWeight: '700', color: '#059669' }}>
+                      ★ {guestAttended} attended
+                    </span>
+                  )}
+                </>
+              )}
+            </div>
             {canManage && (
               <button type="button" onClick={() => setShowAddGuest(v => !v)}
-                style={{ padding: '6px 14px', borderRadius: '7px', border: `1px solid ${D.accent}`, backgroundColor: showAddGuest ? D.accentFaint : 'transparent', color: D.accent, cursor: 'pointer', fontSize: '12px', fontWeight: '700' }}>
-                {showAddGuest ? 'Cancel' : '+ Add Guest'}
+                style={{ padding: '6px 14px', borderRadius: '7px', border: `1px solid ${showAddGuest ? D.accent : D.border}`, backgroundColor: showAddGuest ? D.accentFaint : 'transparent', color: showAddGuest ? D.accent : D.textSub, cursor: 'pointer', fontSize: '12px', fontWeight: '700' }}>
+                {showAddGuest ? '✕ Cancel' : '+ Add Guest'}
               </button>
             )}
           </div>
+
+          {/* Gender analytics bar */}
+          {guests.length > 0 && genderStats.total >= 2 && (
+            <div style={{ padding: '10px 20px', borderBottom: `1px solid ${D.borderLight}`, display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.6px', color: D.textMuted, flexShrink: 0 }}>Audience</span>
+              <div style={{ flex: 1, display: 'flex', height: '5px', borderRadius: '99px', overflow: 'hidden', backgroundColor: D.surfaceHigh }}>
+                {genderStats.female > 0 && <div style={{ width: `${(genderStats.female / genderStats.total) * 100}%`, backgroundColor: '#EC4899', transition: 'width 0.4s' }} />}
+                {genderStats.male > 0   && <div style={{ width: `${(genderStats.male   / genderStats.total) * 100}%`, backgroundColor: '#3B82F6', transition: 'width 0.4s' }} />}
+              </div>
+              <div style={{ display: 'flex', gap: '10px', flexShrink: 0 }}>
+                {genderStats.female > 0 && <span style={{ fontSize: '11px', fontWeight: '700', color: '#EC4899' }}>{Math.round((genderStats.female / genderStats.total) * 100)}% F</span>}
+                {genderStats.male   > 0 && <span style={{ fontSize: '11px', fontWeight: '700', color: '#3B82F6' }}>{Math.round((genderStats.male   / genderStats.total) * 100)}% M</span>}
+                <span style={{ fontSize: '11px', color: D.textMuted }}>({genderStats.total} known)</span>
+              </div>
+            </div>
+          )}
+
+          {/* Filter bar */}
+          {guests.length > 0 && (
+            <div style={{ padding: '8px 20px', borderBottom: `1px solid ${D.borderLight}`, display: 'flex', gap: '4px', flexWrap: 'wrap', alignItems: 'center' }}>
+              {[['all','All'], ['invited','Invited'], ['confirmed','Confirmed'], ['attended','Attended']].map(([k, l]) => {
+                const isActive = guestStatusFilter === k;
+                const statusColor = k === 'confirmed' ? '#2563EB' : k === 'attended' ? '#059669' : k === 'invited' ? '#475569' : null;
+                return (
+                  <button key={k} type="button" onClick={() => setGuestStatusFilter(k)} style={{
+                    padding: '3px 10px', borderRadius: '99px', cursor: 'pointer', fontSize: '11px', fontWeight: '600',
+                    border: `1.5px solid ${isActive ? (statusColor || D.border) : 'transparent'}`,
+                    backgroundColor: isActive ? (k === 'confirmed' ? 'rgba(59,130,246,0.08)' : k === 'attended' ? 'rgba(16,185,129,0.08)' : k === 'invited' ? 'rgba(71,85,105,0.08)' : D.surfaceHigh) : 'transparent',
+                    color: isActive ? (statusColor || D.textSub) : D.textMuted,
+                  }}>
+                    {l}{k !== 'all' && <span style={{ marginLeft: '4px', opacity: 0.65 }}>{guests.filter(g => g.status === k).length}</span>}
+                  </button>
+                );
+              })}
+              <div style={{ width: '1px', height: '14px', backgroundColor: D.border, margin: '0 3px', flexShrink: 0 }} />
+              {['all', 'Male', 'Female'].map(g => {
+                const isActive = guestGenderListFilter === g;
+                const gc = g === 'Female' ? '#EC4899' : g === 'Male' ? '#3B82F6' : null;
+                return (
+                  <button key={g} type="button" onClick={() => setGuestGenderListFilter(g)} style={{
+                    padding: '3px 10px', borderRadius: '99px', cursor: 'pointer', fontSize: '11px', fontWeight: '600',
+                    border: `1.5px solid ${isActive ? (gc || D.border) : 'transparent'}`,
+                    backgroundColor: isActive ? (gc ? `${gc}12` : D.surfaceHigh) : 'transparent',
+                    color: isActive ? (gc || D.textSub) : D.textMuted,
+                  }}>
+                    {g === 'all' ? 'Any gender' : g}
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           {/* Add guest — influencer picker */}
           {showAddGuest && (
@@ -653,38 +740,31 @@ export default function PortalCampaignDetail() {
               <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.6px', color: D.textMuted, marginBottom: '10px' }}>
                 Select influencer to add as guest
               </div>
-              {/* Gender + follower filters */}
               <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', marginBottom: '8px' }}>
                 {['all', 'Male', 'Female'].map(g => (
                   <button key={g} type="button" onClick={() => setGuestGenderFilter(g)} style={{
                     padding: '3px 10px', borderRadius: '20px', cursor: 'pointer', fontSize: '11px', fontWeight: '600',
-                    border: `1.5px solid ${guestGenderFilter === g ? 'var(--pt-accent)' : 'var(--pt-border)'}`,
-                    backgroundColor: guestGenderFilter === g ? 'var(--pt-accent-light)' : 'transparent',
-                    color: guestGenderFilter === g ? 'var(--pt-accent)' : 'var(--pt-text-muted)',
+                    border: `1.5px solid ${guestGenderFilter === g ? D.accent : D.border}`,
+                    backgroundColor: guestGenderFilter === g ? D.accentFaint : 'transparent',
+                    color: guestGenderFilter === g ? D.accent : D.textMuted,
                   }}>
                     {g === 'all' ? 'Any' : g}
                   </button>
                 ))}
-                <div style={{ width: '1px', backgroundColor: 'var(--pt-border)', margin: '0 2px' }} />
+                <div style={{ width: '1px', backgroundColor: D.border, margin: '0 2px' }} />
                 {[['all','Any size'],['lt10k','<10K'],['10to50k','10–50K'],['50to100k','50–100K'],['gt100k','100K+']].map(([k,l]) => (
                   <button key={k} type="button" onClick={() => setGuestFollowerFilter(k)} style={{
                     padding: '3px 10px', borderRadius: '20px', cursor: 'pointer', fontSize: '11px', fontWeight: '600',
-                    border: `1.5px solid ${guestFollowerFilter === k ? 'var(--pt-accent)' : 'var(--pt-border)'}`,
-                    backgroundColor: guestFollowerFilter === k ? 'var(--pt-accent-light)' : 'transparent',
-                    color: guestFollowerFilter === k ? 'var(--pt-accent)' : 'var(--pt-text-muted)',
+                    border: `1.5px solid ${guestFollowerFilter === k ? D.accent : D.border}`,
+                    backgroundColor: guestFollowerFilter === k ? D.accentFaint : 'transparent',
+                    color: guestFollowerFilter === k ? D.accent : D.textMuted,
                   }}>
                     {l}
                   </button>
                 ))}
               </div>
-              <input
-                type="text"
-                placeholder="Search influencers…"
-                value={infSearch}
-                onChange={e => setInfSearch(e.target.value)}
-                autoFocus
-                style={{ ...input.base, width: '100%', boxSizing: 'border-box', marginBottom: '10px' }}
-              />
+              <input type="text" placeholder="Search influencers…" value={infSearch} onChange={e => setInfSearch(e.target.value)} autoFocus
+                style={{ ...input.base, width: '100%', boxSizing: 'border-box', marginBottom: '10px' }} />
               <div style={{ maxHeight: '220px', overflowY: 'auto', border: `1px solid ${D.border}`, borderRadius: '9px', backgroundColor: D.surface }}>
                 {filteredInf.length === 0 ? (
                   <div style={{ padding: '20px', textAlign: 'center', color: D.textMuted, fontSize: '12px' }}>No influencers found</div>
@@ -694,21 +774,10 @@ export default function PortalCampaignDetail() {
                     <Form key={inf.id} method="post" onSubmit={() => { setShowAddGuest(false); setInfSearch(''); }}>
                       <input type="hidden" name="intent" value="addGuest" />
                       <input type="hidden" name="guestInfluencerId" value={inf.id} />
-                      <button
-                        type="submit"
-                        disabled={alreadyAdded}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: '10px',
-                          width: '100%', padding: '9px 14px', textAlign: 'left',
-                          border: 'none', borderBottom: idx < filteredInf.length - 1 ? `1px solid ${D.borderLight}` : 'none',
-                          backgroundColor: 'transparent',
-                          cursor: alreadyAdded ? 'default' : 'pointer',
-                          opacity: alreadyAdded ? 0.4 : 1,
-                          transition: 'background-color 0.1s',
-                        }}
+                      <button type="submit" disabled={alreadyAdded}
+                        style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '9px 14px', textAlign: 'left', border: 'none', borderBottom: idx < filteredInf.length - 1 ? `1px solid ${D.borderLight}` : 'none', backgroundColor: 'transparent', cursor: alreadyAdded ? 'default' : 'pointer', opacity: alreadyAdded ? 0.4 : 1, transition: 'background-color 0.1s' }}
                         onMouseOver={e => { if (!alreadyAdded) e.currentTarget.style.backgroundColor = D.surfaceHigh; }}
-                        onMouseOut={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-                      >
+                        onMouseOut={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}>
                         <div style={{ width: '28px', height: '28px', borderRadius: '50%', flexShrink: 0, background: `linear-gradient(135deg, ${D.accent}, ${D.purple})`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '800', color: '#fff' }}>
                           {(inf.handle?.[0] ?? '?').toUpperCase()}
                         </div>
@@ -716,20 +785,14 @@ export default function PortalCampaignDetail() {
                           <div style={{ fontSize: '13px', fontWeight: '600', color: D.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                             @{inf.handle}
                             {(inf.gender || inf.followers) && (
-                              <span style={{ fontSize: '10px', color: 'var(--pt-text-muted)', marginLeft: '6px' }}>
+                              <span style={{ fontSize: '10px', color: D.textMuted, marginLeft: '6px' }}>
                                 {[inf.gender, inf.followers ? (inf.followers >= 1000000 ? `${(inf.followers/1000000).toFixed(1)}M` : inf.followers >= 1000 ? `${Math.round(inf.followers/1000)}K` : inf.followers) : null].filter(Boolean).join(' · ')}
                               </span>
                             )}
                           </div>
-                          {inf.name && (
-                            <div style={{ fontSize: '11px', color: D.textMuted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              {inf.name}
-                            </div>
-                          )}
+                          {inf.name && <div style={{ fontSize: '11px', color: D.textMuted }}>{inf.name}</div>}
                         </div>
-                        {alreadyAdded && (
-                          <span style={{ fontSize: '10px', fontWeight: '700', color: D.textMuted, flexShrink: 0 }}>Added</span>
-                        )}
+                        {alreadyAdded && <span style={{ fontSize: '10px', fontWeight: '700', color: D.textMuted, flexShrink: 0 }}>Added</span>}
                       </button>
                     </Form>
                   );
@@ -738,94 +801,127 @@ export default function PortalCampaignDetail() {
             </div>
           )}
 
-          {/* Guest table */}
+          {/* Guest cards */}
           {guests.length === 0 && !showAddGuest ? (
-            <div style={{ padding: '40px', textAlign: 'center', color: D.textMuted, fontSize: '13px' }}>
-              No guests yet. Click "+ Add Guest" to get started.
+            <div style={{ padding: '52px 20px', textAlign: 'center' }}>
+              <div style={{ fontSize: '28px', marginBottom: '10px' }}>🎯</div>
+              <div style={{ fontSize: '14px', fontWeight: '700', color: D.text, marginBottom: '5px' }}>No guests yet</div>
+              <div style={{ fontSize: '12px', color: D.textMuted }}>Add your first guests to this event to get started.</div>
+            </div>
+          ) : filteredGuests.length === 0 ? (
+            <div style={{ padding: '32px 20px', textAlign: 'center', color: D.textMuted, fontSize: '13px' }}>
+              No guests match the current filters.
             </div>
           ) : (
-            <div>
-              {guests.map((guest, gi) => {
-                const gMeta     = GUEST_STATUS[guest.status] || GUEST_STATUS.invited;
+            <div style={{ padding: '8px 12px 12px' }}>
+              {filteredGuests.map(guest => {
+                const statusMeta = GUEST_STATUS[guest.status] || GUEST_STATUS.invited;
+                const CYCLE      = ['invited', 'confirmed', 'attended'];
+                const nextStatus = CYCLE[(CYCLE.indexOf(guest.status) + 1) % CYCLE.length];
                 const isExpanded = expandedGuest === guest.id;
-                const unfulfilledItems = guest.items.filter(i => !i.fulfilled);
-                const fulfilledItems   = guest.items.filter(i => i.fulfilled);
+                const fulfilledItems = guest.items.filter(i => i.fulfilled);
+                const genderColor = guest.influencer?.gender?.toLowerCase() === 'female' ? '#EC4899' : guest.influencer?.gender?.toLowerCase() === 'male' ? '#3B82F6' : null;
+                const fmtF = f => !f ? null : f >= 1000000 ? `${(f/1000000).toFixed(1)}M` : f >= 1000 ? `${Math.round(f/1000)}K` : String(f);
 
                 return (
-                  <div key={guest.id} style={{ borderTop: gi > 0 ? `1px solid ${D.borderLight}` : 'none' }}>
+                  <div key={guest.id} style={{
+                    marginBottom: '6px', borderRadius: '10px', overflow: 'hidden',
+                    border: `1px solid ${isExpanded ? D.accent + '55' : D.border}`,
+                    backgroundColor: isExpanded ? `${D.accent}06` : D.bg,
+                    transition: 'border-color 0.15s',
+                  }}>
 
-                    {/* Main guest row */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto auto', gap: '12px', alignItems: 'center', padding: '12px 20px' }}>
+                    {/* Main row */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px' }}>
 
-                      {/* Name + email */}
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontWeight: '700', fontSize: '13px', color: D.text }}>{guest.name}</div>
-                        <div style={{ fontSize: '11px', color: D.textMuted, marginTop: '1px', display: 'flex', gap: '8px' }}>
+                      {/* Avatar */}
+                      <div style={{
+                        width: '36px', height: '36px', borderRadius: '50%', flexShrink: 0,
+                        background: genderColor ? `linear-gradient(135deg, ${genderColor}bb, ${genderColor}44)` : `linear-gradient(135deg, ${D.accent}bb, ${D.purple}44)`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '14px', fontWeight: '800', color: '#fff',
+                        boxShadow: `0 1px 4px ${genderColor || D.accent}33`,
+                      }}>
+                        {(guest.influencer?.handle?.[0] ?? guest.name?.[0] ?? '?').toUpperCase()}
+                      </div>
+
+                      {/* Name + meta */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '2px' }}>
+                          <span style={{ fontWeight: '700', fontSize: '13px', color: D.text }}>{guest.name}</span>
+                          {guest.influencer && <span style={{ fontSize: '11px', color: D.accent, fontWeight: '600' }}>@{guest.influencer.handle}</span>}
+                          {guest.influencer?.gender && (
+                            <span style={{ fontSize: '10px', fontWeight: '700', padding: '1px 6px', borderRadius: '99px', backgroundColor: genderColor ? `${genderColor}15` : D.surfaceHigh, color: genderColor || D.textMuted }}>
+                              {guest.influencer.gender}
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: '11px', color: D.textMuted, display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                          {guest.influencer?.followers && <span>{fmtF(guest.influencer.followers)} followers</span>}
                           {guest.email && <span>{guest.email}</span>}
-                          {guest.influencer && (
-                            <span style={{ color: D.accent }}>@{guest.influencer.handle}</span>
-                          )}
-                          {guest.seedingId && (
-                            <span style={{ color: '#10B981', fontWeight: '600' }}>✓ Seeding created</span>
-                          )}
+                          {guest.seedingId && <span style={{ color: '#10B981', fontWeight: '600' }}>✓ Seeding created</span>}
                         </div>
                       </div>
 
-                      {/* Status */}
-                      <Form method="post">
-                        <input type="hidden" name="intent" value="updateGuestStatus" />
-                        <input type="hidden" name="guestId" value={guest.id} />
-                        <select name="status" defaultValue={guest.status}
-                          onChange={e => e.target.form.requestSubmit()}
-                          style={{ padding: '5px 10px', borderRadius: '20px', border: 'none', cursor: 'pointer', fontSize: '11px', fontWeight: '700', backgroundColor: gMeta.bg, color: gMeta.text, appearance: 'none', WebkitAppearance: 'none', paddingRight: '22px', backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23999'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'calc(100% - 6px) center' }}>
-                          <option value="invited">Invited</option>
-                          <option value="confirmed">Confirmed</option>
-                          <option value="attended">Attended</option>
-                        </select>
-                      </Form>
+                      {/* Status cycling pill */}
+                      {canManage ? (
+                        <Form method="post" style={{ flexShrink: 0 }}>
+                          <input type="hidden" name="intent" value="updateGuestStatus" />
+                          <input type="hidden" name="guestId" value={guest.id} />
+                          <input type="hidden" name="status" value={nextStatus} />
+                          <button type="submit" title={`Click to mark as ${nextStatus}`}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '5px 11px', borderRadius: '99px', cursor: 'pointer', border: `1.5px solid ${statusMeta.dot}44`, backgroundColor: statusMeta.bg, color: statusMeta.text, fontSize: '11px', fontWeight: '700', whiteSpace: 'nowrap', transition: 'opacity 0.12s, transform 0.12s' }}
+                            onMouseOver={e => { e.currentTarget.style.opacity='0.8'; e.currentTarget.style.transform='scale(0.97)'; }}
+                            onMouseOut={e => { e.currentTarget.style.opacity='1'; e.currentTarget.style.transform='scale(1)'; }}>
+                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: statusMeta.dot, flexShrink: 0 }} />
+                            {statusMeta.label}
+                            <span style={{ fontSize: '9px', opacity: 0.45, marginLeft: '1px' }}>›</span>
+                          </button>
+                        </Form>
+                      ) : (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '5px 11px', borderRadius: '99px', backgroundColor: statusMeta.bg, color: statusMeta.text, fontSize: '11px', fontWeight: '700', flexShrink: 0 }}>
+                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: statusMeta.dot }} />
+                          {statusMeta.label}
+                        </span>
+                      )}
 
-                      {/* Items summary */}
-                      <button type="button"
-                        onClick={() => setExpandedGuest(isExpanded ? null : guest.id)}
-                        style={{ padding: '5px 12px', borderRadius: '7px', border: `1px solid ${D.border}`, backgroundColor: isExpanded ? D.surfaceHigh : 'transparent', color: D.textSub, cursor: 'pointer', fontSize: '12px', fontWeight: '600', whiteSpace: 'nowrap' }}>
-                        {guest.items.length === 0 ? 'No items' : `${guest.items.length} item${guest.items.length !== 1 ? 's' : ''} · ${fulfilledItems.length} fulfilled`}
-                        <span style={{ marginLeft: '5px', opacity: 0.6 }}>{isExpanded ? '▲' : '▼'}</span>
+                      {/* Items toggle */}
+                      <button type="button" onClick={() => setExpandedGuest(isExpanded ? null : guest.id)}
+                        style={{ padding: '5px 9px', borderRadius: '7px', border: `1px solid ${isExpanded ? D.accent+'66' : D.border}`, backgroundColor: isExpanded ? D.accentFaint : 'transparent', color: isExpanded ? D.accent : D.textSub, cursor: 'pointer', fontSize: '11px', fontWeight: '600', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                        {guest.items.length === 0 ? 'Items' : `${guest.items.length} item${guest.items.length !== 1 ? 's' : ''}`}
+                        <span style={{ marginLeft: '3px', fontSize: '9px', opacity: 0.5 }}>{isExpanded ? '▲' : '▼'}</span>
                       </button>
 
-                      {/* Create seeding CTA */}
+                      {/* Seeding CTA */}
                       {canCreate && !campaign.archived && (
-                        guest.seedingId ? (
-                          <span style={{ fontSize: '11px', color: '#10B981', fontWeight: '600' }}>✓ Done</span>
-                        ) : (
-                          <Link
-                            to={`/portal/new?guestId=${guest.id}&campaignId=${campaign.id}`}
-                            style={{ padding: '6px 14px', borderRadius: '7px', background: 'linear-gradient(135deg, #7C6FF7 0%, #9C8FFF 100%)', color: '#fff', textDecoration: 'none', fontSize: '12px', fontWeight: '700', whiteSpace: 'nowrap', boxShadow: '0 1px 4px rgba(124,111,247,0.3)' }}>
-                            + Create seeding
-                          </Link>
-                        )
+                        guest.seedingId
+                          ? <span style={{ fontSize: '10px', color: '#10B981', fontWeight: '700', flexShrink: 0 }}>✓</span>
+                          : <Link to={`/portal/new?guestId=${guest.id}&campaignId=${campaign.id}`}
+                              style={{ padding: '5px 10px', borderRadius: '7px', background: 'linear-gradient(135deg, #7C6FF7 0%, #9C8FFF 100%)', color: '#fff', textDecoration: 'none', fontSize: '11px', fontWeight: '700', whiteSpace: 'nowrap', boxShadow: '0 1px 4px rgba(124,111,247,0.28)', flexShrink: 0 }}>
+                              + Seeding
+                            </Link>
                       )}
 
                       {/* Remove */}
                       {canManage && (
-                        <Form method="post" onSubmit={e => { if (!confirm(`Remove ${guest.name} from guest list?`)) e.preventDefault(); }}>
+                        <Form method="post" onSubmit={e => { if (!confirm(`Remove ${guest.name}?`)) e.preventDefault(); }} style={{ flexShrink: 0 }}>
                           <input type="hidden" name="intent" value="removeGuest" />
                           <input type="hidden" name="guestId" value={guest.id} />
-                          <button type="submit" style={{ background: 'none', border: 'none', color: D.textMuted, cursor: 'pointer', fontSize: '18px', lineHeight: 1, padding: '0 4px' }}>×</button>
+                          <button type="submit" style={{ background: 'none', border: 'none', color: D.textMuted, cursor: 'pointer', fontSize: '15px', lineHeight: 1, padding: '3px 4px', borderRadius: '4px', transition: 'color 0.1s' }}
+                            onMouseOver={e => { e.currentTarget.style.color='#EF4444'; }}
+                            onMouseOut={e => { e.currentTarget.style.color=D.textMuted; }}>×</button>
                         </Form>
                       )}
                     </div>
 
                     {/* Expanded items panel */}
                     {isExpanded && (
-                      <div style={{ margin: '0 20px 14px', padding: '14px 16px', backgroundColor: D.bg, borderRadius: '10px', border: `1px solid ${D.border}` }}>
+                      <div style={{ margin: '0 12px 10px', padding: '12px 14px', backgroundColor: D.bg, borderRadius: '8px', border: `1px solid ${D.border}` }}>
 
-                        {/* Existing items */}
                         {guest.items.length > 0 && (
-                          <div style={{ marginBottom: campaign.products.length > 0 ? '12px' : '0' }}>
-                            <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.7px', color: D.textMuted, marginBottom: '8px' }}>
-                              Assigned Items
-                            </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          <div style={{ marginBottom: campaign.products.length > 0 && canManage ? '12px' : '0' }}>
+                            <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.7px', color: D.textMuted, marginBottom: '8px' }}>Assigned Items</div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                               {guest.items.map(item => (
                                 <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '7px 10px', backgroundColor: D.surface, borderRadius: '7px', border: `1px solid ${item.fulfilled ? 'rgba(16,185,129,0.2)' : D.borderLight}` }}>
                                   {item.imageUrl && <img src={item.imageUrl} alt="" style={{ width: '24px', height: '24px', objectFit: 'cover', borderRadius: '4px', flexShrink: 0 }} />}
@@ -846,25 +942,19 @@ export default function PortalCampaignDetail() {
                           </div>
                         )}
 
-                        {/* Add item form (only if campaign has products) */}
                         {campaign.products.length > 0 && canManage && (
                           <div>
-                            <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.7px', color: D.textMuted, marginBottom: '8px' }}>
-                              Assign Item
-                            </div>
+                            <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.7px', color: D.textMuted, marginBottom: '8px' }}>Assign Item</div>
                             <Form method="post">
                               <input type="hidden" name="intent" value="addGuestItem" />
                               <input type="hidden" name="guestId" value={guest.id} />
                               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                <select name="campaignProductId"
-                                  style={{ ...input.base, flex: 1, boxSizing: 'border-box' }}>
+                                <select name="campaignProductId" style={{ ...input.base, flex: 1, boxSizing: 'border-box' }}>
                                   {campaign.products.map(cp => {
                                     const tier = allocTier(cp.usedUnits, cp.allocatedUnits);
-                                    const remaining = cp.remainingUnits;
-                                    const label = cp.productName + (cp.allocatedUnits != null ? ` (${remaining} left)` : '');
                                     return (
                                       <option key={cp.id} value={cp.id} disabled={tier === 'full'}>
-                                        {label}
+                                        {cp.productName}{cp.allocatedUnits != null ? ` (${cp.remainingUnits} left)` : ''}
                                       </option>
                                     );
                                   })}
@@ -885,9 +975,9 @@ export default function PortalCampaignDetail() {
                             Add products to this campaign to assign items to guests.
                           </div>
                         )}
-
                       </div>
                     )}
+
                   </div>
                 );
               })}

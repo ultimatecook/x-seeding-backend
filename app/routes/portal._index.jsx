@@ -75,6 +75,8 @@ export async function loader({ request }) {
     allSeedingsForPills,
     seedingsForLocations,
     inventoryLocations,
+    topFemaleInfluencers,
+    topMaleInfluencers,
   ] = await Promise.all([
     prisma.seeding.findMany({
       where:  seedingWhere,
@@ -97,7 +99,23 @@ export async function loader({ request }) {
       where:   { shop, archived: false, ...(countryParam ? { country: countryParam } : {}) },
       orderBy: { seedings: { _count: 'desc' } },
       take:    6,
-      select:  { id: true, handle: true, name: true, followers: true, country: true,
+      select:  { id: true, handle: true, name: true, followers: true, country: true, gender: true,
+                 _count:   { select: { seedings: true } },
+                 seedings: { select: { totalCost: true } } },
+    }),
+    prisma.influencer.findMany({
+      where:   { shop, archived: false, gender: { equals: 'Female', mode: 'insensitive' } },
+      orderBy: { seedings: { _count: 'desc' } },
+      take:    4,
+      select:  { id: true, handle: true, name: true, followers: true,
+                 _count:   { select: { seedings: true } },
+                 seedings: { select: { totalCost: true } } },
+    }),
+    prisma.influencer.findMany({
+      where:   { shop, archived: false, gender: { equals: 'Male', mode: 'insensitive' } },
+      orderBy: { seedings: { _count: 'desc' } },
+      take:    4,
+      select:  { id: true, handle: true, name: true, followers: true,
                  _count:   { select: { seedings: true } },
                  seedings: { select: { totalCost: true } } },
     }),
@@ -253,6 +271,8 @@ export async function loader({ request }) {
     ...inf,
     totalSpend: inf.seedings.reduce((s, x) => s + (x.totalCost ?? 0), 0),
   }));
+  const topFemaleData = topFemaleInfluencers.map(inf => ({ ...inf, totalSpend: inf.seedings.reduce((s, x) => s + (x.totalCost ?? 0), 0) }));
+  const topMaleData   = topMaleInfluencers.map(inf =>   ({ ...inf, totalSpend: inf.seedings.reduce((s, x) => s + (x.totalCost ?? 0), 0) }));
 
   const monthName  = dateStart.toLocaleDateString('en-GB', { month: 'short' });
   const rangeLabel = !daysParam
@@ -286,6 +306,8 @@ export async function loader({ request }) {
     onboarding,
     discountMode,
     segmentData,
+    topFemaleInfluencers: topFemaleData,
+    topMaleInfluencers:   topMaleData,
   };
 }
 
@@ -772,6 +794,7 @@ export default function PortalDashboard() {
     countryPills, activeDays, activeCountry,
     activeSeedings, totalCogs, chartDays, rangeLabel, currentMonthShort,
     locationData, onboarding, discountMode, segmentData,
+    topFemaleInfluencers, topMaleInfluencers,
   } = useLoaderData();
 
   const TIME_OPTIONS = [
@@ -991,72 +1014,88 @@ export default function PortalDashboard() {
     </div>
   );
 
-  const renderCountries = () => (
-    <div>
-      <Label>{t('dashboard.topCountries')}</Label>
-      {countryData.length === 0 ? (
-        <p style={{ margin: 0, fontSize: '13px', color: 'var(--pt-text-muted)' }}>{t('dashboard.noCountries')}</p>
-      ) : (
-        <div>
-          {countryData.slice(0, 5).map((d, i) => (
-            <div key={d.country} style={{ display: 'flex', alignItems: 'center', gap: '12px',
-              padding: '10px 0', borderTop: i === 0 ? 'none' : '1px solid var(--pt-border-light)' }}>
-              <FlagImg country={d.country} size={17} />
-              <span style={{ flex: 1, fontSize: '13px', fontWeight: '500', color: 'var(--pt-text)' }}>
-                {d.country}
-              </span>
-              <span style={{ fontSize: '11px', color: 'var(--pt-text-muted)' }}>{d.seedings} {t('dashboard.seedings')}</span>
-              <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--pt-text)',
-                minWidth: '56px', textAlign: 'right' }}>€{fmtNum(d.spend)}</span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
+  const renderCountries = () => {
+    const maxS = Math.max(...countryData.map(d => d.seedings), 1);
+    return (
+      <div>
+        <Label>{t('dashboard.topCountries')}</Label>
+        {countryData.length === 0 ? (
+          <p style={{ margin: 0, fontSize: '13px', color: 'var(--pt-text-muted)' }}>{t('dashboard.noCountries')}</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {countryData.slice(0, 6).map(d => {
+              const isActive = activeCountry === d.country;
+              return (
+                <button key={d.country} type="button" onClick={() => toggleCountry(d.country)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '7px 8px', borderRadius: '8px', textAlign: 'left', transition: 'background-color 0.1s', backgroundColor: isActive ? 'var(--pt-accent-light)' : 'transparent' }}
+                  onMouseOver={e => { if (!isActive) e.currentTarget.style.backgroundColor = 'var(--pt-surface-high)'; }}
+                  onMouseOut={e => { if (!isActive) e.currentTarget.style.backgroundColor = 'transparent'; }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '5px' }}>
+                    <FlagImg country={d.country} size={14} />
+                    <span style={{ flex: 1, fontSize: '12px', fontWeight: '600', color: isActive ? 'var(--pt-accent)' : 'var(--pt-text)' }}>
+                      {d.country}
+                    </span>
+                    <span style={{ fontSize: '11px', color: 'var(--pt-text-muted)', flexShrink: 0 }}>{d.seedings}</span>
+                    <span style={{ fontSize: '12px', fontWeight: '700', color: isActive ? 'var(--pt-accent)' : 'var(--pt-text)', minWidth: '52px', textAlign: 'right', flexShrink: 0 }}>
+                      €{fmtNum(d.spend)}
+                    </span>
+                  </div>
+                  <div style={{ height: '3px', borderRadius: '99px', backgroundColor: 'var(--pt-surface-high)', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${(d.seedings / maxS) * 100}%`, backgroundColor: isActive ? 'var(--pt-accent)' : 'rgba(124,111,247,0.35)', borderRadius: '99px', transition: 'width 0.4s' }} />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const renderInfluencers = () => (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-        <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase',
-          letterSpacing: '1px', color: 'var(--pt-text-muted)' }}>{t('dashboard.topInfluencers')}</div>
-        <Link to="/portal/influencers" style={{ fontSize: '11px', color: 'var(--pt-accent)',
-          fontWeight: '600', textDecoration: 'none' }}>{t('dashboard.viewAll')}</Link>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+        <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--pt-text-muted)' }}>{t('dashboard.topInfluencers')}</div>
+        <Link to="/portal/influencers" style={{ fontSize: '11px', color: 'var(--pt-accent)', fontWeight: '600', textDecoration: 'none' }}>{t('dashboard.viewAll')}</Link>
       </div>
       {topInfluencers.length === 0 ? (
         <p style={{ margin: 0, fontSize: '13px', color: 'var(--pt-text-muted)' }}>{t('dashboard.noInfluencers')}</p>
       ) : (
-        <div>
-          {topInfluencers.map((inf, i) => (
-            <Link key={inf.id} to={`/portal/influencers/${inf.id}`} style={{ textDecoration: 'none',
-              display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 0',
-              borderTop: i === 0 ? 'none' : '1px solid var(--pt-border-light)' }}>
-              <span style={{ fontSize: '10px', fontWeight: '700', color: 'var(--pt-text-muted)',
-                width: '14px', textAlign: 'right', flexShrink: 0 }}>{i + 1}</span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--pt-text)',
-                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {inf.name || `@${inf.handle}`}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+          {topInfluencers.map((inf) => {
+            const gc = inf.gender?.toLowerCase() === 'female' ? '#EC4899' : inf.gender?.toLowerCase() === 'male' ? '#3B82F6' : null;
+            return (
+              <Link key={inf.id} to={`/portal/influencers/${inf.id}`}
+                style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '10px', padding: '7px 8px', borderRadius: '9px', transition: 'background-color 0.1s' }}
+                onMouseOver={e => { e.currentTarget.style.backgroundColor = 'var(--pt-surface-high)'; }}
+                onMouseOut={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}>
+                <div style={{ width: '30px', height: '30px', borderRadius: '50%', flexShrink: 0,
+                  background: gc ? `linear-gradient(135deg, ${gc}cc, ${gc}44)` : 'linear-gradient(135deg, #7C6FF7cc, #A78BFA44)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: '12px', fontWeight: '800', color: '#fff',
+                  boxShadow: `0 1px 4px ${gc || '#7C6FF7'}33` }}>
+                  {(inf.handle?.[0] ?? '?').toUpperCase()}
                 </div>
-                <div style={{ fontSize: '11px', color: 'var(--pt-text-muted)',
-                  display: 'flex', alignItems: 'center', gap: '6px', marginTop: '1px' }}>
-                  <FlagImg country={inf.country} size={11} />
-                  {inf.country || '—'} · {fmtFollowers(inf.followers)}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--pt-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {inf.name || `@${inf.handle}`}
+                  </div>
+                  <div style={{ fontSize: '11px', color: 'var(--pt-text-muted)', display: 'flex', alignItems: 'center', gap: '5px', marginTop: '1px' }}>
+                    <FlagImg country={inf.country} size={11} />
+                    {fmtFollowers(inf.followers)}
+                    {inf.gender && <span style={{ color: gc || 'var(--pt-text-muted)', fontWeight: '600' }}>{inf.gender}</span>}
+                  </div>
                 </div>
-              </div>
-              <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--pt-text)' }}>
-                  {inf._count.seedings}
+                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                  <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--pt-text)' }}>{inf._count.seedings}</div>
+                  <div style={{ fontSize: '10px', color: 'var(--pt-text-muted)' }}>seedgs</div>
                 </div>
-                <div style={{ fontSize: '11px', color: 'var(--pt-text-muted)' }}>{t('dashboard.seedings')}</div>
-              </div>
-              <div style={{ textAlign: 'right', flexShrink: 0, minWidth: '52px' }}>
-                <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--pt-accent)' }}>
-                  €{fmtNum(inf.totalSpend)}
+                <div style={{ textAlign: 'right', flexShrink: 0, minWidth: '50px' }}>
+                  <div style={{ fontSize: '12px', fontWeight: '700', color: 'var(--pt-accent)' }}>€{fmtNum(inf.totalSpend)}</div>
                 </div>
-              </div>
-            </Link>
-          ))}
+              </Link>
+            );
+          })}
         </div>
       )}
     </div>
@@ -1158,57 +1197,123 @@ export default function PortalDashboard() {
     const hasData = (segmentData.gender.length > 0 || segmentData.followerTier.length > 0) && totalSeedings > 0;
     if (!hasData) return null;
 
-    function SegRow({ label, seedings, value, units, maxSeedings, color }) {
-      const pct = maxSeedings > 0 ? Math.round((seedings / maxSeedings) * 100) : 0;
+    const TIER_COLORS = ['#7C6FF7', '#A78BFA', '#C4B5FD', '#DDD6FE', 'var(--pt-text-muted)'];
+    const maxT = Math.max(...segmentData.followerTier.map(r => r.seedings), 1);
+
+    const femaleData = segmentData.gender.find(g => g.label === 'Female');
+    const maleData   = segmentData.gender.find(g => g.label === 'Male');
+    const totalKnown = (femaleData?.seedings ?? 0) + (maleData?.seedings ?? 0);
+    const femalePct  = totalKnown > 0 ? Math.round((femaleData?.seedings ?? 0) / totalKnown * 100) : 0;
+    const malePct    = totalKnown > 0 ? Math.round((maleData?.seedings ?? 0) / totalKnown * 100) : 0;
+
+    function TopGenderRow({ inf, color }) {
       return (
-        <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr 60px 70px 50px', gap: '12px', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--pt-border-light)' }}>
-          <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--pt-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
-          <div style={{ height: '7px', borderRadius: '99px', backgroundColor: 'var(--pt-surface-high)', overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: `${pct}%`, borderRadius: '99px', backgroundColor: color, transition: 'width 0.4s' }} />
+        <Link to={`/portal/influencers/${inf.id}`}
+          style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '9px', padding: '6px 8px', borderRadius: '8px', transition: 'background-color 0.1s' }}
+          onMouseOver={e => { e.currentTarget.style.backgroundColor = 'var(--pt-surface-high)'; }}
+          onMouseOut={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}>
+          <div style={{ width: '26px', height: '26px', borderRadius: '50%', flexShrink: 0,
+            background: `linear-gradient(135deg, ${color}cc, ${color}44)`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: '10px', fontWeight: '800', color: '#fff' }}>
+            {(inf.handle?.[0] ?? '?').toUpperCase()}
           </div>
-          <span style={{ fontSize: '11px', color: 'var(--pt-text-sub)', textAlign: 'right' }}>{seedings}</span>
-          <span style={{ fontSize: '11px', color: 'var(--pt-text-muted)', textAlign: 'right' }}>€{fmtNum(Math.round(value))}</span>
-          <span style={{ fontSize: '11px', color: 'var(--pt-text-muted)', textAlign: 'right' }}>{units} u</span>
-        </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: '12px', fontWeight: '700', color: 'var(--pt-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {inf.name || `@${inf.handle}`}
+            </div>
+            <div style={{ fontSize: '10px', color: 'var(--pt-text-muted)' }}>{fmtFollowers(inf.followers)}</div>
+          </div>
+          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+            <div style={{ fontSize: '12px', fontWeight: '700', color: 'var(--pt-text)' }}>{inf._count.seedings}</div>
+            <div style={{ fontSize: '9px', color: 'var(--pt-text-muted)' }}>seedgs</div>
+          </div>
+        </Link>
       );
     }
 
-    const GENDER_COLORS = { Female: '#EC4899', Male: '#3B82F6', Unknown: 'var(--pt-text-muted)' };
-    const TIER_COLORS   = ['#7C6FF7', '#A78BFA', '#C4B5FD', '#DDD6FE', 'var(--pt-text-muted)'];
-
-    const maxG = Math.max(...(segmentData.gender.map(r => r.seedings)), 1);
-    const maxT = Math.max(...(segmentData.followerTier.map(r => r.seedings)), 1);
-
     return (
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px', alignItems: 'start' }}>
-        {/* Gender */}
-        <div>
-          <div style={{ fontSize: '11px', fontWeight: '700', color: 'var(--pt-text-muted)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '10px' }}>
-            By gender
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '40px' }}>
+
+        {/* ── Gender analytics ── */}
+        {totalKnown > 0 && (
+          <div>
+            <Label>Gender breakdown</Label>
+            <div style={{ marginBottom: '20px' }}>
+              {/* Split bar */}
+              <div style={{ display: 'flex', height: '8px', borderRadius: '99px', overflow: 'hidden', backgroundColor: 'var(--pt-surface-high)', marginBottom: '14px' }}>
+                {femalePct > 0 && <div style={{ width: `${femalePct}%`, backgroundColor: '#EC4899', transition: 'width 0.5s' }} />}
+                {malePct   > 0 && <div style={{ width: `${malePct}%`, backgroundColor: '#3B82F6', transition: 'width 0.5s' }} />}
+              </div>
+              {/* Numbers */}
+              <div style={{ display: 'flex', gap: '28px' }}>
+                {[
+                  { label: 'Female', color: '#EC4899', pct: femalePct, data: femaleData },
+                  { label: 'Male',   color: '#3B82F6', pct: malePct,   data: maleData   },
+                ].filter(g => g.data).map(({ label, color, pct, data }) => (
+                  <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: color, flexShrink: 0 }} />
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '5px' }}>
+                        <span style={{ fontSize: '24px', fontWeight: '800', letterSpacing: '-1px', color: 'var(--pt-text)', lineHeight: 1 }}>{pct}%</span>
+                        <span style={{ fontSize: '12px', color: 'var(--pt-text-muted)', fontWeight: '500' }}>{label}</span>
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'var(--pt-text-muted)', marginTop: '2px' }}>
+                        {data.seedings} seedings · €{fmtNum(Math.round(data.value))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Top by gender */}
+            {(topFemaleInfluencers.length > 0 || topMaleInfluencers.length > 0) && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px', alignItems: 'start', marginTop: '8px' }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                    <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#EC4899' }} />
+                    <span style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.6px', color: '#EC4899' }}>Top Female</span>
+                  </div>
+                  {topFemaleInfluencers.length === 0
+                    ? <p style={{ margin: '0 0 0 8px', fontSize: '12px', color: 'var(--pt-text-muted)' }}>No data yet</p>
+                    : topFemaleInfluencers.map(inf => <TopGenderRow key={inf.id} inf={inf} color="#EC4899" />)
+                  }
+                </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                    <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#3B82F6' }} />
+                    <span style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.6px', color: '#3B82F6' }}>Top Male</span>
+                  </div>
+                  {topMaleInfluencers.length === 0
+                    ? <p style={{ margin: '0 0 0 8px', fontSize: '12px', color: 'var(--pt-text-muted)' }}>No data yet</p>
+                    : topMaleInfluencers.map(inf => <TopGenderRow key={inf.id} inf={inf} color="#3B82F6" />)
+                  }
+                </div>
+              </div>
+            )}
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr 60px 70px 50px', gap: '12px', paddingBottom: '6px', borderBottom: '1px solid var(--pt-border)' }}>
-            {['Segment','','Seedings','Value','Units'].map((h, i) => (
-              <span key={i} style={{ fontSize: '10px', fontWeight: '700', color: 'var(--pt-text-muted)', textAlign: i > 1 ? 'right' : 'left', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{h}</span>
-            ))}
+        )}
+
+        {/* ── Follower tier ── */}
+        {segmentData.followerTier.length > 0 && (
+          <div>
+            <Label>By follower size</Label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '9px' }}>
+              {segmentData.followerTier.map((r, i) => (
+                <div key={r.label} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span style={{ fontSize: '11px', fontWeight: '600', color: 'var(--pt-text-sub)', width: '52px', flexShrink: 0 }}>{r.label}</span>
+                  <div style={{ flex: 1, height: '5px', borderRadius: '99px', backgroundColor: 'var(--pt-surface-high)', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${(r.seedings / maxT) * 100}%`, backgroundColor: TIER_COLORS[i] || 'var(--pt-accent)', borderRadius: '99px', transition: 'width 0.4s' }} />
+                  </div>
+                  <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--pt-text)', width: '26px', textAlign: 'right', flexShrink: 0 }}>{r.seedings}</span>
+                  <span style={{ fontSize: '11px', color: 'var(--pt-text-muted)', width: '58px', textAlign: 'right', flexShrink: 0 }}>€{fmtNum(Math.round(r.value))}</span>
+                </div>
+              ))}
+            </div>
           </div>
-          {segmentData.gender.map(r => (
-            <SegRow key={r.label} {...r} maxSeedings={maxG} color={GENDER_COLORS[r.label] || 'var(--pt-accent)'} />
-          ))}
-        </div>
-        {/* Follower tier */}
-        <div>
-          <div style={{ fontSize: '11px', fontWeight: '700', color: 'var(--pt-text-muted)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '10px' }}>
-            By size
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr 60px 70px 50px', gap: '12px', paddingBottom: '6px', borderBottom: '1px solid var(--pt-border)' }}>
-            {['Tier','','Seedings','Value','Units'].map((h, i) => (
-              <span key={i} style={{ fontSize: '10px', fontWeight: '700', color: 'var(--pt-text-muted)', textAlign: i > 1 ? 'right' : 'left', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{h}</span>
-            ))}
-          </div>
-          {segmentData.followerTier.map((r, i) => (
-            <SegRow key={r.label} {...r} maxSeedings={maxT} color={TIER_COLORS[i] || 'var(--pt-accent)'} />
-          ))}
-        </div>
+        )}
+
       </div>
     );
   };
