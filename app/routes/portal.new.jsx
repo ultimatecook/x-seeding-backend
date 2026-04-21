@@ -337,7 +337,6 @@ export async function action({ request }) {
           const draftBody = {
             draft_order: {
               line_items: lineItems,
-              applied_discount: { value: '100.0', value_type: 'percentage', title: 'Seeding Gift – 100% Off' },
               note: `Seeding for ${influencer?.handle ?? ''} (${influencer?.name ?? ''})`,
               tags: 'seeding',
               ...(influencer?.email ? { email: influencer.email } : {}),
@@ -405,6 +404,16 @@ export async function action({ request }) {
     // Re-fetch to get the assigned codes
     const updated = await prisma.seeding.findUnique({ where: { id: seeding.id }, select: { productDiscountCode: true, shippingDiscountCode: true } });
     if (updated) assignedCodes = updated;
+
+    // Append the product code to the checkout URL so Shopify auto-applies it
+    // (the code must already exist as a valid Shopify discount code in the store)
+    const productCode = updated?.productDiscountCode;
+    if (productCode && invoiceUrl) {
+      const sep           = invoiceUrl.includes('?') ? '&' : '?';
+      const urlWithCode   = `${invoiceUrl}${sep}discount=${encodeURIComponent(productCode)}`;
+      await prisma.seeding.update({ where: { id: seeding.id }, data: { invoiceUrl: urlWithCode } });
+      console.log('Portal: invoice URL updated with discount code:', productCode);
+    }
   } catch (e) {
     console.warn('Portal: could not assign discount codes:', e.message);
   }
