@@ -103,22 +103,6 @@ export async function loader({ request }) {
                  _count:   { select: { seedings: true } },
                  seedings: { select: { totalCost: true } } },
     }),
-    prisma.influencer.findMany({
-      where:   { shop, archived: false, gender: { equals: 'Female', mode: 'insensitive' } },
-      orderBy: { seedings: { _count: 'desc' } },
-      take:    4,
-      select:  { id: true, handle: true, name: true, followers: true,
-                 _count:   { select: { seedings: true } },
-                 seedings: { select: { totalCost: true } } },
-    }),
-    prisma.influencer.findMany({
-      where:   { shop, archived: false, gender: { equals: 'Male', mode: 'insensitive' } },
-      orderBy: { seedings: { _count: 'desc' } },
-      take:    4,
-      select:  { id: true, handle: true, name: true, followers: true,
-                 _count:   { select: { seedings: true } },
-                 seedings: { select: { totalCost: true } } },
-    }),
     prisma.seedingProduct.findMany({
       where:  { seeding: seedingWhere },
       select: { cost: true, productName: true },
@@ -140,6 +124,22 @@ export async function loader({ request }) {
     prisma.inventoryLocation.findMany({
       where:  { shop },
       select: { shopifyLocationId: true, name: true, locationType: true },
+    }),
+    prisma.influencer.findMany({
+      where:   { shop, archived: false, gender: { equals: 'Female', mode: 'insensitive' } },
+      orderBy: { seedings: { _count: 'desc' } },
+      take:    4,
+      select:  { id: true, handle: true, name: true, followers: true,
+                 _count:   { select: { seedings: true } },
+                 seedings: { select: { totalCost: true } } },
+    }),
+    prisma.influencer.findMany({
+      where:   { shop, archived: false, gender: { equals: 'Male', mode: 'insensitive' } },
+      orderBy: { seedings: { _count: 'desc' } },
+      take:    4,
+      select:  { id: true, handle: true, name: true, followers: true,
+                 _count:   { select: { seedings: true } },
+                 seedings: { select: { totalCost: true } } },
     }),
   ]);
 
