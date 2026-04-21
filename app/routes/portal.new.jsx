@@ -198,6 +198,9 @@ export async function loader({ request }) {
   const availableProductCodes = await prisma.discountCode.count({
     where: { shop, poolType: 'Product', status: 'Available' },
   });
+  const availableShippingCodes = await prisma.discountCode.count({
+    where: { shop, poolType: 'Shipping', status: 'Available' },
+  });
 
   // ── Guest pre-fill (when coming from "Create seeding" on a campaign guest) ──
   const url          = new URL(request.url);
@@ -223,7 +226,7 @@ export async function loader({ request }) {
     }
   }
 
-  return { products, productsError, collections: collectionsData, influencers, campaigns, recentlySeededMap, allSavedSizes, shop, enabledLocations, availableProductCodes, prefillGuest };
+  return { products, productsError, collections: collectionsData, influencers, campaigns, recentlySeededMap, allSavedSizes, shop, enabledLocations, availableProductCodes, availableShippingCodes, prefillGuest };
 }
 
 // ── Action ────────────────────────────────────────────────────────────────────
@@ -264,6 +267,10 @@ export async function action({ request }) {
   if (availableProductCount === 0) {
     return { error: 'No product discount codes available. Please add codes to the pool before creating a seeding.' };
   }
+
+  // Detect Shopify Plus usage: merchant has uploaded shipping codes → use chain URL approach.
+  // No shipping codes in pool → bake free shipping into the draft order (works on all plans).
+  const hasShippingPool = await prisma.discountCode.count({ where: { shop, poolType: 'Shipping', status: 'Available' } }) > 0;
 
   // ── Campaign validation ──────────────────────────────────────────────────
   if (campaignId) {
@@ -329,9 +336,11 @@ export async function action({ request }) {
           const draftBody = {
             draft_order: {
               line_items: lineItems,
-              // Shipping is always free — baked in so no shipping discount code
-              // is needed. Works on every Shopify plan.
-              shipping_line: { custom: true, title: 'Free Shipping', price: '0.00' },
+              // When no shipping codes exist in the pool (standard Shopify plans),
+              // bake free shipping directly into the draft order so no code is needed.
+              // When shipping codes ARE in the pool (Shopify Plus), omit this field —
+              // the shipping discount code will be applied via the /discount/ chain URL.
+              ...(!hasShippingPool ? { shipping_line: { custom: true, title: 'Free Shipping', price: '0.00' } } : {}),
               note: `Seeding for ${influencer?.handle ?? ''} (${influencer?.name ?? ''})`,
               tags: 'seeding',
               ...(influencer?.email ? { email: influencer.email } : {}),
@@ -392,24 +401,42 @@ export async function action({ request }) {
     }
   }
 
-  // Assign product code from pool and append it to the invoice URL.
-  // Shipping is already free via the draft order shipping_line above.
-  // One code, works on all Shopify plans, invoice URL bypasses store password.
+  // Assign discount codes from the pool and build the checkout URL.
+  //
+  // Standard (no shipping pool): shipping is already free via shipping_line on the draft order.
+  //   → INVOICE_URL?discount=PRODUCT_CODE  (invoice URL bypasses store password)
+  //
+  // Shopify Plus (shipping pool populated): use the /discount/ chain so both codes are
+  //   pre-applied and tracked in Shopify analytics.
+  //   → /discount/PRODUCT?redirect=/discount/SHIPPING?redirect=INVOICE_PATH
   let assignedCodes = null;
   try {
     assignedCodes = await assignDiscountCodes(shop, seeding.id);
     const updated = await prisma.seeding.findUnique({
       where:  { id: seeding.id },
-      select: { productDiscountCode: true },
+      select: { productDiscountCode: true, shippingDiscountCode: true },
     });
     if (updated) assignedCodes = updated;
 
-    const productCode = updated?.productDiscountCode;
+    const productCode  = updated?.productDiscountCode  ?? null;
+    const shippingCode = updated?.shippingDiscountCode ?? null;
+
     if (productCode && invoiceUrl) {
-      const sep         = invoiceUrl.includes('?') ? '&' : '?';
-      const urlWithCode = `${invoiceUrl}${sep}discount=${productCode}`;
-      await prisma.seeding.update({ where: { id: seeding.id }, data: { invoiceUrl: urlWithCode } });
-      console.log('Portal: invoice URL with product code:', productCode);
+      let finalUrl;
+      if (shippingCode) {
+        // Shopify Plus chain: apply product code → apply shipping code → invoice checkout
+        const invoiceUrlObj  = new URL(invoiceUrl);
+        const invoicePath    = invoiceUrlObj.pathname + invoiceUrlObj.search;
+        const innerRedirect  = `/discount/${shippingCode}?redirect=${encodeURIComponent(invoicePath)}`;
+        finalUrl = `https://${shop}/discount/${productCode}?redirect=${encodeURIComponent(innerRedirect)}`;
+        console.log('Portal: Plus chain URL built, productCode:', productCode, 'shippingCode:', shippingCode);
+      } else {
+        // Standard: single product code appended to invoice URL
+        const sep = invoiceUrl.includes('?') ? '&' : '?';
+        finalUrl  = `${invoiceUrl}${sep}discount=${productCode}`;
+        console.log('Portal: standard invoice URL with product code:', productCode);
+      }
+      await prisma.seeding.update({ where: { id: seeding.id }, data: { invoiceUrl: finalUrl } });
     }
   } catch (e) {
     console.warn('Portal: could not assign discount codes:', e.message);
