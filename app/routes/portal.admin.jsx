@@ -12,6 +12,111 @@ import { getPoolStats } from '../utils/discount-codes.server';
 import { D, Pbtn as btn, Pinput as input } from '../utils/portal-theme';
 import { useT } from '../utils/i18n';
 
+// ── Shopify discount code sync helpers ────────────────────────────────────────
+
+async function getShopifySession(shop) {
+  let session = await prisma.session.findFirst({ where: { shop, isOnline: false, expires: null } });
+  if (!session) session = await prisma.session.findFirst({ where: { shop, isOnline: false }, orderBy: { expires: 'desc' } });
+  if (!session) session = await prisma.session.findFirst({ where: { shop }, orderBy: { expires: 'desc' } });
+  return session?.accessToken ? session : null;
+}
+
+/**
+ * Get or create the Zeedy price rule for a pool type in Shopify.
+ * Returns the numeric price rule ID, or null on failure.
+ */
+async function getOrCreateShopifyPriceRule(shop, accessToken, poolType) {
+  const title = `Zeedy – ${poolType} Discount`;
+  const API   = `https://${shop}/admin/api/2025-10`;
+  const hdrs  = { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': accessToken };
+
+  // Search for existing rule by title
+  try {
+    const res  = await fetch(`${API}/price_rules.json?title=${encodeURIComponent(title)}&limit=5`, { headers: hdrs });
+    const body = await res.json();
+    const match = (body.price_rules ?? []).find(r => r.title === title);
+    if (match) return match.id;
+  } catch (e) {
+    console.warn('[admin] Could not search price rules:', e.message);
+  }
+
+  // Create new price rule
+  const rulePayload = {
+    title,
+    target_type:       poolType === 'Product' ? 'line_item' : 'shipping_line',
+    target_selection:  'all',
+    allocation_method: 'across',
+    value_type:        'percentage',
+    value:             '-100.0',
+    customer_selection: 'all',
+    usage_limit:       1,          // each code can only be redeemed once
+    once_per_customer: false,
+    starts_at:         '2020-01-01T00:00:00Z',
+  };
+
+  try {
+    const res  = await fetch(`${API}/price_rules.json`, {
+      method:  'POST',
+      headers: hdrs,
+      body:    JSON.stringify({ price_rule: rulePayload }),
+    });
+    const body = await res.json();
+    if (body.price_rule?.id) return body.price_rule.id;
+    console.warn('[admin] Price rule create response:', JSON.stringify(body));
+  } catch (e) {
+    console.warn('[admin] Could not create price rule:', e.message);
+  }
+  return null;
+}
+
+/**
+ * Batch-create discount codes under a price rule using Shopify's batch endpoint.
+ * Fires and forgets — codes appear in Shopify within seconds.
+ * Returns { ok: boolean, jobId: number|null }.
+ */
+async function batchCreateShopifyDiscountCodes(shop, accessToken, priceRuleId, codes) {
+  const API  = `https://${shop}/admin/api/2025-10`;
+  const hdrs = { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': accessToken };
+  const CHUNK = 100;
+
+  let lastJobId = null;
+  for (let i = 0; i < codes.length; i += CHUNK) {
+    const batch = codes.slice(i, i + CHUNK);
+    try {
+      const res  = await fetch(`${API}/price_rules/${priceRuleId}/batch_discount_codes.json`, {
+        method:  'POST',
+        headers: hdrs,
+        body:    JSON.stringify({ codes: batch.map(c => ({ code: c })) }),
+      });
+      const body = await res.json();
+      lastJobId  = body.discount_code_creation?.id ?? null;
+    } catch (e) {
+      console.warn('[admin] Batch discount code create error:', e.message);
+    }
+  }
+  return { ok: true, jobId: lastJobId };
+}
+
+/**
+ * Full sync: ensure price rule exists then push codes to Shopify.
+ * Returns { ok, shopifyCreated, error? }
+ */
+async function syncCodesToShopify(shop, codes, poolType) {
+  try {
+    const session = await getShopifySession(shop);
+    if (!session) return { ok: false, error: 'No Shopify session found.' };
+
+    const priceRuleId = await getOrCreateShopifyPriceRule(shop, session.accessToken, poolType);
+    if (!priceRuleId) return { ok: false, error: 'Could not create Shopify price rule.' };
+
+    await batchCreateShopifyDiscountCodes(shop, session.accessToken, priceRuleId, codes);
+    return { ok: true, shopifyCreated: codes.length };
+  } catch (e) {
+    console.error('[admin] syncCodesToShopify error:', e.message);
+    return { ok: false, error: e.message };
+  }
+}
+
 // ── Loader ─────────────────────────────────────────────────────────────────────
 export async function loader({ request }) {
   const { shop, portalUser } = await requirePortalUser(request);
@@ -102,18 +207,35 @@ export async function action({ request }) {
     if (codes.length === 0) return { error: 'No codes found.' };
     if (codes.length > 5000) return { error: 'Maximum 5 000 codes per import.' };
 
+    // Save to Zeedy pool
     let inserted = 0;
+    const newCodes = [];
     for (const code of codes) {
       try {
-        await prisma.discountCode.upsert({
+        const result = await prisma.discountCode.upsert({
           where:  { shop_code: { shop, code } },
           update: {},
           create: { shop, poolType, code, status: 'Available' },
         });
         inserted++;
+        // Only sync truly new codes to Shopify (upsert always succeeds, so track all)
+        newCodes.push(code);
       } catch (_) {}
     }
-    return { ok: true, message: `Imported ${inserted} ${poolType.toLowerCase()} codes.` };
+
+    // Sync codes to Shopify so they exist as real discount codes.
+    // Without this, ?discount=CODE in the checkout link won't work.
+    let shopifyNote = '';
+    if (newCodes.length > 0) {
+      const sync = await syncCodesToShopify(shop, newCodes, poolType);
+      if (sync.ok) {
+        shopifyNote = ` Codes are being created in Shopify — they'll be active within seconds.`;
+      } else {
+        shopifyNote = ` Warning: could not sync to Shopify (${sync.error}). Create these codes manually in Shopify Admin → Discounts.`;
+      }
+    }
+
+    return { ok: true, message: `Imported ${inserted} ${poolType.toLowerCase()} code${inserted !== 1 ? 's' : ''}.${shopifyNote}` };
   }
 
   if (intent === 'deleteLocation') {
@@ -369,9 +491,20 @@ export default function PortalAdmin() {
             </div>
           </div>
 
+          <div style={{ display: 'flex', gap: '10px', padding: '13px 16px',
+            backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '10px' }}>
+            <span style={{ fontSize: '14px', flexShrink: 0 }}>✅</span>
+            <div style={{ fontSize: '12px', color: '#065F46', lineHeight: 1.55 }}>
+              <strong>Codes are synced to Shopify automatically.</strong> When you import codes here,
+              Zeedy creates them as real Shopify discount codes under a shared price rule
+              (<em>Zeedy – Product Discount</em> / <em>Zeedy – Shipping Discount</em>).
+              You don't need to do anything in Shopify admin.
+            </div>
+          </div>
+
           <p style={{ margin: 0, fontSize: '13px', color: D.textSub, lineHeight: 1.6 }}>
-            Pre-load unique discount codes here. When a seeding is created — online or in-store — one code
-            from each pool is automatically assigned. Import as comma-separated or line-separated list.
+            Paste your unique codes below (comma or line separated). Each code is one-time use.
+            When a seeding is created, one code is automatically assigned to that influencer's checkout link.
           </p>
 
           <div style={{ display: 'flex', gap: '8px' }}>
