@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useLoaderData, Form, Link, redirect } from 'react-router';
+import { useLoaderData, Form, Link, redirect, useFetcher } from 'react-router';
 import prisma from '../db.server';
 import { requirePortalUser } from '../utils/portal-auth.server';
 import { can, requirePermission } from '../utils/portal-permissions';
@@ -22,7 +22,6 @@ const STATUSES = ['Pending', 'Ordered', 'Shipped', 'Delivered', 'Posted'];
 const GUEST_STATUS = {
   invited:   { label: 'Invited',   bg: 'rgba(100,116,139,0.10)', text: '#475569', dot: '#94A3B8' },
   confirmed: { label: 'Confirmed', bg: 'rgba(59,130,246,0.10)',  text: '#2563EB', dot: '#3B82F6' },
-  attended:  { label: 'Attended',  bg: 'rgba(16,185,129,0.10)',  text: '#059669', dot: '#10B981' },
 };
 
 const ALLOC = {
@@ -281,7 +280,7 @@ export async function action({ request, params }) {
   if (intent === 'updateGuestStatus') {
     const guestId = parseInt(formData.get('guestId'));
     const status  = formData.get('status');
-    if (!['invited', 'confirmed', 'attended'].includes(status)) return null;
+    if (!['invited', 'confirmed'].includes(status)) return null;
     const guest = await prisma.campaignGuest.findUnique({ where: { id: guestId }, include: { campaign: true } });
     if (!guest || guest.campaign.shop !== shop) return null;
     await prisma.campaignGuest.update({ where: { id: guestId }, data: { status } });
@@ -356,6 +355,42 @@ export async function action({ request, params }) {
   return null;
 }
 
+// ── Guest status pill — uses fetcher for instant optimistic update ────────────
+const GUEST_CYCLE = ['invited', 'confirmed'];
+
+function GuestStatusPill({ guest, canManage }) {
+  const fetcher = useFetcher();
+  // Optimistic: reflect the pending submission immediately
+  const optimisticStatus = fetcher.formData?.get('status') || guest.status;
+  const meta       = GUEST_STATUS[optimisticStatus] || GUEST_STATUS.invited;
+  const nextStatus = GUEST_CYCLE[(GUEST_CYCLE.indexOf(optimisticStatus) + 1) % GUEST_CYCLE.length];
+
+  if (!canManage) {
+    return (
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '5px 11px', borderRadius: '99px', backgroundColor: meta.bg, color: meta.text, fontSize: '11px', fontWeight: '700', flexShrink: 0 }}>
+        <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: meta.dot }} />
+        {meta.label}
+      </span>
+    );
+  }
+
+  return (
+    <fetcher.Form method="post" style={{ flexShrink: 0 }}>
+      <input type="hidden" name="intent" value="updateGuestStatus" />
+      <input type="hidden" name="guestId" value={guest.id} />
+      <input type="hidden" name="status" value={nextStatus} />
+      <button type="submit" title={`Click to mark as ${nextStatus}`}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '5px 11px', borderRadius: '99px', cursor: 'pointer', border: `1.5px solid ${meta.dot}44`, backgroundColor: meta.bg, color: meta.text, fontSize: '11px', fontWeight: '700', whiteSpace: 'nowrap', transition: 'opacity 0.1s, transform 0.1s' }}
+        onMouseOver={e => { e.currentTarget.style.opacity='0.8'; e.currentTarget.style.transform='scale(0.97)'; }}
+        onMouseOut={e => { e.currentTarget.style.opacity='1'; e.currentTarget.style.transform='scale(1)'; }}>
+        <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: meta.dot, flexShrink: 0 }} />
+        {meta.label}
+        <span style={{ fontSize: '9px', opacity: 0.45, marginLeft: '1px' }}>›</span>
+      </button>
+    </fetcher.Form>
+  );
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function StatusPill({ status }) {
   const m = STATUS_META[status] || { bg: D.surfaceHigh, text: D.textSub, dot: D.textMuted };
@@ -405,7 +440,6 @@ export default function PortalCampaignDetail() {
 
   // Guest stats
   const guestConfirmed = guests.filter(g => g.status === 'confirmed').length;
-  const guestAttended  = guests.filter(g => g.status === 'attended').length;
   const totalAssigned  = guests.reduce((s, g) => s + g.items.reduce((a, i) => a + i.quantity, 0), 0);
   const totalFulfilled = guests.reduce((s, g) => s + g.items.filter(i => i.fulfilled).reduce((a, i) => a + i.quantity, 0), 0);
 
@@ -606,7 +640,7 @@ export default function PortalCampaignDetail() {
         {(isEvent ? [
           { label: 'Total Guests',    value: guests.length },
           { label: 'Confirmed',       value: guestConfirmed },
-          { label: 'Attended',        value: guestAttended },
+          { label: 'Pending',         value: guests.length - guestConfirmed },
           { label: 'Items Fulfilled', value: `${totalFulfilled} / ${totalAssigned}` },
         ] : [
           { label: t('campaign.kpi.seedings'),    value: seedings.length },
@@ -667,11 +701,6 @@ export default function PortalCampaignDetail() {
                       ✓ {guestConfirmed} confirmed
                     </span>
                   )}
-                  {guestAttended > 0 && (
-                    <span style={{ padding: '2px 9px', borderRadius: '99px', backgroundColor: 'rgba(16,185,129,0.10)', fontSize: '11px', fontWeight: '700', color: '#059669' }}>
-                      ★ {guestAttended} attended
-                    </span>
-                  )}
                 </>
               )}
             </div>
@@ -702,14 +731,14 @@ export default function PortalCampaignDetail() {
           {/* Filter bar */}
           {guests.length > 0 && (
             <div style={{ padding: '8px 20px', borderBottom: `1px solid ${D.borderLight}`, display: 'flex', gap: '4px', flexWrap: 'wrap', alignItems: 'center' }}>
-              {[['all','All'], ['invited','Invited'], ['confirmed','Confirmed'], ['attended','Attended']].map(([k, l]) => {
+              {[['all','All'], ['invited','Invited'], ['confirmed','Confirmed']].map(([k, l]) => {
                 const isActive = guestStatusFilter === k;
-                const statusColor = k === 'confirmed' ? '#2563EB' : k === 'attended' ? '#059669' : k === 'invited' ? '#475569' : null;
+                const statusColor = k === 'confirmed' ? '#2563EB' : k === 'invited' ? '#475569' : null;
                 return (
                   <button key={k} type="button" onClick={() => setGuestStatusFilter(k)} style={{
                     padding: '3px 10px', borderRadius: '99px', cursor: 'pointer', fontSize: '11px', fontWeight: '600',
                     border: `1.5px solid ${isActive ? (statusColor || D.border) : 'transparent'}`,
-                    backgroundColor: isActive ? (k === 'confirmed' ? 'rgba(59,130,246,0.08)' : k === 'attended' ? 'rgba(16,185,129,0.08)' : k === 'invited' ? 'rgba(71,85,105,0.08)' : D.surfaceHigh) : 'transparent',
+                    backgroundColor: isActive ? (k === 'confirmed' ? 'rgba(59,130,246,0.08)' : k === 'invited' ? 'rgba(71,85,105,0.08)' : D.surfaceHigh) : 'transparent',
                     color: isActive ? (statusColor || D.textSub) : D.textMuted,
                   }}>
                     {l}{k !== 'all' && <span style={{ marginLeft: '4px', opacity: 0.65 }}>{guests.filter(g => g.status === k).length}</span>}
@@ -815,9 +844,6 @@ export default function PortalCampaignDetail() {
           ) : (
             <div style={{ padding: '8px 12px 12px' }}>
               {filteredGuests.map(guest => {
-                const statusMeta = GUEST_STATUS[guest.status] || GUEST_STATUS.invited;
-                const CYCLE      = ['invited', 'confirmed', 'attended'];
-                const nextStatus = CYCLE[(CYCLE.indexOf(guest.status) + 1) % CYCLE.length];
                 const isExpanded = expandedGuest === guest.id;
                 const fulfilledItems = guest.items.filter(i => i.fulfilled);
                 const genderColor = guest.influencer?.gender?.toLowerCase() === 'female' ? '#EC4899' : guest.influencer?.gender?.toLowerCase() === 'male' ? '#3B82F6' : null;
@@ -863,27 +889,8 @@ export default function PortalCampaignDetail() {
                         </div>
                       </div>
 
-                      {/* Status cycling pill */}
-                      {canManage ? (
-                        <Form method="post" style={{ flexShrink: 0 }}>
-                          <input type="hidden" name="intent" value="updateGuestStatus" />
-                          <input type="hidden" name="guestId" value={guest.id} />
-                          <input type="hidden" name="status" value={nextStatus} />
-                          <button type="submit" title={`Click to mark as ${nextStatus}`}
-                            style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '5px 11px', borderRadius: '99px', cursor: 'pointer', border: `1.5px solid ${statusMeta.dot}44`, backgroundColor: statusMeta.bg, color: statusMeta.text, fontSize: '11px', fontWeight: '700', whiteSpace: 'nowrap', transition: 'opacity 0.12s, transform 0.12s' }}
-                            onMouseOver={e => { e.currentTarget.style.opacity='0.8'; e.currentTarget.style.transform='scale(0.97)'; }}
-                            onMouseOut={e => { e.currentTarget.style.opacity='1'; e.currentTarget.style.transform='scale(1)'; }}>
-                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: statusMeta.dot, flexShrink: 0 }} />
-                            {statusMeta.label}
-                            <span style={{ fontSize: '9px', opacity: 0.45, marginLeft: '1px' }}>›</span>
-                          </button>
-                        </Form>
-                      ) : (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '5px 11px', borderRadius: '99px', backgroundColor: statusMeta.bg, color: statusMeta.text, fontSize: '11px', fontWeight: '700', flexShrink: 0 }}>
-                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: statusMeta.dot }} />
-                          {statusMeta.label}
-                        </span>
-                      )}
+                      {/* Status cycling pill — instant via fetcher */}
+                      <GuestStatusPill guest={guest} canManage={canManage} />
 
                       {/* Items toggle */}
                       <button type="button" onClick={() => setExpandedGuest(isExpanded ? null : guest.id)}
