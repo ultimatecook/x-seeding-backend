@@ -3,12 +3,17 @@
  *
  * GET /portal/ig-avatar/:handle
  *
- * Asks unavatar.io for the Instagram profile photo and follows the redirect.
- * If the final URL is on Instagram's CDN (cdninstagram.com / fbcdn.net), we
- * proxy the image back so the browser can display it.
- * If unavatar returns its own fallback icon (the Instagram logo), the redirect
- * stays on unavatar.io — we return 404 so the client shows initials instead.
+ * Asks unavatar.io for the Instagram profile photo and proxies it back.
+ * We no longer check CDN domains (unavatar now serves images through its own
+ * CDN cache, so the final URL may stay on unavatar.io even for real photos).
+ * Instead we filter by body size: unavatar's "no photo" placeholder is a tiny
+ * SVG/PNG (~1–2 KB), while real profile photos are always above ~8 KB.
  */
+
+// Minimum byte size a real profile photo must exceed.
+// unavatar's fallback icon is ~1–2 KB; real Instagram photos are 10–150 KB.
+const MIN_REAL_PHOTO_BYTES = 5_000;
+
 export async function loader({ params }) {
   const clean = (params.handle || '').replace(/^@/, '');
   if (!clean) return new Response(null, { status: 404 });
@@ -32,27 +37,19 @@ export async function loader({ params }) {
 
       if (!res.ok) continue;
 
-      const finalUrl = res.url || src;
+      const ct = res.headers.get('content-type') || '';
+      if (!ct.startsWith('image/')) continue;
 
-      // Only trust the image if it landed on Instagram's actual CDN.
-      // When unavatar can't find a profile photo it serves its own
-      // fallback icon — the redirect stays on unavatar.io, not Instagram's CDN.
-      const isInstagramCDN =
-        finalUrl.includes('cdninstagram.com') ||
-        finalUrl.includes('fbcdn.net') ||
-        finalUrl.includes('scontent');
+      const buf = await res.arrayBuffer();
 
-      if (!isInstagramCDN) continue;
-
-      const buf  = await res.arrayBuffer();
-      const ct   = res.headers.get('content-type') || 'image/jpeg';
+      // Reject tiny placeholders — unavatar's fallback icon is always < 5 KB.
+      if (buf.byteLength < MIN_REAL_PHOTO_BYTES) continue;
 
       return new Response(buf, {
         status: 200,
         headers: {
           'Content-Type':  ct,
           'Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800',
-          'X-Avatar-Src':  finalUrl,
         },
       });
     } catch {
