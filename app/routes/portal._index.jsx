@@ -233,7 +233,11 @@ export async function loader({ request }) {
     : daysParam === '180' ? 'last 6 months'
     :                       'last year';
 
-  const onboarding = await getOnboardingState(shop);
+  const [onboarding, billing] = await Promise.all([
+    getOnboardingState(shop),
+    prisma.shopBilling.findUnique({ where: { shop }, select: { discountMode: true } }),
+  ]);
+  const discountMode = billing?.discountMode ?? 'simple';
 
   return {
     totalSeedings, pendingSeedings, orderedSeedings,
@@ -252,6 +256,7 @@ export async function loader({ request }) {
     chartDays,
     locationData,
     onboarding,
+    discountMode,
   };
 }
 
@@ -567,7 +572,7 @@ function Band({ id, editMode, isDragOver, onDragStart, onDragOver, onDrop, onDra
 }
 
 // ── Onboarding checklist ──────────────────────────────────────────────────────
-function OnboardingChecklist({ onboarding }) {
+function OnboardingChecklist({ onboarding, discountMode }) {
   const fetcher    = useFetcher();
   const [dismissed, setDismissed] = useState(false);
 
@@ -595,11 +600,12 @@ function OnboardingChecklist({ onboarding }) {
       label: 'Create a campaign',
       to:    '/portal/campaigns',
     },
-    {
+    // Only show discount codes step in analytics mode — simple mode needs no codes.
+    ...(discountMode === 'analytics' ? [{
       done:  onboarding.hasDiscountCodes,
       label: 'Add discount codes',
       to:    '/portal/admin#discounts',
-    },
+    }] : []),
     {
       done:  onboarding.hasSeeding,
       label: 'Create your first seeding',
@@ -735,7 +741,7 @@ export default function PortalDashboard() {
     spendDelta, countDelta,
     countryPills, activeDays, activeCountry,
     activeSeedings, totalCogs, chartDays, rangeLabel, currentMonthShort,
-    locationData, onboarding,
+    locationData, onboarding, discountMode,
   } = useLoaderData();
 
   const TIME_OPTIONS = [
@@ -1255,7 +1261,7 @@ export default function PortalDashboard() {
       )}
 
       {/* ── Onboarding checklist ────────────────────────────────── */}
-      <OnboardingChecklist onboarding={onboarding} />
+      <OnboardingChecklist onboarding={onboarding} discountMode={discountMode} />
 
       {/* ── Hero: big number + line chart ───────────────────────── */}
       <div style={{ marginBottom: '8px' }}>

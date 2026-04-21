@@ -195,12 +195,12 @@ export async function loader({ request }) {
 
   const enabledLocations = await getInventoryLocations(shop); // enabled only, includes all types
 
-  const availableProductCodes = await prisma.discountCode.count({
-    where: { shop, poolType: 'Product', status: 'Available' },
-  });
-  const availableShippingCodes = await prisma.discountCode.count({
-    where: { shop, poolType: 'Shipping', status: 'Available' },
-  });
+  const [availableProductCodes, availableShippingCodes, billing] = await Promise.all([
+    prisma.discountCode.count({ where: { shop, poolType: 'Product', status: 'Available' } }),
+    prisma.discountCode.count({ where: { shop, poolType: 'Shipping', status: 'Available' } }),
+    prisma.shopBilling.findUnique({ where: { shop }, select: { discountMode: true } }),
+  ]);
+  const discountMode = billing?.discountMode ?? 'simple';
 
   // ── Guest pre-fill (when coming from "Create seeding" on a campaign guest) ──
   const url          = new URL(request.url);
@@ -226,7 +226,7 @@ export async function loader({ request }) {
     }
   }
 
-  return { products, productsError, collections: collectionsData, influencers, campaigns, recentlySeededMap, allSavedSizes, shop, enabledLocations, availableProductCodes, availableShippingCodes, prefillGuest };
+  return { products, productsError, collections: collectionsData, influencers, campaigns, recentlySeededMap, allSavedSizes, shop, enabledLocations, availableProductCodes, availableShippingCodes, discountMode, prefillGuest };
 }
 
 // ── Action ────────────────────────────────────────────────────────────────────
@@ -261,16 +261,24 @@ export async function action({ request }) {
   const influencer = await prisma.influencer.findUnique({ where: { id: influencerId } });
   if (!influencer || influencer.shop !== shop) return { error: 'Influencer not found.' };
 
-  // ── Discount code check ──────────────────────────────────────────────────
-  const availableProductCount = await prisma.discountCode.count({ where: { shop, poolType: 'Product', status: 'Available' } });
+  // ── Discount mode ─────────────────────────────────────────────────────────
+  const billingRow   = await prisma.shopBilling.findUnique({ where: { shop }, select: { discountMode: true } });
+  const discountMode = billingRow?.discountMode ?? 'simple';
 
-  if (availableProductCount === 0) {
-    return { error: 'No product discount codes available. Please add codes to the pool before creating a seeding.' };
+  // Analytics mode: codes are required from the pool.
+  // Simple mode: no codes needed — discount is applied inline to the draft order.
+  if (discountMode === 'analytics') {
+    const availableProductCount = await prisma.discountCode.count({ where: { shop, poolType: 'Product', status: 'Available' } });
+    if (availableProductCount === 0) {
+      return { error: 'No product discount codes available. Please add codes to the pool in Admin → Discounts, or switch to Simple checkout mode.' };
+    }
   }
 
-  // Detect Shopify Plus usage: merchant has uploaded shipping codes → use chain URL approach.
-  // No shipping codes in pool → bake free shipping into the draft order (works on all plans).
-  const hasShippingPool = await prisma.discountCode.count({ where: { shop, poolType: 'Shipping', status: 'Available' } }) > 0;
+  // Shipping: in analytics mode detect whether merchant has Plus shipping codes.
+  // In simple mode this flag is irrelevant (shipping_line always baked in).
+  const hasShippingPool = discountMode === 'analytics'
+    ? await prisma.discountCode.count({ where: { shop, poolType: 'Shipping', status: 'Available' } }) > 0
+    : false;
 
   // ── Campaign validation ──────────────────────────────────────────────────
   if (campaignId) {
@@ -336,11 +344,24 @@ export async function action({ request }) {
           const draftBody = {
             draft_order: {
               line_items: lineItems,
-              // When no shipping codes exist in the pool (standard Shopify plans),
-              // bake free shipping directly into the draft order so no code is needed.
-              // When shipping codes ARE in the pool (Shopify Plus), omit this field —
-              // the shipping discount code will be applied via the /discount/ chain URL.
-              ...(!hasShippingPool ? { shipping_line: { custom: true, title: 'Free Shipping', price: '0.00' } } : {}),
+              // Simple mode: inline 100% product discount + free shipping baked in.
+              // Analytics mode: no inline discount — real codes applied via /discount/ redirect.
+              ...(discountMode === 'simple'
+                ? {
+                    applied_discount: {
+                      description: 'Influencer seeding — 100% off',
+                      value_type:  'percentage',
+                      value:       '100.0',
+                      amount:      '0.00',
+                      title:       'Influencer Seeding',
+                    },
+                    shipping_line: { custom: true, title: 'Free Shipping', price: '0.00' },
+                  }
+                : {
+                    // Analytics mode: only bake free shipping when merchant has no shipping codes.
+                    ...(!hasShippingPool ? { shipping_line: { custom: true, title: 'Free Shipping', price: '0.00' } } : {}),
+                  }
+              ),
               note: `Seeding for ${influencer?.handle ?? ''} (${influencer?.name ?? ''})`,
               tags: 'seeding',
               ...(influencer?.email ? { email: influencer.email } : {}),
@@ -401,45 +422,44 @@ export async function action({ request }) {
     }
   }
 
-  // Assign discount codes from the pool and build the checkout URL.
+  // ── Discount code assignment + checkout URL ───────────────────────────────
   //
-  // Standard (no shipping pool): shipping is already free via shipping_line on the draft order.
-  //   → INVOICE_URL?discount=PRODUCT_CODE  (invoice URL bypasses store password)
+  // Simple mode: discount was baked into the draft order inline (applied_discount + shipping_line).
+  //   → invoiceUrl is used as-is; no codes assigned from pool.
   //
-  // Shopify Plus (shipping pool populated): use the /discount/ chain so both codes are
-  //   pre-applied and tracked in Shopify analytics.
-  //   → /discount/PRODUCT?redirect=/discount/SHIPPING?redirect=INVOICE_PATH
-  let assignedCodes = null;
-  try {
-    assignedCodes = await assignDiscountCodes(shop, seeding.id);
-    const updated = await prisma.seeding.findUnique({
-      where:  { id: seeding.id },
-      select: { productDiscountCode: true, shippingDiscountCode: true },
-    });
-    if (updated) assignedCodes = updated;
+  // Analytics mode:
+  //   No shipping pool  → /discount/PRODUCT?redirect=INVOICE_PATH
+  //   Shipping pool     → /discount/PRODUCT?redirect=/discount/SHIPPING?redirect=INVOICE_PATH
+  if (discountMode === 'analytics') {
+    try {
+      await assignDiscountCodes(shop, seeding.id);
+      const updated = await prisma.seeding.findUnique({
+        where:  { id: seeding.id },
+        select: { productDiscountCode: true, shippingDiscountCode: true },
+      });
 
-    const productCode  = updated?.productDiscountCode  ?? null;
-    const shippingCode = updated?.shippingDiscountCode ?? null;
+      const productCode  = updated?.productDiscountCode  ?? null;
+      const shippingCode = updated?.shippingDiscountCode ?? null;
 
-    if (productCode && invoiceUrl) {
-      let finalUrl;
-      if (shippingCode) {
-        // Shopify Plus chain: apply product code → apply shipping code → invoice checkout
-        const invoiceUrlObj  = new URL(invoiceUrl);
-        const invoicePath    = invoiceUrlObj.pathname + invoiceUrlObj.search;
-        const innerRedirect  = `/discount/${shippingCode}?redirect=${encodeURIComponent(invoicePath)}`;
-        finalUrl = `https://${shop}/discount/${productCode}?redirect=${encodeURIComponent(innerRedirect)}`;
-        console.log('Portal: Plus chain URL built, productCode:', productCode, 'shippingCode:', shippingCode);
-      } else {
-        // Standard: single product code appended to invoice URL
-        const sep = invoiceUrl.includes('?') ? '&' : '?';
-        finalUrl  = `${invoiceUrl}${sep}discount=${productCode}`;
-        console.log('Portal: standard invoice URL with product code:', productCode);
+      if (productCode && invoiceUrl) {
+        let finalUrl;
+        if (shippingCode) {
+          // Shopify Plus chain: product code → shipping code → invoice checkout
+          const invoicePath   = new URL(invoiceUrl).pathname + new URL(invoiceUrl).search;
+          const innerRedirect = `/discount/${shippingCode}?redirect=${encodeURIComponent(invoicePath)}`;
+          finalUrl = `https://${shop}/discount/${productCode}?redirect=${encodeURIComponent(innerRedirect)}`;
+          console.log('Portal: Plus chain URL built, productCode:', productCode, 'shippingCode:', shippingCode);
+        } else {
+          // Single code: pre-apply product code then redirect to invoice checkout
+          const invoicePath = new URL(invoiceUrl).pathname + new URL(invoiceUrl).search;
+          finalUrl = `https://${shop}/discount/${productCode}?redirect=${encodeURIComponent(invoicePath)}`;
+          console.log('Portal: analytics /discount/ URL, productCode:', productCode);
+        }
+        await prisma.seeding.update({ where: { id: seeding.id }, data: { invoiceUrl: finalUrl } });
       }
-      await prisma.seeding.update({ where: { id: seeding.id }, data: { invoiceUrl: finalUrl } });
+    } catch (e) {
+      console.warn('Portal: could not assign discount codes:', e.message);
     }
-  } catch (e) {
-    console.warn('Portal: could not assign discount codes:', e.message);
   }
 
   await audit({
@@ -554,7 +574,7 @@ function Pill({ label, active, onClick }) {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function PortalNewSeeding() {
-  const { products, productsError, collections, influencers, campaigns, recentlySeededMap, allSavedSizes, shop, enabledLocations, availableProductCodes, prefillGuest } = useLoaderData();
+  const { products, productsError, collections, influencers, campaigns, recentlySeededMap, allSavedSizes, shop, enabledLocations, availableProductCodes, discountMode, prefillGuest } = useLoaderData();
   const actionData = useActionData();
   const navigate   = useNavigate();
   const { t }      = useT();
@@ -751,7 +771,9 @@ export default function PortalNewSeeding() {
     ? onlineLocations.length > 0
     : storeLocations.length > 0;
   const hasSelectedStore = seedingType === 'InStore' ? selectedStore !== null : true;
-  const hasProductCodes = availableProductCodes > 0;
+  // In analytics mode codes are consumed from the pool, so we gate submission on availability.
+  // In simple mode discount is baked inline — no pool codes needed.
+  const hasProductCodes = discountMode === 'analytics' ? availableProductCodes > 0 : true;
   const canSubmit = !submitting && selectedInfluencer && selectedProducts.length > 0 && allHaveSizes && hasEnabledLocation && hasSelectedStore && hasProductCodes;
 
   async function handleSubmit(e) {

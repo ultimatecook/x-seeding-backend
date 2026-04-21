@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    width: 1600px;
+    height: 900px;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+    background: #0F0D1A;
+  }
+
+  .bg {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, #0F0D1A 0%, #1A1530 50%, #0F0D1A 100%);
+  }
+
+  .glow-left {
+    position: absolute;
+    width: 700px; height: 700px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(124,111,247,0.18) 0%, transparent 70%);
+    top: -200px; left: -100px;
+  }
+
+  .glow-right {
+    position: absolute;
+    width: 500px; height: 500px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(124,111,247,0.12) 0%, transparent 70%);
+    bottom: -150px; right: 100px;
+  }
+
+  .content {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    height: 900px;
+    padding: 0 96px;
+    gap: 80px;
+  }
+
+  /* ── Left: copy ── */
+  .left {
+    flex-shrink: 0;
+    width: 500px;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(124,111,247,0.15);
+    border: 1px solid rgba(124,111,247,0.3);
+    border-radius: 20px;
+    padding: 5px 14px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #A89CF7;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    margin-bottom: 28px;
+  }
+
+  .badge-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: #7C6FF7;
+  }
+
+  h1 {
+    font-size: 58px;
+    font-weight: 900;
+    color: #FFFFFF;
+    line-height: 1.05;
+    letter-spacing: -2px;
+    margin-bottom: 24px;
+  }
+
+  h1 span {
+    background: linear-gradient(135deg, #A89CF7, #7C6FF7);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .sub {
+    font-size: 18px;
+    color: rgba(255,255,255,0.5);
+    line-height: 1.6;
+    margin-bottom: 40px;
+    font-weight: 400;
+  }
+
+  .pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .pill {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.7);
+  }
+
+  .pill-icon {
+    font-size: 14px;
+  }
+
+  /* ── Right: UI mockup ── */
+  .right {
+    flex: 1;
+    position: relative;
+    height: 720px;
+  }
+
+  /* main card */
+  .card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px;
+    overflow: hidden;
+    backdrop-filter: blur(20px);
+  }
+
+  .card-header {
+    background: rgba(255,255,255,0.05);
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .dots { display: flex; gap: 6px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .dot-r { background: #FF5F57; }
+  .dot-y { background: #FEBC2E; }
+  .dot-g { background: #28C840; }
+
+  .card-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.35);
+    letter-spacing: 0.3px;
+  }
+
+  /* campaign list */
+  .campaign-card {
+    position: absolute;
+    top: 0; left: 0;
+    width: 620px;
+    background: rgba(20,17,38,0.95);
+    border: 1px solid rgba(124,111,247,0.2);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(124,111,247,0.1);
+  }
+
+  .camp-row {
+    padding: 16px 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .camp-row:last-child { border-bottom: none; }
+
+  .camp-icon {
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+
+  .camp-info { flex: 1; }
+  .camp-name { font-size: 13px; font-weight: 700; color: #fff; margin-bottom: 3px; }
+  .camp-meta { font-size: 11px; color: rgba(255,255,255,0.35); }
+
+  .camp-badge {
+    font-size: 10px; font-weight: 800;
+    border-radius: 20px; padding: 3px 9px;
+    text-transform: uppercase; letter-spacing: 0.4px;
+  }
+
+  .camp-spend {
+    text-align: right;
+  }
+  .spend-val { font-size: 13px; font-weight: 800; color: #fff; }
+  .spend-lbl { font-size: 10px; color: rgba(255,255,255,0.3); }
+
+  /* progress bar */
+  .progress-wrap {
+    height: 4px; background: rgba(255,255,255,0.07);
+    border-radius: 2px; margin-top: 6px; overflow: hidden;
+  }
+  .progress-bar { height: 100%; border-radius: 2px; }
+
+  /* seeding detail card */
+  .detail-card {
+    position: absolute;
+    bottom: 0; right: -30px;
+    width: 380px;
+    background: rgba(20,17,38,0.97);
+    border: 1px solid rgba(124,111,247,0.25);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(124,111,247,0.15);
+  }
+
+  .detail-header {
+    background: linear-gradient(135deg, rgba(124,111,247,0.15), rgba(91,76,240,0.1));
+    border-bottom: 1px solid rgba(124,111,247,0.15);
+    padding: 16px 20px;
+  }
+
+  .detail-title { font-size: 13px; font-weight: 800; color: #fff; margin-bottom: 4px; }
+  .detail-sub { font-size: 11px; color: rgba(255,255,255,0.4); }
+
+  .detail-body { padding: 16px 20px; }
+
+  .product-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+  .product-row:last-child { border-bottom: none; }
+
+  .product-thumb {
+    width: 38px; height: 38px;
+    border-radius: 8px;
+    flex-shrink: 0;
+  }
+
+  .product-info { flex: 1; }
+  .product-name { font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.85); margin-bottom: 2px; }
+  .product-size { font-size: 10px; color: rgba(255,255,255,0.3); }
+  .product-qty {
+    font-size: 11px; font-weight: 800; color: #7C6FF7;
+    background: rgba(124,111,247,0.12);
+    padding: 3px 8px; border-radius: 5px;
+  }
+
+  .send-btn {
+    margin-top: 16px;
+    width: 100%;
+    padding: 12px;
+    background: linear-gradient(135deg, #7C6FF7, #5B4CF0);
+    border: none; border-radius: 10px;
+    font-size: 13px; font-weight: 800; color: #fff;
+    text-align: center;
+    box-shadow: 0 4px 16px rgba(124,111,247,0.4);
+  }
+
+  /* influencer chip */
+  .inf-chip {
+    position: absolute;
+    top: 260px; right: -60px;
+    background: rgba(20,17,38,0.97);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px;
+    padding: 12px 16px;
+    display: flex; align-items: center; gap: 10px;
+    box-shadow: 0 16px 40px rgba(0,0,0,0.4);
+    width: 220px;
+  }
+
+  .inf-avatar {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: linear-gradient(135deg, #7C6FF7, #5B4CF0);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 800; color: #fff;
+    flex-shrink: 0;
+  }
+
+  .inf-name { font-size: 12px; font-weight: 700; color: #fff; margin-bottom: 2px; }
+  .inf-handle { font-size: 10px; color: rgba(255,255,255,0.35); }
+
+  .check-icon {
+    margin-left: auto;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: #22C55E;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; color: #fff; font-weight: 900;
+    flex-shrink: 0;
+  }
+
+  /* code tag */
+  .code-tag {
+    position: absolute;
+    top: 60px; right: -40px;
+    background: rgba(20,17,38,0.97);
+    border: 1px solid rgba(34,197,94,0.3);
+    border-radius: 10px;
+    padding: 10px 14px;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.4);
+  }
+
+  .code-lbl { font-size: 9px; font-weight: 700; color: rgba(34,197,94,0.7); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .code-val { font-size: 16px; font-weight: 900; color: #22C55E; letter-spacing: 1px; font-family: monospace; }
+
+  /* logo */
+  .logo {
+    position: absolute;
+    bottom: 48px; left: 96px;
+    display: flex; align-items: center; gap: 10px;
+    z-index: 20;
+  }
+  .logo-mark {
+    width: 32px; height: 32px; border-radius: 8px;
+    background: linear-gradient(135deg, #7C6FF7, #5B4CF0);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; font-weight: 900; color: #fff;
+  }
+  .logo-text { font-size: 18px; font-weight: 900; color: #fff; letter-spacing: -0.5px; }
+</style>
+</head>
+<body>
+<div class="bg"></div>
+<div class="glow-left"></div>
+<div class="glow-right"></div>
+
+<div class="content">
+
+  <!-- Left copy -->
+  <div class="left">
+    <div class="badge"><div class="badge-dot"></div>Influencer seeding for Shopify</div>
+    <h1>PR gifting,<br><span>without the mess.</span></h1>
+    <p class="sub">Run influencer seeding campaigns, track products sent, and assign discount codes — all from your Shopify admin.</p>
+    <div class="pills">
+      <div class="pill"><span class="pill-icon">📦</span>Product seeding</div>
+      <div class="pill"><span class="pill-icon">🎟</span>Discount codes</div>
+      <div class="pill"><span class="pill-icon">📊</span>Campaign tracking</div>
+      <div class="pill"><span class="pill-icon">🌍</span>Influencer portal</div>
+    </div>
+  </div>
+
+  <!-- Right mockup -->
+  <div class="right">
+
+    <!-- Campaign list -->
+    <div class="campaign-card">
+      <div class="card-header">
+        <div class="dots">
+          <div class="dot dot-r"></div>
+          <div class="dot dot-y"></div>
+          <div class="dot dot-g"></div>
+        </div>
+        <div class="card-title">zeedy.xyz · Campaigns</div>
+      </div>
+
+      <div class="camp-row">
+        <div class="camp-icon" style="background:rgba(124,111,247,0.12)">🌸</div>
+        <div class="camp-info">
+          <div class="camp-name">SS25 Launch — Paris</div>
+          <div class="camp-meta">24 seedings · 18 influencers</div>
+          <div class="progress-wrap"><div class="progress-bar" style="width:72%;background:linear-gradient(90deg,#7C6FF7,#5B4CF0)"></div></div>
+        </div>
+        <div class="camp-spend">
+          <div class="spend-val">€4,320</div>
+          <div class="spend-lbl">of €6,000</div>
+        </div>
+        <div class="camp-badge" style="background:rgba(34,197,94,0.1);color:#22C55E">Active</div>
+      </div>
+
+      <div class="camp-row">
+        <div class="camp-icon" style="background:rgba(251,191,36,0.1)">🎪</div>
+        <div class="camp-info">
+          <div class="camp-name">Influencer Event — Milan</div>
+          <div class="camp-meta">12 guests · Apr 28</div>
+          <div class="progress-wrap"><div class="progress-bar" style="width:40%;background:linear-gradient(90deg,#FBBF24,#F59E0B)"></div></div>
+        </div>
+        <div class="camp-spend">
+          <div class="spend-val">€1,800</div>
+          <div class="spend-lbl">of €4,500</div>
+        </div>
+        <div class="camp-badge" style="background:rgba(251,191,36,0.1);color:#FBBF24">Upcoming</div>
+      </div>
+
+      <div class="camp-row">
+        <div class="camp-icon" style="background:rgba(124,111,247,0.08)">🍂</div>
+        <div class="camp-info">
+          <div class="camp-name">AW24 Gifting Round</div>
+          <div class="camp-meta">41 seedings · 38 influencers</div>
+          <div class="progress-wrap"><div class="progress-bar" style="width:100%;background:linear-gradient(90deg,#6B7280,#4B5563)"></div></div>
+        </div>
+        <div class="camp-spend">
+          <div class="spend-val">€8,100</div>
+          <div class="spend-lbl">of €8,100</div>
+        </div>
+        <div class="camp-badge" style="background:rgba(107,114,128,0.1);color:#9CA3AF">Ended</div>
+      </div>
+    </div>
+
+    <!-- Code tag -->
+    <div class="code-tag">
+      <div class="code-lbl">Discount code assigned</div>
+      <div class="code-val">ZEEDY-XK29</div>
+    </div>
+
+    <!-- Influencer chip -->
+    <div class="inf-chip">
+      <div class="inf-avatar">L</div>
+      <div>
+        <div class="inf-name">Léa Rousseau</div>
+        <div class="inf-handle">@learousseau · 🇫🇷 Paris</div>
+      </div>
+      <div class="check-icon">✓</div>
+    </div>
+
+    <!-- Seeding detail card -->
+    <div class="detail-card">
+      <div class="detail-header">
+        <div class="detail-title">New Seeding · SS25 Launch</div>
+        <div class="detail-sub">3 products selected</div>
+      </div>
+      <div class="detail-body">
+        <div class="product-row">
+          <div class="product-thumb" style="background:linear-gradient(135deg,#C4B5FD,#7C6FF7)"></div>
+          <div class="product-info">
+            <div class="product-name">Silk Midi Dress</div>
+            <div class="product-size">Size S · Ivory</div>
+          </div>
+          <div class="product-qty">×1</div>
+        </div>
+        <div class="product-row">
+          <div class="product-thumb" style="background:linear-gradient(135deg,#FDE68A,#F59E0B)"></div>
+          <div class="product-info">
+            <div class="product-name">Linen Blazer</div>
+            <div class="product-size">Size XS · Sand</div>
+          </div>
+          <div class="product-qty">×1</div>
+        </div>
+        <div class="product-row">
+          <div class="product-thumb" style="background:linear-gradient(135deg,#FBCFE8,#EC4899)"></div>
+          <div class="product-info">
+            <div class="product-name">Mini Crossbody Bag</div>
+            <div class="product-size">One size · Blush</div>
+          </div>
+          <div class="product-qty">×1</div>
+        </div>
+        <div class="send-btn">Send 3 products →</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="logo">
+  <div class="logo-mark">Z</div>
+  <div class="logo-text">zeedy</div>
+</div>
+
+</body>
+</html>

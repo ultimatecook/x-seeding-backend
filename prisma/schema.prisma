@@ -209,6 +209,7 @@ model ShopBilling {
   trialStartedAt  DateTime  @default(now())
   trialEndsAt     DateTime
   shopifyChargeId String?                        // Shopify AppSubscription GID
+  discountMode    String    @default("simple")  // "simple" | "analytics"
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
