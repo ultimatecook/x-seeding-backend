@@ -9,60 +9,41 @@
 import prisma from '../db.server';
 
 /**
- * Attempt to assign one Product + one Shipping code to a seeding.
- * Uses a transaction so concurrent requests can't grab the same code.
+ * Assign one Product code to a seeding from the pool.
+ * Shipping is handled via the draft order's shipping_line (price $0) so no
+ * separate Shipping code is needed — this works on all Shopify plans.
  *
- * Returns { productCode: string|null, shippingCode: string|null }
- * (null means no code was available in that pool — seeding still succeeds).
+ * Returns { productCode: string|null }
+ * (null means no code was available — seeding still succeeds).
  */
 export async function assignDiscountCodes(shop, seedingId) {
   try {
     return await prisma.$transaction(async (tx) => {
-      // Lock-free optimistic claim: findFirst + immediate update
       const productRow = await tx.discountCode.findFirst({
         where: { shop, poolType: 'Product', status: 'Available' },
         orderBy: { createdAt: 'asc' },
       });
-      const shippingRow = await tx.discountCode.findFirst({
-        where: { shop, poolType: 'Shipping', status: 'Available' },
-        orderBy: { createdAt: 'asc' },
-      });
 
-      const updates = [];
       if (productRow) {
-        updates.push(
-          tx.discountCode.update({
-            where: { id: productRow.id },
-            data:  { status: 'Assigned', assignedSeedingId: seedingId },
-          })
-        );
-      }
-      if (shippingRow) {
-        updates.push(
-          tx.discountCode.update({
-            where: { id: shippingRow.id },
-            data:  { status: 'Assigned', assignedSeedingId: seedingId },
-          })
-        );
-      }
-
-      if (updates.length) await Promise.all(updates);
-
-      // Write the code strings onto the Seeding row for fast display
-      const productCode  = productRow?.code  ?? null;
-      const shippingCode = shippingRow?.code ?? null;
-      if (productCode || shippingCode) {
-        await tx.seeding.update({
-          where: { id: seedingId },
-          data:  { productDiscountCode: productCode, shippingDiscountCode: shippingCode },
+        await tx.discountCode.update({
+          where: { id: productRow.id },
+          data:  { status: 'Assigned', assignedSeedingId: seedingId },
         });
       }
 
-      return { productCode, shippingCode };
+      const productCode = productRow?.code ?? null;
+      if (productCode) {
+        await tx.seeding.update({
+          where: { id: seedingId },
+          data:  { productDiscountCode: productCode },
+        });
+      }
+
+      return { productCode };
     });
   } catch (e) {
     console.error('[discount-codes] assignDiscountCodes error:', e?.message);
-    return { productCode: null, shippingCode: null };
+    return { productCode: null };
   }
 }
 

@@ -198,9 +198,6 @@ export async function loader({ request }) {
   const availableProductCodes = await prisma.discountCode.count({
     where: { shop, poolType: 'Product', status: 'Available' },
   });
-  const availableShippingCodes = await prisma.discountCode.count({
-    where: { shop, poolType: 'Shipping', status: 'Available' },
-  });
 
   // ── Guest pre-fill (when coming from "Create seeding" on a campaign guest) ──
   const url          = new URL(request.url);
@@ -226,7 +223,7 @@ export async function loader({ request }) {
     }
   }
 
-  return { products, productsError, collections: collectionsData, influencers, campaigns, recentlySeededMap, allSavedSizes, shop, enabledLocations, availableProductCodes, availableShippingCodes, prefillGuest };
+  return { products, productsError, collections: collectionsData, influencers, campaigns, recentlySeededMap, allSavedSizes, shop, enabledLocations, availableProductCodes, prefillGuest };
 }
 
 // ── Action ────────────────────────────────────────────────────────────────────
@@ -262,14 +259,10 @@ export async function action({ request }) {
   if (!influencer || influencer.shop !== shop) return { error: 'Influencer not found.' };
 
   // ── Discount code check ──────────────────────────────────────────────────
-  const availableProductCount  = await prisma.discountCode.count({ where: { shop, poolType: 'Product',  status: 'Available' } });
-  const availableShippingCount = await prisma.discountCode.count({ where: { shop, poolType: 'Shipping', status: 'Available' } });
+  const availableProductCount = await prisma.discountCode.count({ where: { shop, poolType: 'Product', status: 'Available' } });
 
   if (availableProductCount === 0) {
     return { error: 'No product discount codes available. Please add codes to the pool before creating a seeding.' };
-  }
-  if (seedingType === 'Online' && availableShippingCount === 0) {
-    return { error: 'No shipping discount codes available. Online seedings require a shipping code. Please add codes to the pool.' };
   }
 
   // ── Campaign validation ──────────────────────────────────────────────────
@@ -333,11 +326,12 @@ export async function action({ request }) {
         if (lineItems.length === 0) {
           console.warn('Portal: no valid variantIds — skipping draft order. variantIds received:', variantIds);
         } else {
-          // No applied_discount yet — we set it after assigning pool codes so the
-          // product code name appears as the discount title in Shopify admin.
           const draftBody = {
             draft_order: {
               line_items: lineItems,
+              // Shipping is always free — baked in so no shipping discount code
+              // is needed. Works on every Shopify plan.
+              shipping_line: { custom: true, title: 'Free Shipping', price: '0.00' },
               note: `Seeding for ${influencer?.handle ?? ''} (${influencer?.name ?? ''})`,
               tags: 'seeding',
               ...(influencer?.email ? { email: influencer.email } : {}),
@@ -398,51 +392,24 @@ export async function action({ request }) {
     }
   }
 
-  // Assign discount codes from pool, then build a /discount/ redirect chain so
-  // Shopify pre-applies BOTH codes before the influencer reaches checkout.
-  //
-  // Pattern (Shopify Plus — supports multiple codes per order):
-  //   https://SHOP/discount/PRODUCT_CODE?redirect=/discount/SHIPPING_CODE?redirect=INVOICE_PATH
-  //
-  // Each hop applies the code to the buyer's session then follows the redirect.
-  // The invoice URL is the final destination — Shopify loads the checkout with
-  // both codes already active so everything is €0 with no manual entry required.
-  //
-  // Note: this chain goes through the storefront, so it requires the store to NOT
-  // be password-protected. Password protection is a dev/test-only setting and is
-  // never present on live merchant stores.
+  // Assign product code from pool and append it to the invoice URL.
+  // Shipping is already free via the draft order shipping_line above.
+  // One code, works on all Shopify plans, invoice URL bypasses store password.
   let assignedCodes = null;
   try {
     assignedCodes = await assignDiscountCodes(shop, seeding.id);
     const updated = await prisma.seeding.findUnique({
       where:  { id: seeding.id },
-      select: { productDiscountCode: true, shippingDiscountCode: true },
+      select: { productDiscountCode: true },
     });
     if (updated) assignedCodes = updated;
 
-    const productCode  = updated?.productDiscountCode;
-    const shippingCode = updated?.shippingDiscountCode;
-
-    if ((productCode || shippingCode) && invoiceUrl) {
-      try {
-        const invoicePath = new URL(invoiceUrl).pathname;
-        let discountUrl;
-
-        if (productCode && shippingCode) {
-          // Chain: apply product → apply shipping → land on invoice checkout
-          const inner = `/discount/${encodeURIComponent(shippingCode)}?redirect=${encodeURIComponent(invoicePath)}`;
-          discountUrl = `https://${shop}/discount/${encodeURIComponent(productCode)}?redirect=${encodeURIComponent(inner)}`;
-        } else if (productCode) {
-          discountUrl = `https://${shop}/discount/${encodeURIComponent(productCode)}?redirect=${encodeURIComponent(invoicePath)}`;
-        } else {
-          discountUrl = `https://${shop}/discount/${encodeURIComponent(shippingCode)}?redirect=${encodeURIComponent(invoicePath)}`;
-        }
-
-        await prisma.seeding.update({ where: { id: seeding.id }, data: { invoiceUrl: discountUrl } });
-        console.log('Portal: discount chain URL built:', productCode, '+', shippingCode);
-      } catch (urlErr) {
-        console.warn('Portal: could not build discount chain URL:', urlErr.message);
-      }
+    const productCode = updated?.productDiscountCode;
+    if (productCode && invoiceUrl) {
+      const sep         = invoiceUrl.includes('?') ? '&' : '?';
+      const urlWithCode = `${invoiceUrl}${sep}discount=${productCode}`;
+      await prisma.seeding.update({ where: { id: seeding.id }, data: { invoiceUrl: urlWithCode } });
+      console.log('Portal: invoice URL with product code:', productCode);
     }
   } catch (e) {
     console.warn('Portal: could not assign discount codes:', e.message);
@@ -560,7 +527,7 @@ function Pill({ label, active, onClick }) {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function PortalNewSeeding() {
-  const { products, productsError, collections, influencers, campaigns, recentlySeededMap, allSavedSizes, shop, enabledLocations, availableProductCodes, availableShippingCodes, prefillGuest } = useLoaderData();
+  const { products, productsError, collections, influencers, campaigns, recentlySeededMap, allSavedSizes, shop, enabledLocations, availableProductCodes, prefillGuest } = useLoaderData();
   const actionData = useActionData();
   const navigate   = useNavigate();
   const { t }      = useT();
@@ -757,9 +724,8 @@ export default function PortalNewSeeding() {
     ? onlineLocations.length > 0
     : storeLocations.length > 0;
   const hasSelectedStore = seedingType === 'InStore' ? selectedStore !== null : true;
-  const hasProductCodes  = availableProductCodes > 0;
-  const hasShippingCodes = seedingType !== 'Online' || availableShippingCodes > 0;
-  const canSubmit = !submitting && selectedInfluencer && selectedProducts.length > 0 && allHaveSizes && hasEnabledLocation && hasSelectedStore && hasProductCodes && hasShippingCodes;
+  const hasProductCodes = availableProductCodes > 0;
+  const canSubmit = !submitting && selectedInfluencer && selectedProducts.length > 0 && allHaveSizes && hasEnabledLocation && hasSelectedStore && hasProductCodes;
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -842,8 +808,6 @@ export default function PortalNewSeeding() {
     ctaLabel = seedingType === 'InStore' ? 'Configure a store location' : 'Configure online location';
   } else if (!hasProductCodes) {
     ctaLabel = 'No product discount codes available';
-  } else if (!hasShippingCodes) {
-    ctaLabel = 'No shipping discount codes available';
   } else if (seedingType === 'InStore' && !selectedStore) {
     ctaLabel = 'Select a store';
   } else if (!selectedInfluencer) {
