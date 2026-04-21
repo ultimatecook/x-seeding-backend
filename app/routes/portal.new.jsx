@@ -247,7 +247,8 @@ export async function action({ request }) {
   const productSizes   = formData.getAll('productSizes');
   const productCategories = formData.getAll('productCategories');
   const totalCost      = productPrices.reduce((sum, p) => sum + p, 0);
-  const notes          = formData.get('notes') || '';
+  const notes           = formData.get('notes') || '';
+  const shippingAddress = formData.get('shippingAddress') ? String(formData.get('shippingAddress')).slice(0, 500).trim() : null;
 
   const seedingType       = formData.get('seedingType') || 'Online'; // 'Online' | 'InStore'
   const storeLocationId   = formData.get('storeLocationId')   || null;
@@ -393,6 +394,7 @@ export async function action({ request }) {
   const seeding = await prisma.seeding.create({
     data: {
       shop, influencerId, campaignId, totalCost, notes, status: 'Pending',
+      shippingAddress,
       seedingType, storeLocationId, storeLocationName,
       shopifyDraftOrderId, shopifyOrderName, invoiceUrl,
       products: {
@@ -409,6 +411,15 @@ export async function action({ request }) {
       },
     },
   });
+
+  // ── Save address back to influencer for future pre-fill ─────────────────────
+  if (shippingAddress) {
+    try {
+      await prisma.influencer.update({ where: { id: influencerId }, data: { defaultShippingAddress: shippingAddress } });
+    } catch (e) {
+      console.warn('Portal: could not update influencer defaultShippingAddress:', e.message);
+    }
+  }
 
   // ── Link guest to seeding if this came from a guest conversion ──────────────
   const guestIdRaw = formData.get('guestId');
@@ -596,6 +607,7 @@ export default function PortalNewSeeding() {
   const [dragOver,           setDragOver]           = useState(false);
   const [shakeId,            setShakeId]            = useState(null);
   const [dragProductId,      setDragProductId]      = useState(null);
+  const [shippingAddress,    setShippingAddress]    = useState('');
   const [submitError,        setSubmitError]        = useState(null);
   const [submitting,         setSubmitting]         = useState(false);
 
@@ -622,6 +634,15 @@ export default function PortalNewSeeding() {
         return savedSize ? { ...p, size: savedSize } : p;
       })
     );
+  }, [selectedInfluencer?.id]);
+
+  // Auto-fill shipping address from selected influencer's last known address
+  useEffect(() => {
+    if (selectedInfluencer?.defaultShippingAddress) {
+      setShippingAddress(selectedInfluencer.defaultShippingAddress);
+    } else if (!selectedInfluencer) {
+      setShippingAddress('');
+    }
   }, [selectedInfluencer?.id]);
 
   // ── Pre-fill from guest when arriving via "Create seeding" button ────────────
@@ -928,6 +949,7 @@ export default function PortalNewSeeding() {
         <input type="hidden" name="storeLocationName" value={selectedStore?.name ?? ''} />
         <input type="hidden" name="bypassBudget"      value="0" ref={bypassBudgetRef} />
         <input type="hidden" name="guestId"           value={prefillGuest?.id ?? ''} />
+        <input type="hidden" name="shippingAddress"   value={shippingAddress} />
         {selectedProducts.map(p => (
           <span key={p.id}>
             <input type="hidden" name="productIds"        value={p.id} />
@@ -1123,6 +1145,25 @@ export default function PortalNewSeeding() {
                 )}
               </div>
             )}
+
+            {/* ── Shipping Address ── */}
+            <div>
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '6px' }}>
+                <p style={{ margin: 0, fontSize: '11px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.7px', color: D.textMuted }}>
+                  Shipping Address
+                </p>
+                {selectedInfluencer?.defaultShippingAddress && shippingAddress === selectedInfluencer.defaultShippingAddress && (
+                  <span style={{ fontSize: '10px', color: D.accent, fontStyle: 'italic', fontWeight: '600' }}>Auto-filled ✓</span>
+                )}
+              </div>
+              <textarea
+                value={shippingAddress}
+                onChange={e => setShippingAddress(e.target.value)}
+                rows={3}
+                placeholder={selectedInfluencer ? 'No address on file — enter manually' : 'Select an influencer to auto-fill'}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '8px 11px', fontSize: '12px', border: `1px solid ${D.border}`, borderRadius: '8px', backgroundColor: shippingAddress ? D.bg : D.surfaceHigh, color: D.text, resize: 'vertical', outline: 'none', fontFamily: 'inherit', lineHeight: 1.5 }}
+              />
+            </div>
 
             {/* ── Notes ── */}
             <div>

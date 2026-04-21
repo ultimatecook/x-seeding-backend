@@ -38,14 +38,6 @@ export async function action({ request, params }) {
     await audit({ shop, portalUser, action: 'updated_influencer_shipping', entityType: 'influencer', entityId: id, detail: 'Updated shipping info' });
   }
 
-  if (intent === 'updatePreferences') {
-    requirePermission(portalUser.role, 'editInfluencer');
-    const styleTags          = formData.get('styleTags')          ? String(formData.get('styleTags')).slice(0, 300).trim()          : null;
-    const productPreferences = formData.get('productPreferences') ? String(formData.get('productPreferences')).slice(0, 500).trim() : null;
-    await prisma.influencer.update({ where: { id }, data: { styleTags, productPreferences } });
-    await audit({ shop, portalUser, action: 'updated_influencer_preferences', entityType: 'influencer', entityId: id, detail: 'Updated preferences' });
-  }
-
   if (intent === 'updateNotes') {
     requirePermission(portalUser.role, 'editInfluencer');
     const notes = formData.get('notes') ? String(formData.get('notes')).slice(0, 1000) : null;
@@ -235,10 +227,9 @@ export default function PortalInfluencerDetail() {
   const isSubmitting = navigation.state === 'submitting';
   const seedings     = influencer.seedings;
 
-  const [editProfile,     setEditProfile]     = useState(false);
-  const [editShipping,    setEditShipping]     = useState(false);
-  const [editPreferences, setEditPreferences]  = useState(false);
-  const [editNotes,       setEditNotes]        = useState(false);
+  const [editProfile,  setEditProfile]  = useState(false);
+  const [editShipping, setEditShipping] = useState(false);
+  const [editNotes,    setEditNotes]    = useState(false);
   const [confirmDelete,   setConfirmDelete]    = useState(false);
 
   // ── Computed stats ──
@@ -247,6 +238,20 @@ export default function PortalInfluencerDetail() {
   const lastSeeding  = seedings.length > 0 ? seedings[0] : null;
 
   const handle   = influencer.handle?.replace(/^@/, '') || '';
+
+  // ── Address derived from seeding history ──
+  const lastAddressSeeding = seedings.find(s => s.shippingAddress);
+  const lastAddress = lastAddressSeeding?.shippingAddress || influencer.defaultShippingAddress || null;
+  const seenAddresses = new Set();
+  const addressHistory = seedings
+    .filter(s => {
+      if (s.shippingAddress && !seenAddresses.has(s.shippingAddress)) {
+        seenAddresses.add(s.shippingAddress);
+        return true;
+      }
+      return false;
+    })
+    .map(s => ({ address: s.shippingAddress, date: s.createdAt, campaign: s.campaign }));
 
   // ── Style shortcuts ──
   const fieldStyle = {
@@ -332,7 +337,7 @@ export default function PortalInfluencerDetail() {
 
           <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
             {canEdit && (
-              <EditBtn onClick={() => { setEditProfile(v => !v); setEditShipping(false); setEditPreferences(false); }} active={editProfile} label={editProfile ? 'Cancel' : 'Edit Profile'} />
+              <EditBtn onClick={() => { setEditProfile(v => !v); setEditShipping(false); }} active={editProfile} label={editProfile ? 'Cancel' : 'Edit Profile'} />
             )}
             <a href={`https://www.instagram.com/${handle}/`} target="_blank" rel="noopener noreferrer"
               style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 14px', borderRadius: '8px', fontSize: '13px', fontWeight: '600', textDecoration: 'none', background: 'linear-gradient(135deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)', color: '#fff' }}>
@@ -427,7 +432,7 @@ export default function PortalInfluencerDetail() {
           <CardHeader
             title="Shipping Info"
             right={canEdit && (
-              <EditBtn onClick={() => { setEditShipping(v => !v); setEditProfile(false); }} active={editShipping} label={editShipping ? 'Cancel' : (influencer.defaultShippingAddress ? 'Edit' : 'Add')} />
+              <EditBtn onClick={() => { setEditShipping(v => !v); setEditProfile(false); }} active={editShipping} label={editShipping ? 'Cancel' : (lastAddress ? 'Edit' : 'Add')} />
             )}
           />
           {editShipping && canEdit ? (
@@ -437,7 +442,7 @@ export default function PortalInfluencerDetail() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '14px' }}>
                   <label style={labelStyle}>
                     Full Address
-                    <textarea name="defaultShippingAddress" defaultValue={influencer.defaultShippingAddress || ''} rows={3}
+                    <textarea name="defaultShippingAddress" defaultValue={lastAddress || ''} rows={3}
                       placeholder="Street, city, postal code, country…"
                       style={{ ...fieldStyle, resize: 'vertical' }} />
                   </label>
@@ -459,14 +464,41 @@ export default function PortalInfluencerDetail() {
           ) : (
             <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div>
-                <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.7px', color: 'var(--pt-text-muted)', marginBottom: '6px' }}>Address</div>
-                {influencer.defaultShippingAddress ? (
-                  <p style={{ margin: 0, fontSize: '13px', color: 'var(--pt-text)', lineHeight: '1.6', whiteSpace: 'pre-line' }}>{influencer.defaultShippingAddress}</p>
+                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '6px' }}>
+                  <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.7px', color: 'var(--pt-text-muted)' }}>Address</div>
+                  {lastAddressSeeding ? (
+                    <span style={{ fontSize: '10px', color: 'var(--pt-text-muted)', fontStyle: 'italic' }}>
+                      From seeding · {fmtDate(lastAddressSeeding.createdAt)}
+                      {lastAddressSeeding.campaign ? ` · ${lastAddressSeeding.campaign.title}` : ''}
+                    </span>
+                  ) : lastAddress ? (
+                    <span style={{ fontSize: '10px', color: 'var(--pt-text-muted)', fontStyle: 'italic' }}>Manually set</span>
+                  ) : null}
+                </div>
+                {lastAddress ? (
+                  <p style={{ margin: 0, fontSize: '13px', color: 'var(--pt-text)', lineHeight: '1.6', whiteSpace: 'pre-line' }}>{lastAddress}</p>
                 ) : (
-                  <p style={{ margin: 0, fontSize: '13px', color: 'var(--pt-text-muted)', fontStyle: 'italic' }}>No address saved</p>
+                  <p style={{ margin: 0, fontSize: '13px', color: 'var(--pt-text-muted)', fontStyle: 'italic' }}>No address saved — will auto-fill from first seeding</p>
                 )}
               </div>
-              {(influencer.shippingNotes || editShipping === false) && influencer.shippingNotes && (
+              {addressHistory.length > 1 && (
+                <div>
+                  <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.7px', color: 'var(--pt-text-muted)', marginBottom: '6px' }}>
+                    Previous Addresses
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {addressHistory.slice(1, 4).map((h, i) => (
+                      <div key={i} style={{ fontSize: '11px', color: 'var(--pt-text-sub)', lineHeight: '1.5', padding: '6px 10px', borderRadius: '7px', backgroundColor: 'var(--pt-surface-high)', border: '1px solid var(--pt-border)' }}>
+                        <div style={{ fontWeight: '600', marginBottom: '2px', whiteSpace: 'pre-line', fontSize: '12px' }}>{h.address}</div>
+                        <div style={{ color: 'var(--pt-text-muted)', fontSize: '10px' }}>
+                          {fmtDate(h.date)}{h.campaign ? ` · ${h.campaign.title}` : ''}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {influencer.shippingNotes && (
                 <div>
                   <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.7px', color: 'var(--pt-text-muted)', marginBottom: '6px' }}>Delivery Notes</div>
                   <p style={{ margin: 0, fontSize: '13px', color: 'var(--pt-text-sub)', lineHeight: '1.5' }}>{influencer.shippingNotes}</p>
@@ -522,61 +554,8 @@ export default function PortalInfluencerDetail() {
         </Card>
       </div>
 
-      {/* ── Preferences + Notes ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-
-        {/* Preferences */}
-        <Card>
-          <CardHeader
-            title="Preferences"
-            right={canEdit && (
-              <EditBtn onClick={() => { setEditPreferences(v => !v); setEditProfile(false); }} active={editPreferences} label={editPreferences ? 'Cancel' : 'Edit'} />
-            )}
-          />
-          {editPreferences && canEdit ? (
-            <div style={{ padding: '16px 20px' }}>
-              <Form method="post" onSubmit={() => setEditPreferences(false)}>
-                <input type="hidden" name="intent" value="updatePreferences" />
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '14px' }}>
-                  <label style={labelStyle}>
-                    Style Tags
-                    <input name="styleTags" type="text" defaultValue={influencer.styleTags || ''}
-                      placeholder="streetwear, minimal, luxury (comma-separated)"
-                      style={fieldStyle} />
-                  </label>
-                  <label style={labelStyle}>
-                    Product Preferences
-                    <input name="productPreferences" type="text" defaultValue={influencer.productPreferences || ''}
-                      placeholder="e.g. hoodies, tees, accessories"
-                      style={fieldStyle} />
-                  </label>
-                </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button type="submit" disabled={isSubmitting} style={{ ...btnPrimary, opacity: isSubmitting ? 0.7 : 1 }}>
-                    {isSubmitting ? 'Saving…' : 'Save'}
-                  </button>
-                  <button type="button" onClick={() => setEditPreferences(false)} style={btnNeutral}>Cancel</button>
-                </div>
-              </Form>
-            </div>
-          ) : (
-            <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div>
-                <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.7px', color: 'var(--pt-text-muted)', marginBottom: '8px' }}>Style Tags</div>
-                <TagPills value={influencer.styleTags} />
-              </div>
-              <div>
-                <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.7px', color: 'var(--pt-text-muted)', marginBottom: '6px' }}>Product Preferences</div>
-                {influencer.productPreferences
-                  ? <p style={{ margin: 0, fontSize: '13px', color: 'var(--pt-text-sub)', lineHeight: '1.5' }}>{influencer.productPreferences}</p>
-                  : <p style={{ margin: 0, fontSize: '13px', color: 'var(--pt-text-muted)', fontStyle: 'italic' }}>—</p>}
-              </div>
-            </div>
-          )}
-        </Card>
-
-        {/* Notes */}
-        <Card>
+      {/* ── Notes ── */}
+      <Card>
           <CardHeader
             title={t('influencer.notes.title')}
             right={canEdit && !editNotes && (
@@ -606,7 +585,6 @@ export default function PortalInfluencerDetail() {
             )}
           </div>
         </Card>
-      </div>
 
       {/* ── Seeding history ── */}
       <Card>
