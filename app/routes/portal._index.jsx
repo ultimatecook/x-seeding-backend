@@ -79,7 +79,8 @@ export async function loader({ request }) {
     prisma.seeding.findMany({
       where:  seedingWhere,
       select: { status: true, totalCost: true, createdAt: true,
-                influencer: { select: { id: true, country: true } } },
+                influencer: { select: { id: true, country: true, gender: true, followers: true } },
+                _count: { select: { products: true } } },
     }),
     prevWhere
       ? prisma.seeding.findMany({ where: prevWhere, select: { totalCost: true } })
@@ -206,6 +207,33 @@ export async function loader({ request }) {
     .sort((a, b) => b.seedings - a.seedings)
     .slice(0, 8);
 
+  // ── Gender + follower-tier breakdown ──────────────────────────────────────
+  function followerTierLabel(f) {
+    if (!f || f === 0) return 'Unknown';
+    if (f < 10000)  return '<10K';
+    if (f < 50000)  return '10–50K';
+    if (f < 100000) return '50–100K';
+    return '100K+';
+  }
+  const genderAgg = {};
+  const tierAgg   = {};
+  for (const s of allSeedings) {
+    const g     = s.influencer?.gender || 'Unknown';
+    const tier  = followerTierLabel(s.influencer?.followers);
+    const val   = s.totalCost ?? 0;
+    const units = s._count?.products ?? 0;
+    if (!genderAgg[g]) genderAgg[g] = { seedings: 0, value: 0, units: 0 };
+    genderAgg[g].seedings++; genderAgg[g].value += val; genderAgg[g].units += units;
+    if (!tierAgg[tier]) tierAgg[tier] = { seedings: 0, value: 0, units: 0 };
+    tierAgg[tier].seedings++; tierAgg[tier].value += val; tierAgg[tier].units += units;
+  }
+  const GENDER_ORDER = ['Female', 'Male', 'Unknown'];
+  const TIER_ORDER   = ['<10K', '10–50K', '50–100K', '100K+', 'Unknown'];
+  const segmentData = {
+    gender:      GENDER_ORDER.filter(g => genderAgg[g]).map(g => ({ label: g, ...genderAgg[g] })),
+    followerTier: TIER_ORDER.filter(t => tierAgg[t]).map(t => ({ label: t, ...tierAgg[t] })),
+  };
+
   // ── Country pills (unfiltered) ─────────────────────────────────────────────
   const pillCountMap = {};
   for (const s of allSeedingsForPills) {
@@ -257,6 +285,7 @@ export async function loader({ request }) {
     locationData,
     onboarding,
     discountMode,
+    segmentData,
   };
 }
 
@@ -528,7 +557,7 @@ function Rule({ my = 40 }) {
 }
 
 // ── Band / section definitions ────────────────────────────────────────────────
-const DEFAULT_BAND_ORDER = ['stats', 'midrow', 'botrow', 'locrow'];
+const DEFAULT_BAND_ORDER = ['stats', 'midrow', 'botrow', 'locrow', 'segrow'];
 
 const SECTION_DEFS = [
   { id: 'stats',       labelKey: 'dashboard.sections.stats',       band: 'stats'  },
@@ -537,6 +566,7 @@ const SECTION_DEFS = [
   { id: 'countries',   labelKey: 'dashboard.sections.countries',   band: 'botrow' },
   { id: 'influencers', labelKey: 'dashboard.sections.influencers', band: 'botrow' },
   { id: 'locations',   labelKey: 'dashboard.sections.locations',   band: 'locrow' },
+  { id: 'segments',    labelKey: 'dashboard.sections.segments',    band: 'segrow' },
 ];
 
 // ── Draggable band wrapper ────────────────────────────────────────────────────
@@ -741,7 +771,7 @@ export default function PortalDashboard() {
     spendDelta, countDelta,
     countryPills, activeDays, activeCountry,
     activeSeedings, totalCogs, chartDays, rangeLabel, currentMonthShort,
-    locationData, onboarding, discountMode,
+    locationData, onboarding, discountMode, segmentData,
   } = useLoaderData();
 
   const TIME_OPTIONS = [
@@ -1124,6 +1154,65 @@ export default function PortalDashboard() {
     onDrop: handleDrop, onDragEnd: handleDragEnd,
   });
 
+  const renderSegments = () => {
+    const hasData = (segmentData.gender.length > 0 || segmentData.followerTier.length > 0) && totalSeedings > 0;
+    if (!hasData) return null;
+
+    function SegRow({ label, seedings, value, units, maxSeedings, color }) {
+      const pct = maxSeedings > 0 ? Math.round((seedings / maxSeedings) * 100) : 0;
+      return (
+        <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr 60px 70px 50px', gap: '12px', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--pt-border-light)' }}>
+          <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--pt-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+          <div style={{ height: '7px', borderRadius: '99px', backgroundColor: 'var(--pt-surface-high)', overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${pct}%`, borderRadius: '99px', backgroundColor: color, transition: 'width 0.4s' }} />
+          </div>
+          <span style={{ fontSize: '11px', color: 'var(--pt-text-sub)', textAlign: 'right' }}>{seedings}</span>
+          <span style={{ fontSize: '11px', color: 'var(--pt-text-muted)', textAlign: 'right' }}>€{fmtNum(Math.round(value))}</span>
+          <span style={{ fontSize: '11px', color: 'var(--pt-text-muted)', textAlign: 'right' }}>{units} u</span>
+        </div>
+      );
+    }
+
+    const GENDER_COLORS = { Female: '#EC4899', Male: '#3B82F6', Unknown: 'var(--pt-text-muted)' };
+    const TIER_COLORS   = ['#7C6FF7', '#A78BFA', '#C4B5FD', '#DDD6FE', 'var(--pt-text-muted)'];
+
+    const maxG = Math.max(...(segmentData.gender.map(r => r.seedings)), 1);
+    const maxT = Math.max(...(segmentData.followerTier.map(r => r.seedings)), 1);
+
+    return (
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px', alignItems: 'start' }}>
+        {/* Gender */}
+        <div>
+          <div style={{ fontSize: '11px', fontWeight: '700', color: 'var(--pt-text-muted)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '10px' }}>
+            By gender
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr 60px 70px 50px', gap: '12px', paddingBottom: '6px', borderBottom: '1px solid var(--pt-border)' }}>
+            {['Segment','','Seedings','Value','Units'].map((h, i) => (
+              <span key={i} style={{ fontSize: '10px', fontWeight: '700', color: 'var(--pt-text-muted)', textAlign: i > 1 ? 'right' : 'left', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{h}</span>
+            ))}
+          </div>
+          {segmentData.gender.map(r => (
+            <SegRow key={r.label} {...r} maxSeedings={maxG} color={GENDER_COLORS[r.label] || 'var(--pt-accent)'} />
+          ))}
+        </div>
+        {/* Follower tier */}
+        <div>
+          <div style={{ fontSize: '11px', fontWeight: '700', color: 'var(--pt-text-muted)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '10px' }}>
+            By size
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr 60px 70px 50px', gap: '12px', paddingBottom: '6px', borderBottom: '1px solid var(--pt-border)' }}>
+            {['Tier','','Seedings','Value','Units'].map((h, i) => (
+              <span key={i} style={{ fontSize: '10px', fontWeight: '700', color: 'var(--pt-text-muted)', textAlign: i > 1 ? 'right' : 'left', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{h}</span>
+            ))}
+          </div>
+          {segmentData.followerTier.map((r, i) => (
+            <SegRow key={r.label} {...r} maxSeedings={maxT} color={TIER_COLORS[i] || 'var(--pt-accent)'} />
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   const renderBand = (id) => {
     if (id === 'stats') {
       if (!vis('stats')) return null;
@@ -1162,6 +1251,12 @@ export default function PortalDashboard() {
       if (!vis('locations')) return null;
       return <Band key={id} {...bandProps(id)}>{renderLocations()}</Band>;
     }
+    if (id === 'segrow') {
+      if (!vis('segments')) return null;
+      const content = renderSegments();
+      if (!content) return null;
+      return <Band key={id} {...bandProps(id)}>{content}</Band>;
+    }
     return null;
   };
 
@@ -1170,6 +1265,7 @@ export default function PortalDashboard() {
     if (id === 'midrow') return vis('pipeline') || vis('recent');
     if (id === 'botrow') return (vis('countries') && !activeCountry) || vis('influencers');
     if (id === 'locrow') return vis('locations');
+    if (id === 'segrow') return vis('segments');
     return false;
   });
 

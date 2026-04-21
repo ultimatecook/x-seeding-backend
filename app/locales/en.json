@@ -132,7 +132,8 @@
       "recent":      "Recent Seedings",
       "countries":   "Countries",
       "influencers": "Top Influencers",
-      "locations":   "Locations"
+      "locations":   "Locations",
+      "segments":    "Segments"
     },
     "table": {
       "influencer": "Influencer",

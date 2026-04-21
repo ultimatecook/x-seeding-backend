@@ -73,7 +73,8 @@ export async function loader({ request }) {
   const url      = new URL(request.url);
   const q        = url.searchParams.get('q')?.trim() || '';
   const view     = url.searchParams.get('view')  || 'active';   // active | archived
-  const tier     = url.searchParams.get('tier')  || 'all';      // all | micro | mid | celeb
+  const gender        = url.searchParams.get('gender')        || 'all';
+  const followerRange = url.searchParams.get('followerRange') || 'all';
   const page     = Math.max(1, parseInt(url.searchParams.get('page') || '1'));
 
   // Build where clause on the server — always scope to this shop
@@ -85,9 +86,11 @@ export async function loader({ request }) {
       { country: { contains: q, mode: 'insensitive' } },
     ];
   }
-  if (tier === 'micro') { where.followers = { lt: 50000 }; }
-  if (tier === 'mid')   { where.followers = { gte: 50000, lt: 500000 }; }
-  if (tier === 'celeb') { where.followers = { gte: 500000 }; }
+  if (gender !== 'all') { where.gender = { equals: gender, mode: 'insensitive' }; }
+  if (followerRange === 'lt10k')    { where.followers = { lt: 10000 }; }
+  if (followerRange === '10to50k')  { where.followers = { gte: 10000, lt: 50000 }; }
+  if (followerRange === '50to100k') { where.followers = { gte: 50000, lt: 100000 }; }
+  if (followerRange === 'gt100k')   { where.followers = { gte: 100000 }; }
 
   const [influencers, total, activeCount, archivedCount] = await Promise.all([
     prisma.influencer.findMany({
@@ -97,7 +100,7 @@ export async function loader({ request }) {
       take:    PAGE_SIZE,
       select: {
         id: true, handle: true, name: true, followers: true,
-        country: true, email: true, archived: true,
+        gender: true, country: true, email: true, archived: true,
         _count: { select: { seedings: true } },
       },
     }),
@@ -106,7 +109,7 @@ export async function loader({ request }) {
     prisma.influencer.count({ where: { shop, archived: true  } }),
   ]);
 
-  return { influencers, total, page, activeCount, archivedCount, q, view, tier, role: portalUser.role };
+  return { influencers, total, page, activeCount, archivedCount, q, view, gender, followerRange, role: portalUser.role };
 }
 
 // ── Action ────────────────────────────────────────────────────────────────────
@@ -184,7 +187,7 @@ function downloadTemplate() {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function PortalInfluencers() {
-  const { influencers, total, page, activeCount, archivedCount, q: initQ, view, tier, role } = useLoaderData();
+  const { influencers, total, page, activeCount, archivedCount, q: initQ, view, gender, followerRange, role } = useLoaderData();
   const actionData   = useActionData();
   const navigation   = useNavigation();
   const navigate     = useNavigate();
@@ -211,11 +214,17 @@ export default function PortalInfluencers() {
 
   const totalPages = Math.ceil(total / 40);
 
-  const TIERS = [
-    { key: 'all',   label: 'All',        emoji: '' },
-    { key: 'micro', label: 'Micro',      emoji: '🌱', sub: '0 – 50K'    },
-    { key: 'mid',   label: 'Influencer', emoji: '⭐', sub: '50K – 500K' },
-    { key: 'celeb', label: 'Celebrity',  emoji: '🏆', sub: '500K+'      },
+  const FOLLOWER_RANGES = [
+    { key: 'all',      label: 'All sizes' },
+    { key: 'lt10k',    label: '<10K' },
+    { key: '10to50k',  label: '10–50K' },
+    { key: '50to100k', label: '50–100K' },
+    { key: 'gt100k',   label: '100K+' },
+  ];
+  const GENDERS = [
+    { key: 'all',    label: 'Any gender' },
+    { key: 'Female', label: '♀ Female' },
+    { key: 'Male',   label: '♂ Male' },
   ];
 
   // Navigate with updated search params
@@ -398,31 +407,44 @@ export default function PortalInfluencers() {
         ))}
       </div>
 
-      {/* ── Tier + search filters ─────────────────────────────── */}
-      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-        {TIERS.map(t => {
-          const active = tier === t.key;
-          return (
-            <button key={t.key} type="button" onClick={() => setParam('tier', t.key)} style={{
-              padding: '5px 14px', borderRadius: '20px', cursor: 'pointer',
-              border: `1.5px solid ${active ? D.accent : D.border}`,
-              backgroundColor: active ? D.accentLight : 'transparent',
-              color: active ? D.accent : D.textSub,
-              fontSize: '12px', fontWeight: active ? '700' : '500',
-              display: 'flex', alignItems: 'center', gap: '5px',
-            }}>
-              {t.emoji && <span>{t.emoji}</span>}
-              {t.label}
-              {t.sub && <span style={{ fontSize: '10px', color: active ? D.accent : D.textMuted }}>{t.sub}</span>}
-            </button>
-          );
-        })}
-
-        <input
-          type="text" placeholder="Search name, handle, country…"
-          value={localQ} onChange={e => handleSearch(e.target.value)}
-          style={{ marginLeft: 'auto', padding: '6px 12px', border: `1px solid ${D.border}`, borderRadius: '7px', fontSize: '13px', width: '220px', backgroundColor: D.surface, color: D.text }}
-        />
+      {/* ── Filters ─────────────────────────────────────────────── */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+          {GENDERS.map(g => {
+            const active = gender === g.key;
+            return (
+              <button key={g.key} type="button" onClick={() => setParam('gender', g.key)} style={{
+                padding: '5px 13px', borderRadius: '20px', cursor: 'pointer',
+                border: `1.5px solid ${active ? D.accent : D.border}`,
+                backgroundColor: active ? D.accentLight : 'transparent',
+                color: active ? D.accent : D.textSub,
+                fontSize: '12px', fontWeight: active ? '700' : '500',
+              }}>
+                {g.label}
+              </button>
+            );
+          })}
+          <div style={{ width: '1px', height: '16px', backgroundColor: D.border, margin: '0 2px' }} />
+          {FOLLOWER_RANGES.map(r => {
+            const active = followerRange === r.key;
+            return (
+              <button key={r.key} type="button" onClick={() => setParam('followerRange', r.key)} style={{
+                padding: '5px 13px', borderRadius: '20px', cursor: 'pointer',
+                border: `1.5px solid ${active ? D.accent : D.border}`,
+                backgroundColor: active ? D.accentLight : 'transparent',
+                color: active ? D.accent : D.textSub,
+                fontSize: '12px', fontWeight: active ? '700' : '500',
+              }}>
+                {r.label}
+              </button>
+            );
+          })}
+          <input
+            type="text" placeholder="Search name, handle, country…"
+            value={localQ} onChange={e => handleSearch(e.target.value)}
+            style={{ marginLeft: 'auto', padding: '6px 12px', border: `1px solid ${D.border}`, borderRadius: '7px', fontSize: '13px', width: '220px', backgroundColor: D.surface, color: D.text }}
+          />
+        </div>
       </div>
 
       {/* ── Bulk action bar ───────────────────────────────────── */}
@@ -536,7 +558,21 @@ export default function PortalInfluencers() {
                     </div>
                   </td>
                   <td style={{ padding: '12px 16px', fontWeight: '600', color: D.text }}>{inf.name || <span style={{ color: D.textMuted }}>—</span>}</td>
-                  <td style={{ padding: '12px 16px', color: D.textSub }}>{inf.followers ? fmtNum(inf.followers) : <span style={{ color: D.textMuted }}>—</span>}</td>
+                  <td style={{ padding: '12px 16px', color: D.textSub }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      {inf.followers ? fmtNum(inf.followers) : <span style={{ color: D.textMuted }}>—</span>}
+                      {inf.gender && (
+                        <span style={{
+                          fontSize: '10px', fontWeight: '700', lineHeight: 1,
+                          color: inf.gender.toLowerCase() === 'female' ? '#EC4899'
+                               : inf.gender.toLowerCase() === 'male'   ? '#3B82F6'
+                               : D.textMuted,
+                        }}>
+                          {inf.gender}
+                        </span>
+                      )}
+                    </div>
+                  </td>
                   <td style={{ padding: '12px 16px', color: D.textSub }}>{inf.country || <span style={{ color: D.textMuted }}>—</span>}</td>
                   <td style={{ padding: '12px 16px', color: D.textSub, fontSize: '12px' }}>
                     {inf.email

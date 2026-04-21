@@ -93,7 +93,7 @@ export async function loader({ request, params }) {
 
   // Influencers for the "link guest" picker
   const influencers = campaign.type === 'event'
-    ? await prisma.influencer.findMany({ where: { shop, archived: false }, orderBy: { name: 'asc' }, select: { id: true, handle: true, name: true } })
+    ? await prisma.influencer.findMany({ where: { shop, archived: false }, orderBy: { name: 'asc' }, select: { id: true, handle: true, name: true, gender: true, followers: true } })
     : [];
 
   // ── Shopify products for the product picker ──────────────────────────────
@@ -413,14 +413,22 @@ export default function PortalCampaignDetail() {
   const [expandedGuest,    setExpandedGuest]    = useState(null); // guestId
   const [showAddGuest,     setShowAddGuest]     = useState(false);
   const [infSearch,        setInfSearch]        = useState('');
+  const [guestGenderFilter,   setGuestGenderFilter]   = useState('all');
+  const [guestFollowerFilter, setGuestFollowerFilter] = useState('all');
   const [showEditCampaign, setShowEditCampaign] = useState(false);
   const [editType,         setEditType]         = useState(campaign.type || 'seeding');
   const [showAddProduct,   setShowAddProduct]   = useState(false);
   const [prodSearch,       setProdSearch]       = useState('');
 
-  const filteredInf = influencers.filter(inf =>
-    !infSearch || inf.handle.toLowerCase().includes(infSearch.toLowerCase()) || (inf.name ?? '').toLowerCase().includes(infSearch.toLowerCase())
-  );
+  const filteredInf = influencers.filter(inf => {
+    if (infSearch && !inf.handle.toLowerCase().includes(infSearch.toLowerCase()) && !(inf.name ?? '').toLowerCase().includes(infSearch.toLowerCase())) return false;
+    if (guestGenderFilter !== 'all' && (inf.gender || '').toLowerCase() !== guestGenderFilter.toLowerCase()) return false;
+    if (guestFollowerFilter === 'lt10k'    && (inf.followers ?? 0) >= 10000)  return false;
+    if (guestFollowerFilter === '10to50k'  && ((inf.followers ?? 0) < 10000  || (inf.followers ?? 0) >= 50000))  return false;
+    if (guestFollowerFilter === '50to100k' && ((inf.followers ?? 0) < 50000  || (inf.followers ?? 0) >= 100000)) return false;
+    if (guestFollowerFilter === 'gt100k'   && (inf.followers ?? 0) < 100000) return false;
+    return true;
+  });
 
   // Products already on the campaign (by Shopify ID) to exclude from picker
   const existingProductIds = new Set(campaign.products.map(cp => cp.productId));
@@ -645,6 +653,30 @@ export default function PortalCampaignDetail() {
               <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.6px', color: D.textMuted, marginBottom: '10px' }}>
                 Select influencer to add as guest
               </div>
+              {/* Gender + follower filters */}
+              <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                {['all', 'Female', 'Male'].map(g => (
+                  <button key={g} type="button" onClick={() => setGuestGenderFilter(g)} style={{
+                    padding: '3px 10px', borderRadius: '20px', cursor: 'pointer', fontSize: '11px', fontWeight: '600',
+                    border: `1.5px solid ${guestGenderFilter === g ? 'var(--pt-accent)' : 'var(--pt-border)'}`,
+                    backgroundColor: guestGenderFilter === g ? 'var(--pt-accent-light)' : 'transparent',
+                    color: guestGenderFilter === g ? 'var(--pt-accent)' : 'var(--pt-text-muted)',
+                  }}>
+                    {g === 'all' ? 'Any' : g === 'Female' ? '♀ F' : '♂ M'}
+                  </button>
+                ))}
+                <div style={{ width: '1px', backgroundColor: 'var(--pt-border)', margin: '0 2px' }} />
+                {[['all','Any size'],['lt10k','<10K'],['10to50k','10–50K'],['50to100k','50–100K'],['gt100k','100K+']].map(([k,l]) => (
+                  <button key={k} type="button" onClick={() => setGuestFollowerFilter(k)} style={{
+                    padding: '3px 10px', borderRadius: '20px', cursor: 'pointer', fontSize: '11px', fontWeight: '600',
+                    border: `1.5px solid ${guestFollowerFilter === k ? 'var(--pt-accent)' : 'var(--pt-border)'}`,
+                    backgroundColor: guestFollowerFilter === k ? 'var(--pt-accent-light)' : 'transparent',
+                    color: guestFollowerFilter === k ? 'var(--pt-accent)' : 'var(--pt-text-muted)',
+                  }}>
+                    {l}
+                  </button>
+                ))}
+              </div>
               <input
                 type="text"
                 placeholder="Search influencers…"
@@ -683,6 +715,11 @@ export default function PortalCampaignDetail() {
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: '13px', fontWeight: '600', color: D.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                             @{inf.handle}
+                            {(inf.gender || inf.followers) && (
+                              <span style={{ fontSize: '10px', color: 'var(--pt-text-muted)', marginLeft: '6px' }}>
+                                {[inf.gender, inf.followers ? (inf.followers >= 1000000 ? `${(inf.followers/1000000).toFixed(1)}M` : inf.followers >= 1000 ? `${Math.round(inf.followers/1000)}K` : inf.followers) : null].filter(Boolean).join(' · ')}
+                              </span>
+                            )}
                           </div>
                           {inf.name && (
                             <div style={{ fontSize: '11px', color: D.textMuted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
