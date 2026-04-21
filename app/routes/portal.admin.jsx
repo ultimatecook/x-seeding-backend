@@ -2,7 +2,7 @@
  * /portal/admin — Admin settings for inventory source rules and discount code pools.
  * Only Owners can access this page.
  */
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Form, useLoaderData, useActionData, useNavigation } from 'react-router';
 import prisma from '../db.server';
 import { requirePortalUser } from '../utils/portal-auth.server';
@@ -168,6 +168,234 @@ function StatusPill({ label, count, type }) {
   );
 }
 
+// ── PoolCard ──────────────────────────────────────────────────────────────────
+function PoolCard({ poolType, stats, busy }) {
+  const [codesText, setCodesText] = useState('');
+  const [showClear, setShowClear] = useState(false);
+  const textareaRef = useRef(null);
+
+  const isProduct  = poolType === 'Product';
+  const available  = stats?.Available ?? 0;
+  const assigned   = stats?.Assigned  ?? 0;
+  const used       = stats?.Used      ?? 0;
+  const total      = available + assigned + used;
+  const lowStock   = available < 10 && available > 0;
+  const empty      = available === 0;
+
+  // Count codes entered in the textarea
+  const pendingCount = codesText.trim()
+    ? codesText.split(/[\n,]+/).map(s => s.trim()).filter(Boolean).length
+    : 0;
+
+  return (
+    <div style={{
+      border: `1px solid ${D.border}`,
+      borderRadius: '14px',
+      overflow: 'hidden',
+      backgroundColor: 'var(--pt-surface)',
+    }}>
+      {/* Card header */}
+      <div style={{
+        padding: '16px 18px',
+        borderBottom: `1px solid ${D.border}`,
+        display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{
+            width: '34px', height: '34px', borderRadius: '9px', flexShrink: 0,
+            backgroundColor: isProduct ? 'rgba(124,111,247,0.1)' : 'rgba(16,185,129,0.1)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <span style={{ fontSize: '16px' }}>{isProduct ? '🎟' : '🚚'}</span>
+          </div>
+          <div>
+            <div style={{ fontSize: '13px', fontWeight: '700', color: D.text }}>
+              {isProduct ? 'Product codes' : 'Shipping codes'}
+            </div>
+            <div style={{ fontSize: '11px', color: D.textSub, marginTop: '1px' }}>
+              {isProduct
+                ? 'Required — one assigned per seeding'
+                : 'Optional — Shopify Plus only'}
+            </div>
+          </div>
+        </div>
+        {/* Status badge */}
+        {empty ? (
+          <span style={{
+            fontSize: '10px', fontWeight: '700', padding: '3px 8px', borderRadius: '20px',
+            backgroundColor: isProduct ? '#FEE2E2' : '#F3F4F6',
+            color: isProduct ? '#991B1B' : D.textMuted,
+            flexShrink: 0, whiteSpace: 'nowrap',
+          }}>
+            {isProduct ? 'No codes — required' : 'No codes'}
+          </span>
+        ) : lowStock ? (
+          <span style={{
+            fontSize: '10px', fontWeight: '700', padding: '3px 8px', borderRadius: '20px',
+            backgroundColor: '#FEF3C7', color: '#92400E', flexShrink: 0, whiteSpace: 'nowrap',
+          }}>
+            ⚠ Low — {available} left
+          </span>
+        ) : (
+          <span style={{
+            fontSize: '10px', fontWeight: '700', padding: '3px 8px', borderRadius: '20px',
+            backgroundColor: '#DCFCE7', color: '#166534', flexShrink: 0, whiteSpace: 'nowrap',
+          }}>
+            {available} available
+          </span>
+        )}
+      </div>
+
+      {/* Stats bar */}
+      <div style={{ padding: '12px 18px', borderBottom: `1px solid ${D.border}`, display: 'flex', gap: '16px' }}>
+        {[
+          { label: 'Available', val: available, color: '#10B981' },
+          { label: 'Assigned',  val: assigned,  color: '#7C6FF7' },
+          { label: 'Used',      val: used,       color: D.textMuted },
+        ].map(({ label, val, color }) => (
+          <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+            <span style={{ fontSize: '16px', fontWeight: '800', color, lineHeight: 1 }}>{val}</span>
+            <span style={{ fontSize: '10px', color: D.textMuted, fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.4px' }}>{label}</span>
+          </div>
+        ))}
+        {total > 0 && (
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', paddingLeft: '8px' }}>
+            <div style={{ width: '100%', height: '6px', borderRadius: '99px', backgroundColor: 'var(--pt-surface-high)', overflow: 'hidden', display: 'flex' }}>
+              <div style={{ width: `${total ? (available / total) * 100 : 0}%`, backgroundColor: '#10B981', transition: 'width 0.3s' }} />
+              <div style={{ width: `${total ? (assigned / total) * 100 : 0}%`, backgroundColor: '#7C6FF7', transition: 'width 0.3s' }} />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Import form */}
+      <div style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        <div style={{ fontSize: '11px', fontWeight: '700', color: D.textSub, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>Import codes</span>
+          {pendingCount > 0 && (
+            <span style={{ fontSize: '11px', fontWeight: '600', color: 'var(--pt-accent)', textTransform: 'none', letterSpacing: 0 }}>
+              {pendingCount} code{pendingCount !== 1 ? 's' : ''} detected
+            </span>
+          )}
+        </div>
+        <Form method="post" onSubmit={() => setCodesText('')}>
+          <input type="hidden" name="intent"   value="importCodes" />
+          <input type="hidden" name="poolType" value={poolType} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <textarea
+              ref={textareaRef}
+              name="codes"
+              value={codesText}
+              onChange={e => setCodesText(e.target.value)}
+              placeholder={'CODE001\nCODE002\nCODE003'}
+              rows={5}
+              required
+              style={{ ...input.base, fontFamily: 'monospace', fontSize: '12px', resize: 'vertical', width: '100%', boxSizing: 'border-box' }}
+            />
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <button type="submit" disabled={busy || pendingCount === 0} style={{
+                ...btn.primary,
+                opacity: pendingCount === 0 ? 0.5 : 1,
+                cursor: pendingCount === 0 ? 'not-allowed' : 'pointer',
+              }}>
+                {busy ? 'Importing…' : `Import${pendingCount > 0 ? ` ${pendingCount}` : ''} code${pendingCount !== 1 ? 's' : ''}`}
+              </button>
+              <span style={{ fontSize: '11px', color: D.textMuted }}>Duplicates are skipped.</span>
+            </div>
+          </div>
+        </Form>
+      </div>
+
+      {/* Danger zone (collapsed by default) */}
+      <div style={{ padding: '0 18px 14px' }}>
+        {!showClear ? (
+          <button onClick={() => setShowClear(true)} style={{
+            background: 'none', border: 'none', padding: 0, fontSize: '11px',
+            color: D.textMuted, cursor: 'pointer', textDecoration: 'underline',
+          }}>
+            Clear available codes…
+          </button>
+        ) : (
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <Form method="post" onSubmit={e => { if (!confirm(`Delete all available ${poolType.toLowerCase()} codes?`)) e.preventDefault(); else setShowClear(false); }}>
+              <input type="hidden" name="intent"   value="clearPool" />
+              <input type="hidden" name="poolType" value={poolType} />
+              <button type="submit" disabled={busy} style={{
+                padding: '5px 12px', fontSize: '11px', fontWeight: '700', borderRadius: '7px',
+                border: '1px solid #FCA5A5', backgroundColor: '#FEE2E2', color: '#991B1B', cursor: 'pointer',
+              }}>
+                Delete {available} available {poolType.toLowerCase()} codes
+              </button>
+            </Form>
+            <button onClick={() => setShowClear(false)} style={{
+              background: 'none', border: 'none', padding: 0, fontSize: '11px',
+              color: D.textMuted, cursor: 'pointer',
+            }}>
+              Cancel
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── AnalyticsPoolSection ───────────────────────────────────────────────────────
+function AnalyticsPoolSection({ poolStats, busy }) {
+  const [guideOpen, setGuideOpen] = useState(false);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
+      {/* Live store notice */}
+      <div style={{
+        display: 'flex', gap: '10px', padding: '12px 14px',
+        backgroundColor: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: '10px',
+      }}>
+        <span style={{ fontSize: '14px', flexShrink: 0 }}>⚠️</span>
+        <div style={{ fontSize: '12px', color: '#78350F', lineHeight: 1.5 }}>
+          <strong>Requires a live production store.</strong> The <code style={{ fontSize: '11px', backgroundColor: 'rgba(0,0,0,0.06)', padding: '1px 4px', borderRadius: '3px' }}>/discount/</code> redirect
+          is blocked on password-protected stores. Switch to <strong>Simple</strong> mode if you're testing on a development store.
+        </div>
+      </div>
+
+      {/* Setup guide (collapsible) */}
+      <div style={{ border: `1px solid ${D.border}`, borderRadius: '12px', overflow: 'hidden' }}>
+        <button
+          onClick={() => setGuideOpen(o => !o)}
+          style={{
+            width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '13px 16px', background: 'none', border: 'none', cursor: 'pointer',
+            fontSize: '13px', fontWeight: '700', color: D.text,
+          }}
+        >
+          <span>📋 How to get discount codes from Shopify</span>
+          <span style={{ fontSize: '11px', color: D.textMuted, fontWeight: '500' }}>{guideOpen ? 'Hide ▲' : 'Show ▼'}</span>
+        </button>
+        {guideOpen && (
+          <div style={{ padding: '0 16px 16px', borderTop: `1px solid ${D.border}` }}>
+            <ol style={{ margin: '12px 0 0', paddingLeft: '18px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {[
+                <>In Shopify admin, go to <strong>Discounts</strong> → <strong>Create discount</strong> → <strong>Discount code</strong>.</>,
+                <>Set type to <strong>Amount off order</strong>, value <strong>100%</strong>, applies to <strong>All products</strong>.</>,
+                <>Under <strong>Usage limits</strong>, enable <strong>Limit to one use per customer</strong>.</>,
+                <>Click <strong>Generate codes</strong> (top right), set quantity to how many seedings you plan to run, and export the CSV.</>,
+                <>Copy the codes from the CSV and paste them into the import box below. Repeat for shipping codes if you're on Shopify Plus.</>,
+              ].map((step, i) => (
+                <li key={i} style={{ fontSize: '12px', color: D.textSub, lineHeight: 1.55 }}>{step}</li>
+              ))}
+            </ol>
+          </div>
+        )}
+      </div>
+
+      {/* Pool cards */}
+      <PoolCard poolType="Product"  stats={poolStats.Product}  busy={busy} />
+      <PoolCard poolType="Shipping" stats={poolStats.Shipping} busy={busy} />
+    </div>
+  );
+}
+
 // ── Component ──────────────────────────────────────────────────────────────────
 export default function PortalAdmin() {
   const { locations, poolStats, discountMode: initialDiscountMode } = useLoaderData();
@@ -177,10 +405,7 @@ export default function PortalAdmin() {
   const { t }       = useT();
   const busy        = nav.state !== 'idle';
 
-  const [tab, setTab]           = useState('inventory');
-  const [activePool, setActivePool] = useState('Product');
-
-  const POOL = poolStats[activePool] || { Available: 0, Assigned: 0, Used: 0 };
+  const [tab, setTab] = useState('inventory');
 
   return (
     <div style={{ maxWidth: '760px', padding: '32px 24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -405,107 +630,7 @@ export default function PortalAdmin() {
 
           {/* Analytics mode: code pool management */}
           {discountMode === 'analytics' && (
-            <>
-              {/* Explanation */}
-              <div style={{
-                backgroundColor: 'rgba(124,111,247,0.04)',
-                border: '1px solid rgba(124,111,247,0.18)',
-                borderRadius: '12px',
-                padding: '18px 20px',
-              }}>
-                <div style={{ fontSize: '13px', fontWeight: '700', color: D.text, marginBottom: '12px' }}>
-                  How analytics codes work
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  <div style={{ display: 'flex', gap: '10px' }}>
-                    <span style={{ fontSize: '14px', flexShrink: 0, marginTop: '1px' }}>🎟</span>
-                    <div>
-                      <div style={{ fontSize: '12px', fontWeight: '700', color: D.text, marginBottom: '2px' }}>
-                        Product codes — required
-                      </div>
-                      <div style={{ fontSize: '12px', color: D.textSub, lineHeight: 1.55 }}>
-                        Create a batch of unique 100%-off discount codes in Shopify (Discounts → Generate codes), then import them here.
-                        When a seeding is created, one code is assigned and baked into the influencer's checkout link via
-                        Shopify's <code style={{ fontSize: '11px', backgroundColor: 'var(--pt-surface-high)', padding: '1px 5px', borderRadius: '4px' }}>/discount/</code> redirect.
-                        Redemptions appear in your Shopify analytics.
-                      </div>
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: '10px' }}>
-                    <span style={{ fontSize: '14px', flexShrink: 0, marginTop: '1px' }}>🚚</span>
-                    <div>
-                      <div style={{ fontSize: '12px', fontWeight: '700', color: D.text, marginBottom: '2px' }}>
-                        Shipping codes — optional, Shopify Plus only
-                      </div>
-                      <div style={{ fontSize: '12px', color: D.textSub, lineHeight: 1.55 }}>
-                        Without shipping codes, free shipping is baked into the draft order (works on all plans).
-                        With shipping codes, Zeedy chains both codes via
-                        <code style={{ fontSize: '11px', backgroundColor: 'var(--pt-surface-high)', padding: '1px 5px', borderRadius: '4px', margin: '0 3px' }}>/discount/PRODUCT?redirect=/discount/SHIPPING?redirect=…</code>
-                        — Shopify Plus only.
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <p style={{ margin: 0, fontSize: '13px', color: D.textSub, lineHeight: 1.6 }}>
-                Paste your unique codes below (comma or line separated). Each code is one-time use and must already exist in Shopify.
-              </p>
-
-              <div style={{ display: 'flex', gap: '8px' }}>
-                {['Product', 'Shipping'].map(p => (
-                  <button key={p} onClick={() => setActivePool(p)} style={{
-                    padding: '7px 18px', fontSize: '12px', fontWeight: '700', borderRadius: '8px',
-                    border: `1px solid ${D.border}`, cursor: 'pointer',
-                    backgroundColor: activePool === p ? 'var(--pt-accent-light)' : 'var(--pt-surface)',
-                    color: activePool === p ? 'var(--pt-accent)' : D.textSub,
-                  }}>
-                    {p} codes
-                  </button>
-                ))}
-              </div>
-
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                <StatusPill label="Available" count={POOL.Available} type="Available" />
-                <StatusPill label="Assigned"  count={POOL.Assigned}  type="Assigned"  />
-                <StatusPill label="Used"      count={POOL.Used}      type="Used"      />
-              </div>
-
-              <Form method="post">
-                <input type="hidden" name="intent"   value="importCodes" />
-                <input type="hidden" name="poolType" value={activePool}  />
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  <label style={{ fontSize: '12px', fontWeight: '700', color: D.textSub, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                    Paste {activePool.toLowerCase()} codes
-                  </label>
-                  <textarea name="codes" placeholder={`CODE001\nCODE002\nCODE003`} rows={6} required
-                    style={{ ...input.base, fontFamily: 'monospace', fontSize: '12px', resize: 'vertical', width: '100%', boxSizing: 'border-box' }} />
-                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                    <button type="submit" disabled={busy} style={{ ...btn.primary }}>
-                      {busy ? 'Importing…' : `Import ${activePool} codes`}
-                    </button>
-                    <span style={{ fontSize: '11px', color: D.textMuted }}>Duplicate codes are silently skipped.</span>
-                  </div>
-                </div>
-              </Form>
-
-              <div style={{ padding: '16px', border: '1px solid #FCA5A5', borderRadius: '10px', backgroundColor: '#FFF5F5' }}>
-                <p style={{ margin: '0 0 10px', fontSize: '13px', fontWeight: '600', color: '#7F1D1D' }}>Danger zone</p>
-                <p style={{ margin: '0 0 12px', fontSize: '12px', color: '#991B1B' }}>
-                  Remove all <strong>Available</strong> {activePool.toLowerCase()} codes. Assigned and used codes are kept.
-                </p>
-                <Form method="post" onSubmit={e => { if (!confirm(`Delete all available ${activePool.toLowerCase()} codes?`)) e.preventDefault(); }}>
-                  <input type="hidden" name="intent"   value="clearPool"  />
-                  <input type="hidden" name="poolType" value={activePool} />
-                  <button type="submit" disabled={busy} style={{
-                    padding: '6px 16px', fontSize: '12px', fontWeight: '700', borderRadius: '7px',
-                    border: '1px solid #FCA5A5', backgroundColor: '#FEE2E2', color: '#991B1B', cursor: 'pointer',
-                  }}>
-                    Clear available {activePool.toLowerCase()} codes
-                  </button>
-                </Form>
-              </div>
-            </>
+            <AnalyticsPoolSection poolStats={poolStats} busy={busy} />
           )}
         </div>
       )}
