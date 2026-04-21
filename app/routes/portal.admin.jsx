@@ -327,6 +327,48 @@ export default function PortalAdmin() {
       {tab === 'discounts' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
 
+          {/* How it works explanation */}
+          <div style={{
+            backgroundColor: 'rgba(124,111,247,0.04)',
+            border: '1px solid rgba(124,111,247,0.18)',
+            borderRadius: '12px',
+            padding: '18px 20px',
+          }}>
+            <div style={{ fontSize: '13px', fontWeight: '700', color: D.text, marginBottom: '12px' }}>
+              How discount codes work
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <span style={{ fontSize: '14px', flexShrink: 0, marginTop: '1px' }}>🎟</span>
+                <div>
+                  <div style={{ fontSize: '12px', fontWeight: '700', color: D.text, marginBottom: '2px' }}>
+                    Product codes — required for all plans
+                  </div>
+                  <div style={{ fontSize: '12px', color: D.textSub, lineHeight: 1.55 }}>
+                    When you create a seeding, one product code is automatically pulled from this pool and
+                    baked into the influencer's checkout link. The influencer clicks the link and their entire
+                    order is free — no code entry needed. You track usage in Shopify analytics as real discount code redemptions.
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <span style={{ fontSize: '14px', flexShrink: 0, marginTop: '1px' }}>🚚</span>
+                <div>
+                  <div style={{ fontSize: '12px', fontWeight: '700', color: D.text, marginBottom: '2px' }}>
+                    Shipping codes — optional, Shopify Plus only
+                  </div>
+                  <div style={{ fontSize: '12px', color: D.textSub, lineHeight: 1.55 }}>
+                    Without shipping codes: free shipping is baked directly into the draft order — this works on
+                    all Shopify plans. With shipping codes: the system uses Shopify's <code style={{ fontSize: '11px',
+                    backgroundColor: 'var(--pt-surface-high)', padding: '1px 5px', borderRadius: '4px' }}>/discount/</code> chain
+                    to apply both codes at checkout. Upload shipping codes only if you're on Shopify Plus and want
+                    full analytics on shipping discounts.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <p style={{ margin: 0, fontSize: '13px', color: D.textSub, lineHeight: 1.6 }}>
             Pre-load unique discount codes here. When a seeding is created — online or in-store — one code
             from each pool is automatically assigned. Import as comma-separated or line-separated list.

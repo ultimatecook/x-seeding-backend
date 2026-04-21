@@ -1,13 +1,31 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { useLoaderData, Link, useNavigate, useSearchParams } from 'react-router';
+import { useLoaderData, Link, useNavigate, useSearchParams, useFetcher } from 'react-router';
 import prisma from '../db.server';
 import { requirePortalUser } from '../utils/portal-auth.server';
 import { fmtDate, fmtNum } from '../theme';
 import { D, FlagImg } from '../utils/portal-theme';
 import { useT } from '../utils/i18n';
+import { getOnboardingState, seedDemoData, deleteDemoData } from '../utils/demo.server';
 
 // ── Predefined country list (for pills fill-in) ───────────────────────────────
 const PRESET_COUNTRIES = ['Spain', 'United Kingdom', 'France', 'Italy', 'United States', 'Netherlands', 'Germany'];
+
+// ── Action (demo data + future dashboard actions) ─────────────────────────────
+export async function action({ request }) {
+  const { shop } = await requirePortalUser(request);
+  const formData = await request.formData();
+  const intent   = formData.get('intent');
+
+  if (intent === 'seedDemo') {
+    await seedDemoData(shop);
+    return { ok: true };
+  }
+  if (intent === 'deleteDemo') {
+    await deleteDemoData(shop);
+    return { ok: true };
+  }
+  return null;
+}
 
 // ── Loader ────────────────────────────────────────────────────────────────────
 export async function loader({ request }) {
@@ -215,6 +233,8 @@ export async function loader({ request }) {
     : daysParam === '180' ? 'last 6 months'
     :                       'last year';
 
+  const onboarding = await getOnboardingState(shop);
+
   return {
     totalSeedings, pendingSeedings, orderedSeedings,
     shippedSeedings, deliveredSeedings,
@@ -231,6 +251,7 @@ export async function loader({ request }) {
     currentMonthShort: now.toLocaleDateString('en-GB', { month: 'short' }),
     chartDays,
     locationData,
+    onboarding,
   };
 }
 
@@ -545,6 +566,165 @@ function Band({ id, editMode, isDragOver, onDragStart, onDragOver, onDrop, onDra
   );
 }
 
+// ── Onboarding checklist ──────────────────────────────────────────────────────
+function OnboardingChecklist({ onboarding }) {
+  const fetcher    = useFetcher();
+  const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    try {
+      if (localStorage.getItem('onboarding-dismissed') === 'true') setDismissed(true);
+    } catch {}
+  }, []);
+
+  if (dismissed || onboarding.allDone) return null;
+
+  const dismiss = () => {
+    setDismissed(true);
+    try { localStorage.setItem('onboarding-dismissed', 'true'); } catch {}
+  };
+
+  const steps = [
+    {
+      done:  onboarding.hasInfluencer,
+      label: 'Add your first influencer',
+      to:    '/portal/influencers',
+    },
+    {
+      done:  onboarding.hasCampaign,
+      label: 'Create a campaign',
+      to:    '/portal/campaigns',
+    },
+    {
+      done:  onboarding.hasDiscountCodes,
+      label: 'Add discount codes',
+      to:    '/portal/admin#discounts',
+    },
+    {
+      done:  onboarding.hasSeeding,
+      label: 'Create your first seeding',
+      to:    '/portal/new',
+    },
+  ];
+
+  const doneCount = steps.filter(s => s.done).length;
+  const pct       = Math.round((doneCount / steps.length) * 100);
+
+  return (
+    <div style={{
+      backgroundColor: 'var(--pt-surface)',
+      border:          `1px solid var(--pt-border)`,
+      borderRadius:    '14px',
+      padding:         '20px 22px',
+      marginBottom:    '32px',
+      position:        'relative',
+    }}>
+      {/* Dismiss */}
+      <button onClick={dismiss} title="Dismiss"
+        style={{ position: 'absolute', top: '12px', right: '14px', background: 'none', border: 'none',
+          fontSize: '18px', color: 'var(--pt-text-muted)', cursor: 'pointer', lineHeight: 1, padding: '2px 4px' }}>
+        ×
+      </button>
+
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+        <div style={{ width: '34px', height: '34px', borderRadius: '9px', backgroundColor: 'rgba(124,111,247,0.1)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <span style={{ fontSize: '16px' }}>🚀</span>
+        </div>
+        <div>
+          <div style={{ fontSize: '14px', fontWeight: '700', color: 'var(--pt-text)' }}>
+            Get started with Zeedy
+          </div>
+          <div style={{ fontSize: '12px', color: 'var(--pt-text-muted)', marginTop: '1px' }}>
+            {doneCount} of {steps.length} steps complete
+          </div>
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      <div style={{ height: '4px', borderRadius: '99px', backgroundColor: 'var(--pt-surface-high)',
+        marginBottom: '16px', overflow: 'hidden' }}>
+        <div style={{ height: '100%', width: `${pct}%`, borderRadius: '99px',
+          background: 'linear-gradient(90deg, #7C6FF7, #A78BFA)', transition: 'width 0.4s' }} />
+      </div>
+
+      {/* Steps */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
+        {steps.map((step, i) => (
+          <Link key={i} to={step.to} style={{ textDecoration: 'none',
+            display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{
+              width: '18px', height: '18px', borderRadius: '50%', flexShrink: 0,
+              backgroundColor: step.done ? '#10B981' : 'var(--pt-surface-high)',
+              border: step.done ? 'none' : '1.5px solid var(--pt-border)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              {step.done && <span style={{ fontSize: '10px', color: '#fff', fontWeight: '800' }}>✓</span>}
+            </div>
+            <span style={{
+              fontSize: '13px', fontWeight: step.done ? '500' : '600',
+              color: step.done ? 'var(--pt-text-muted)' : 'var(--pt-text)',
+              textDecoration: step.done ? 'line-through' : 'none',
+            }}>
+              {step.label}
+            </span>
+            {!step.done && (
+              <span style={{ fontSize: '11px', color: 'var(--pt-accent)', fontWeight: '600',
+                marginLeft: 'auto', whiteSpace: 'nowrap' }}>
+                Go →
+              </span>
+            )}
+          </Link>
+        ))}
+      </div>
+
+      {/* Demo data actions */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', paddingTop: '12px',
+        borderTop: '1px solid var(--pt-border-light)' }}>
+        {!onboarding.hasDemo ? (
+          <>
+            <span style={{ fontSize: '12px', color: 'var(--pt-text-muted)', flex: 1 }}>
+              Want to explore first?
+            </span>
+            <fetcher.Form method="post">
+              <input type="hidden" name="intent" value="seedDemo" />
+              <button type="submit" disabled={fetcher.state !== 'idle'}
+                style={{ padding: '6px 14px', fontSize: '12px', fontWeight: '700', borderRadius: '8px',
+                  border: '1px solid var(--pt-border)', backgroundColor: 'var(--pt-surface-high)',
+                  color: 'var(--pt-text-sub)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                {fetcher.state !== 'idle' ? 'Loading…' : 'Load demo data'}
+              </button>
+            </fetcher.Form>
+            <Link to="/portal/new"
+              style={{ padding: '6px 14px', fontSize: '12px', fontWeight: '700', borderRadius: '8px',
+                background: 'linear-gradient(135deg, #7C6FF7 0%, #A78BFA 100%)',
+                color: '#fff', textDecoration: 'none', whiteSpace: 'nowrap',
+                boxShadow: '0 2px 8px rgba(124,111,247,0.28)' }}>
+              Create first seeding →
+            </Link>
+          </>
+        ) : (
+          <>
+            <span style={{ fontSize: '12px', color: 'var(--pt-text-muted)', flex: 1 }}>
+              Demo data loaded — explore the app, then clear it when ready.
+            </span>
+            <fetcher.Form method="post">
+              <input type="hidden" name="intent" value="deleteDemo" />
+              <button type="submit" disabled={fetcher.state !== 'idle'}
+                style={{ padding: '6px 14px', fontSize: '12px', fontWeight: '600', borderRadius: '8px',
+                  border: '1px solid var(--pt-border)', backgroundColor: 'transparent',
+                  color: 'var(--pt-text-muted)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                {fetcher.state !== 'idle' ? 'Clearing…' : 'Clear demo data'}
+              </button>
+            </fetcher.Form>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 export default function PortalDashboard() {
   const {
@@ -555,7 +735,7 @@ export default function PortalDashboard() {
     spendDelta, countDelta,
     countryPills, activeDays, activeCountry,
     activeSeedings, totalCogs, chartDays, rangeLabel, currentMonthShort,
-    locationData,
+    locationData, onboarding,
   } = useLoaderData();
 
   const TIME_OPTIONS = [
@@ -1073,6 +1253,9 @@ export default function PortalDashboard() {
           </span>
         </div>
       )}
+
+      {/* ── Onboarding checklist ────────────────────────────────── */}
+      <OnboardingChecklist onboarding={onboarding} />
 
       {/* ── Hero: big number + line chart ───────────────────────── */}
       <div style={{ marginBottom: '8px' }}>

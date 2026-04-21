@@ -100,6 +100,7 @@ model Influencer {
   styleTags              String?
   productPreferences     String?
   archived               Boolean              @default(false)
+  isDemo                 Boolean              @default(false)
   createdAt              DateTime             @default(now())
   seedings               Seeding[]
   savedSizes             InfluencerSavedSize[]
@@ -243,6 +244,7 @@ model Campaign {
   eventDate     DateTime?          // for type="event"
   eventLocation String?            // for type="event"
   archived      Boolean            @default(false)
+  isDemo        Boolean            @default(false)
   createdAt     DateTime           @default(now())
   products      CampaignProduct[]
   seedings      Seeding[]

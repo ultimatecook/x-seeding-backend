@@ -476,14 +476,36 @@ export default function PortalInfluencers() {
 
       {/* ── Table ────────────────────────────────────────────── */}
       {influencers.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '60px', color: D.textMuted, border: `2px dashed ${D.border}`, borderRadius: '12px' }}>
-          <p style={{ margin: '0 0 6px', fontSize: '15px', color: D.textSub }}>
-            {view === 'archived' ? t('influencers.empty.noArchived') : t('influencers.empty.noInfluencers')}
-          </p>
-          <p style={{ margin: 0, fontSize: '13px' }}>
-            {view === 'archived' ? t('influencers.empty.archiveFrom') : t('influencers.empty.addManual')}
-          </p>
-        </div>
+        view === 'archived' ? (
+          <div style={{ textAlign: 'center', padding: '60px', color: D.textMuted, border: `2px dashed ${D.border}`, borderRadius: '12px' }}>
+            <p style={{ margin: '0 0 6px', fontSize: '15px', color: D.textSub }}>{t('influencers.empty.noArchived')}</p>
+            <p style={{ margin: 0, fontSize: '13px' }}>{t('influencers.empty.archiveFrom')}</p>
+          </div>
+        ) : (
+          <div style={{ textAlign: 'center', padding: '56px 32px', border: `2px dashed ${D.border}`, borderRadius: '14px' }}>
+            <div style={{ fontSize: '36px', marginBottom: '12px' }}>👤</div>
+            <div style={{ fontSize: '16px', fontWeight: '700', color: D.text, marginBottom: '6px' }}>
+              No influencers yet
+            </div>
+            <div style={{ fontSize: '13px', color: D.textMuted, marginBottom: '20px', lineHeight: 1.5 }}>
+              Add influencers manually or import a CSV to get started.
+            </div>
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
+              <button type="button" onClick={() => setShowForm(true)}
+                style={{ padding: '9px 20px', fontSize: '13px', fontWeight: '700', borderRadius: '9px',
+                  background: `linear-gradient(135deg, ${D.accent} 0%, ${D.purple} 100%)`,
+                  color: '#fff', border: 'none', cursor: 'pointer',
+                  boxShadow: '0 4px 14px rgba(124,111,247,0.28)' }}>
+                + Add your first influencer
+              </button>
+              <button type="button" onClick={() => setShowImport(true)}
+                style={{ padding: '9px 20px', fontSize: '13px', fontWeight: '600', borderRadius: '9px',
+                  border: `1px solid ${D.border}`, backgroundColor: 'transparent', color: D.textSub, cursor: 'pointer' }}>
+                Import CSV
+              </button>
+            </div>
+          </div>
+        )
       ) : (
         <div style={{ backgroundColor: D.surface, border: `1px solid ${D.border}`, borderRadius: '12px', boxShadow: D.shadow, overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>

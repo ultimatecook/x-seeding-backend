@@ -211,16 +211,31 @@ export default function PortalSeedings() {
       </div>
 
       {seedings.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '60px', color: D.textMuted, border: `2px dashed ${D.border}`, borderRadius: '12px' }}>
+        <div style={{ textAlign: 'center', padding: '56px 32px', border: `2px dashed ${D.border}`, borderRadius: '14px' }}>
           {hasFilters ? (
             <>
-              <p style={{ margin: '0 0 12px', fontSize: '15px', color: D.textSub }}>{t('seedings.empty')}</p>
-              <button type="button" onClick={() => setSearchParams(new URLSearchParams())} style={btnGhost}>Clear filters</button>
+              <div style={{ fontSize: '28px', marginBottom: '10px' }}>🔍</div>
+              <div style={{ fontSize: '15px', fontWeight: '700', color: D.text, marginBottom: '6px' }}>No seedings match your filters</div>
+              <button type="button" onClick={() => setSearchParams(new URLSearchParams())}
+                style={{ marginTop: '6px', padding: '8px 18px', fontSize: '13px', fontWeight: '700', borderRadius: '8px',
+                  border: `1px solid ${D.border}`, backgroundColor: 'transparent', color: D.textSub, cursor: 'pointer' }}>
+                Clear filters
+              </button>
             </>
           ) : (
             <>
-              <p style={{ margin: '0 0 12px', fontSize: '15px', color: D.textSub }}>{t('seedings.emptyAll')}</p>
-              <Link to="/portal/new" style={{ color: D.accent, fontWeight: '700', textDecoration: 'none' }}>{t('seedings.emptyAction')}</Link>
+              <div style={{ fontSize: '36px', marginBottom: '12px' }}>📦</div>
+              <div style={{ fontSize: '16px', fontWeight: '700', color: D.text, marginBottom: '6px' }}>No seedings yet</div>
+              <div style={{ fontSize: '13px', color: D.textMuted, marginBottom: '20px', lineHeight: 1.5 }}>
+                Create your first seeding to start tracking influencer gifting.
+              </div>
+              <Link to="/portal/new"
+                style={{ display: 'inline-block', padding: '9px 22px', fontSize: '13px', fontWeight: '700', borderRadius: '9px',
+                  background: `linear-gradient(135deg, ${D.accent} 0%, ${D.purple} 100%)`,
+                  color: '#fff', textDecoration: 'none',
+                  boxShadow: '0 4px 14px rgba(124,111,247,0.28)' }}>
+                Create your first seeding →
+              </Link>
             </>
           )}
         </div>

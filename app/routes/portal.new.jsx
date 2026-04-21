@@ -950,9 +950,14 @@ export default function PortalNewSeeding() {
 
             {/* ── Influencer section ── */}
             <div>
-              <p style={{ margin: '0 0 10px', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.7px', color: D.textMuted }}>
-                {t('newSeeding.sidebar.influencer')}
-              </p>
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '10px' }}>
+                <p style={{ margin: 0, fontSize: '11px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.7px', color: D.textMuted }}>
+                  {t('newSeeding.sidebar.influencer')}
+                </p>
+                <span style={{ fontSize: '10px', color: D.textMuted, fontStyle: 'italic', fontWeight: '400' }}>
+                  Sizes auto-fill on select
+                </span>
+              </div>
 
               {/* Selected influencer card */}
               {selectedInfluencer && (
@@ -1290,6 +1295,12 @@ export default function PortalNewSeeding() {
                     <div style={{ fontSize: '17px', fontWeight: '800', color: D.text, letterSpacing: '-0.4px' }}>€{totalRetail.toFixed(2)}</div>
                     {selectedProducts.some(p => p.selectedVariant?.cost || p.cost) && (
                       <div style={{ fontSize: '11px', color: D.textMuted }}>Cost: €{selectedProducts.reduce((s, p) => s + (p.selectedVariant?.cost ?? p.cost ?? 0), 0).toFixed(2)}</div>
+                    )}
+                    {/* Subtle hint about discount codes */}
+                    {hasProductCodes && seedingType === 'Online' && (
+                      <div style={{ fontSize: '10px', color: D.textMuted, marginTop: '3px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span>🎟</span> Discount code assigned automatically
+                      </div>
                     )}
                   </div>
                 )}
