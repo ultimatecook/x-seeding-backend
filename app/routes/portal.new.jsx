@@ -315,9 +315,11 @@ export async function action({ request }) {
     }
   }
 
-  let shopifyDraftOrderId = null;
-  let shopifyOrderName    = null;
-  let invoiceUrl          = null;
+  let shopifyDraftOrderId  = null;
+  let shopifyOrderName     = null;
+  let invoiceUrl           = null;
+  let draftOrderNumericId  = null; // kept so we can update the draft order after codes are assigned
+  let draftOrderSession    = null; // same
 
   // Only create a Shopify draft order for online seedings
   if (seedingType === 'Online') {
@@ -327,13 +329,14 @@ export async function action({ request }) {
       if (!session) session = await prisma.session.findFirst({ where: { shop }, orderBy: { expires: 'desc' } });
       if (session?.accessToken) {
         const lineItems = variantIds.filter(v => v && v.length > 0).map(variantId => {
-          // REST API expects numeric variant ID, not GID
           const numId = variantId.includes('/') ? variantId.split('/').pop() : variantId;
           return { variant_id: parseInt(numId), quantity: 1 };
         });
         if (lineItems.length === 0) {
           console.warn('Portal: no valid variantIds — skipping draft order. variantIds received:', variantIds);
         } else {
+          // No applied_discount yet — we set it after assigning pool codes so the
+          // product code name appears as the discount title in Shopify admin.
           const draftBody = {
             draft_order: {
               line_items: lineItems,
@@ -354,6 +357,8 @@ export async function action({ request }) {
             shopifyDraftOrderId = `gid://shopify/DraftOrder/${draft.id}`;
             shopifyOrderName    = draft.name;
             invoiceUrl          = draft.invoice_url ?? null;
+            draftOrderNumericId = draft.id;
+            draftOrderSession   = session;
             console.log('Portal: draft order created via REST, invoiceUrl:', invoiceUrl);
           } else {
             console.warn('Portal: REST draft order not returned. Body:', JSON.stringify(body));
@@ -397,28 +402,59 @@ export async function action({ request }) {
     }
   }
 
-  // Assign discount codes from pool (best-effort — won't fail seeding creation)
+  // Assign discount codes from pool, then wire up both discounts on the checkout:
+  //
+  //   Products free  → applied_discount on the draft order (100 % off, title = product code)
+  //                    This is an order-level inline discount — works on every Shopify plan,
+  //                    bypasses store password, and makes products free regardless of whether
+  //                    the code exists as a Shopify discount code in the store.
+  //
+  //   Shipping free  → ?discount=SHIPPING_CODE appended to the invoice URL
+  //                    Invoice URLs bypass the store password. Shopify checkout picks up the
+  //                    ?discount= param and applies the shipping discount code.
+  //
+  // Together: the influencer clicks the link → products already free (inline discount)
+  //           → shipping code pre-applied → everything costs €0.
   let assignedCodes = null;
   try {
     assignedCodes = await assignDiscountCodes(shop, seeding.id);
-    // Re-fetch to get the assigned codes
-    const updated = await prisma.seeding.findUnique({ where: { id: seeding.id }, select: { productDiscountCode: true, shippingDiscountCode: true } });
+    const updated = await prisma.seeding.findUnique({
+      where:  { id: seeding.id },
+      select: { productDiscountCode: true, shippingDiscountCode: true },
+    });
     if (updated) assignedCodes = updated;
 
-    // Append the product code to the invoice URL — Shopify checkout picks up
-    // ?discount= when it processes the invoice redirect.
-    // We only pass the product code here because:
-    //   - Shopify standard plans accept only ONE discount code via URL
-    //   - Comma-separated values get re-encoded as %2C and Shopify treats them
-    //     as a single (non-existent) code name rather than two separate codes
-    // The shipping code is recorded on the seeding and shown in the portal
-    // so staff can give it to the influencer to enter at checkout.
     const productCode  = updated?.productDiscountCode;
-    if (productCode && invoiceUrl) {
+    const shippingCode = updated?.shippingDiscountCode;
+
+    // ── 1. Update draft order: add 100 % applied_discount using pool code as title ──
+    if (draftOrderNumericId && draftOrderSession?.accessToken) {
+      try {
+        await fetch(`https://${shop}/admin/api/2025-10/draft_orders/${draftOrderNumericId}.json`, {
+          method:  'PUT',
+          headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': draftOrderSession.accessToken },
+          body: JSON.stringify({
+            draft_order: {
+              applied_discount: {
+                value:       '100.0',
+                value_type:  'percentage',
+                title:       productCode ?? 'Seeding Gift',
+              },
+            },
+          }),
+        });
+        console.log('Portal: draft order updated with applied_discount, title:', productCode);
+      } catch (e) {
+        console.warn('Portal: could not update draft order discount:', e.message);
+      }
+    }
+
+    // ── 2. Append shipping code to invoice URL so checkout pre-applies it ──────
+    if (shippingCode && invoiceUrl) {
       const sep          = invoiceUrl.includes('?') ? '&' : '?';
-      const urlWithCode  = `${invoiceUrl}${sep}discount=${productCode}`;
+      const urlWithCode  = `${invoiceUrl}${sep}discount=${shippingCode}`;
       await prisma.seeding.update({ where: { id: seeding.id }, data: { invoiceUrl: urlWithCode } });
-      console.log('Portal: invoice URL with product discount code:', productCode);
+      console.log('Portal: invoice URL updated with shipping code:', shippingCode);
     }
   } catch (e) {
     console.warn('Portal: could not assign discount codes:', e.message);
