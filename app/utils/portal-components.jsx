@@ -50,9 +50,9 @@ export function InstagramAvatar({ handle, size = 36 }) {
   const [c1, c2] = AVATAR_GRADIENTS[idx];
   const fontSize = Math.round(size * 0.38);
 
-  // Use our server-side proxy route which validates the CDN redirect.
-  // If the proxy returns 404 (no real profile photo found), onError fires
-  // and we fall back to the gradient initials.
+  // Load directly from unavatar.io in the browser — img tags are not subject to
+  // the server-side IP allowlist that blocks proxy fetches. The gradient initials
+  // are always rendered underneath; the photo fades in if/when it loads.
   const [visible, setVisible] = React.useState(false);
   React.useEffect(() => { setVisible(false); }, [clean]);
 
@@ -64,18 +64,16 @@ export function InstagramAvatar({ handle, size = 36 }) {
       fontSize, fontWeight: '900', color: '#fff', letterSpacing: '-0.5px',
       overflow: 'hidden', position: 'relative',
     }}>
-      {/* Fallback initials always rendered underneath */}
+      {/* Fallback initials — always visible underneath until photo loads */}
       <span style={{ position: 'relative', zIndex: 1, userSelect: 'none' }}>{initials}</span>
 
-      {/* Profile photo via server proxy — only shows if it's a real CDN photo */}
+      {/* Photo loaded directly by the browser — bypasses server IP restrictions */}
       {clean && (
         <img
           key={clean}
-          src={`/portal/ig-avatar/${encodeURIComponent(clean)}`}
+          src={`https://unavatar.io/instagram/${encodeURIComponent(clean)}`}
           alt=""
-          onLoad={e => {
-            if (e.currentTarget.naturalWidth > 8) setVisible(true);
-          }}
+          onLoad={() => setVisible(true)}
           onError={() => setVisible(false)}
           style={{
             position: 'absolute', inset: 0, width: '100%', height: '100%',
