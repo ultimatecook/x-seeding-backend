@@ -1212,7 +1212,13 @@ export default function PortalNewSeeding() {
                       )}
                       {prod.image
                         ? <img src={prod.image} alt={prod.name} style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block' }} />
-                        : <div style={{ width: '100%', aspectRatio: '1', backgroundColor: D.surfaceHigh, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px' }}>📦</div>
+                        : <div style={{ width: '100%', aspectRatio: '1', backgroundColor: D.surfaceHigh, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--pt-text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                              <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+                              <line x1="12" y1="22.08" x2="12" y2="12"/>
+                            </svg>
+                          </div>
                       }
                       <div style={{ padding: '8px 10px' }}>
                         <div style={{ fontSize: '11px', fontWeight: '600', color: alreadyAdded ? D.accent : D.text, lineHeight: 1.3, marginBottom: '3px', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
@@ -1246,7 +1252,13 @@ export default function PortalNewSeeding() {
                       {/* Image */}
                       {prod.image
                         ? <img src={prod.image} alt={prod.name} style={{ width: '36px', height: '36px', objectFit: 'cover', borderRadius: '7px' }} />
-                        : <div style={{ width: '36px', height: '36px', backgroundColor: D.surfaceHigh, borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px' }}>📦</div>
+                        : <div style={{ width: '36px', height: '36px', backgroundColor: D.surfaceHigh, borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--pt-text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                              <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+                              <line x1="12" y1="22.08" x2="12" y2="12"/>
+                            </svg>
+                          </div>
                       }
                       {/* Name */}
                       <div style={{ fontSize: '12px', fontWeight: '600', color: D.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{prod.name}</div>

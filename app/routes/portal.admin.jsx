@@ -148,10 +148,57 @@ function gidToNumeric(gid) {
   return gid?.split('/').pop() ?? gid;
 }
 
+function IconTicket({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1 5.5A1.5 1.5 0 0 1 2.5 4h11A1.5 1.5 0 0 1 15 5.5v1a1.5 1.5 0 0 0 0 3v1A1.5 1.5 0 0 1 13.5 12h-11A1.5 1.5 0 0 1 1 10.5v-1a1.5 1.5 0 0 0 0-3v-1z" />
+    </svg>
+  );
+}
+
+function IconTruck({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="1" y="3" width="9" height="7" rx="1" />
+      <path d="M10 5.5h3l2 2V10h-5V5.5z" />
+      <circle cx="3.5" cy="11" r="1.5" />
+      <circle cx="11.5" cy="11" r="1.5" />
+    </svg>
+  );
+}
+
+function IconWarning({ size = 14, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M7.108 2.514c.396-.685 1.388-.685 1.784 0l5.646 9.779c.395.685-.1 1.54-.892 1.54H2.354c-.792 0-1.287-.855-.892-1.54l5.646-9.779z" />
+      <line x1="8" y1="6.5" x2="8" y2="9.5" />
+      <circle cx="8" cy="11.5" r="0.75" fill={color} stroke="none" />
+    </svg>
+  );
+}
+
+function IconZap({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 1.5 3 9h5L6.5 14.5 13 7H8L9 1.5z" />
+    </svg>
+  );
+}
+
+function IconBarChart({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="1" y="7" width="3" height="7" rx="0.5" />
+      <rect x="6.5" y="4" width="3" height="10" rx="0.5" />
+      <rect x="12" y="1.5" width="3" height="12.5" rx="0.5" />
+    </svg>
+  );
+}
+
 const TAG = {
-  Available: { bg: '#DCFCE7', color: '#166534' },
-  Assigned:  { bg: '#DBEAFE', color: '#1E40AF' },
-  Used:      { bg: '#F3F4F6', color: '#374151' },
+  Available: { bg: D.statusDelivered.bg,   color: D.statusDelivered.color },
+  Assigned:  { bg: D.statusOrdered.bg,     color: D.statusOrdered.color   },
+  Used:      { bg: D.surfaceHigh,          color: D.textSub                },
 };
 
 function StatusPill({ label, count, type }) {
@@ -203,10 +250,12 @@ function PoolCard({ poolType, stats, busy }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <div style={{
             width: '34px', height: '34px', borderRadius: '9px', flexShrink: 0,
-            backgroundColor: isProduct ? 'rgba(124,111,247,0.1)' : 'rgba(16,185,129,0.1)',
+            backgroundColor: isProduct ? D.accentFaint : D.statusDelivered.bg,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-            <span style={{ fontSize: '16px' }}>{isProduct ? '🎟' : '🚚'}</span>
+            {isProduct
+              ? <IconTicket size={16} color={D.accent} />
+              : <IconTruck  size={16} color={D.statusDelivered.color} />}
           </div>
           <div>
             <div style={{ fontSize: '13px', fontWeight: '700', color: D.text }}>
@@ -223,23 +272,25 @@ function PoolCard({ poolType, stats, busy }) {
         {empty ? (
           <span style={{
             fontSize: '10px', fontWeight: '700', padding: '3px 8px', borderRadius: '20px',
-            backgroundColor: isProduct ? '#FEE2E2' : '#F3F4F6',
-            color: isProduct ? '#991B1B' : D.textMuted,
+            backgroundColor: isProduct ? D.errorBg : D.surfaceHigh,
+            color: isProduct ? D.errorText : D.textMuted,
             flexShrink: 0, whiteSpace: 'nowrap',
           }}>
             {isProduct ? 'No codes — required' : 'No codes'}
           </span>
         ) : lowStock ? (
           <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: '4px',
             fontSize: '10px', fontWeight: '700', padding: '3px 8px', borderRadius: '20px',
-            backgroundColor: '#FEF3C7', color: '#92400E', flexShrink: 0, whiteSpace: 'nowrap',
+            backgroundColor: D.warningBg, color: D.warningText, flexShrink: 0, whiteSpace: 'nowrap',
           }}>
-            ⚠ Low — {available} left
+            <IconWarning size={10} color={D.warningText} />
+            Low — {available} left
           </span>
         ) : (
           <span style={{
             fontSize: '10px', fontWeight: '700', padding: '3px 8px', borderRadius: '20px',
-            backgroundColor: '#DCFCE7', color: '#166534', flexShrink: 0, whiteSpace: 'nowrap',
+            backgroundColor: D.statusDelivered.bg, color: D.statusDelivered.color, flexShrink: 0, whiteSpace: 'nowrap',
           }}>
             {available} available
           </span>
@@ -249,8 +300,8 @@ function PoolCard({ poolType, stats, busy }) {
       {/* Stats bar */}
       <div style={{ padding: '12px 18px', borderBottom: `1px solid ${D.border}`, display: 'flex', gap: '16px' }}>
         {[
-          { label: 'Available', val: available, color: '#10B981' },
-          { label: 'Assigned',  val: assigned,  color: '#7C6FF7' },
+          { label: 'Available', val: available, color: D.statusDelivered.dot },
+          { label: 'Assigned',  val: assigned,  color: D.accent },
           { label: 'Used',      val: used,       color: D.textMuted },
         ].map(({ label, val, color }) => (
           <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
@@ -260,9 +311,9 @@ function PoolCard({ poolType, stats, busy }) {
         ))}
         {total > 0 && (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', paddingLeft: '8px' }}>
-            <div style={{ width: '100%', height: '6px', borderRadius: '99px', backgroundColor: 'var(--pt-surface-high)', overflow: 'hidden', display: 'flex' }}>
-              <div style={{ width: `${total ? (available / total) * 100 : 0}%`, backgroundColor: '#10B981', transition: 'width 0.3s' }} />
-              <div style={{ width: `${total ? (assigned / total) * 100 : 0}%`, backgroundColor: '#7C6FF7', transition: 'width 0.3s' }} />
+            <div style={{ width: '100%', height: '6px', borderRadius: '99px', backgroundColor: D.surfaceHigh, overflow: 'hidden', display: 'flex' }}>
+              <div style={{ width: `${total ? (available / total) * 100 : 0}%`, backgroundColor: D.statusDelivered.dot, transition: 'width 0.3s' }} />
+              <div style={{ width: `${total ? (assigned / total) * 100 : 0}%`, backgroundColor: D.accent, transition: 'width 0.3s' }} />
             </div>
           </div>
         )}
@@ -322,7 +373,7 @@ function PoolCard({ poolType, stats, busy }) {
               <input type="hidden" name="poolType" value={poolType} />
               <button type="submit" disabled={busy} style={{
                 padding: '5px 12px', fontSize: '11px', fontWeight: '700', borderRadius: '7px',
-                border: '1px solid #FCA5A5', backgroundColor: '#FEE2E2', color: '#991B1B', cursor: 'pointer',
+                border: `1px solid ${D.errorText}55`, backgroundColor: D.errorBg, color: D.errorText, cursor: 'pointer',
               }}>
                 Delete {available} available {poolType.toLowerCase()} codes
               </button>
@@ -350,10 +401,10 @@ function AnalyticsPoolSection({ poolStats, busy }) {
       {/* Live store notice */}
       <div style={{
         display: 'flex', gap: '10px', padding: '12px 14px',
-        backgroundColor: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: '10px',
+        backgroundColor: D.warningBg, border: `1px solid ${D.warningText}44`, borderRadius: '10px',
       }}>
-        <span style={{ fontSize: '14px', flexShrink: 0 }}>⚠️</span>
-        <div style={{ fontSize: '12px', color: '#78350F', lineHeight: 1.5 }}>
+        <span style={{ flexShrink: 0, paddingTop: '1px' }}><IconWarning size={14} color={D.warningText} /></span>
+        <div style={{ fontSize: '12px', color: D.warningText, lineHeight: 1.5 }}>
           <strong>Requires a live production store.</strong> The <code style={{ fontSize: '11px', backgroundColor: 'rgba(0,0,0,0.06)', padding: '1px 4px', borderRadius: '3px' }}>/discount/</code> redirect
           is blocked on password-protected stores. Switch to <strong>Simple</strong> mode if you're testing on a development store.
         </div>
@@ -369,7 +420,7 @@ function AnalyticsPoolSection({ poolStats, busy }) {
             fontSize: '13px', fontWeight: '700', color: D.text,
           }}
         >
-          <span>📋 How to get discount codes from Shopify</span>
+          <span>How to get discount codes from Shopify</span>
           <span style={{ fontSize: '11px', color: D.textMuted, fontWeight: '500' }}>{guideOpen ? 'Hide ▲' : 'Show ▼'}</span>
         </button>
         {guideOpen && (
@@ -416,12 +467,12 @@ export default function PortalAdmin() {
       </div>
 
       {actionData?.error && (
-        <div style={{ padding: '10px 16px', backgroundColor: '#FEE2E2', color: '#991B1B', borderRadius: '8px', fontSize: '13px', fontWeight: '600' }}>
+        <div style={{ padding: '10px 16px', backgroundColor: D.errorBg, color: D.errorText, borderRadius: '8px', fontSize: '13px', fontWeight: '600' }}>
           {actionData.error}
         </div>
       )}
       {actionData?.ok && actionData?.message && (
-        <div style={{ padding: '10px 16px', backgroundColor: '#DCFCE7', color: '#166534', borderRadius: '8px', fontSize: '13px', fontWeight: '600' }}>
+        <div style={{ padding: '10px 16px', backgroundColor: D.statusDelivered.bg, color: D.statusDelivered.color, borderRadius: '8px', fontSize: '13px', fontWeight: '600' }}>
           {actionData.message}
         </div>
       )}
@@ -521,8 +572,8 @@ export default function PortalAdmin() {
                       fontSize: '11px', fontWeight: '700',
                       borderRadius: '6px',
                       border: `1px solid ${D.border}`,
-                      background: loc.locationType === 'Store' ? '#FFF7ED' : '#EFF6FF',
-                      color:      loc.locationType === 'Store' ? '#92400E' : '#1E40AF',
+                      background: loc.locationType === 'Store' ? D.warningBg : D.statusOrdered.bg,
+                      color:      loc.locationType === 'Store' ? D.warningText : D.statusOrdered.color,
                       cursor: 'pointer', whiteSpace: 'nowrap',
                     }}>
                       {loc.locationType === 'Store' ? t('admin.inventory.type.Store') : t('admin.inventory.type.Online')}
@@ -537,8 +588,8 @@ export default function PortalAdmin() {
                     <button type="submit" disabled={busy} style={{
                       padding: '4px 12px', fontSize: '11px', fontWeight: '700', borderRadius: '6px',
                       border: `1px solid ${D.border}`,
-                      background: loc.isEnabled ? '#DCFCE7' : '#FEE2E2',
-                      color:      loc.isEnabled ? '#166534' : '#991B1B',
+                      background: loc.isEnabled ? D.statusDelivered.bg : D.errorBg,
+                      color:      loc.isEnabled ? D.statusDelivered.color : D.errorText,
                       cursor: 'pointer',
                     }}>
                       {loc.isEnabled ? t('admin.inventory.disable') : t('admin.inventory.enable')}
@@ -574,20 +625,21 @@ export default function PortalAdmin() {
               {[
                 {
                   value: 'simple',
-                  icon: '⚡',
+                  icon: (color) => <IconZap size={15} color={color} />,
                   title: 'Simple',
                   subtitle: 'Recommended',
                   desc: 'Free products and shipping are baked directly into the draft order. Works on all Shopify plans with zero setup — no codes needed.',
                 },
                 {
                   value: 'analytics',
-                  icon: '📊',
+                  icon: (color) => <IconBarChart size={15} color={color} />,
                   title: 'Analytics',
                   subtitle: 'Shopify Plus recommended',
                   desc: 'Real Shopify discount codes are applied at checkout via the /discount/ redirect chain. Lets you track redemptions per influencer in Shopify analytics.',
                 },
               ].map(opt => {
                 const selected = discountMode === opt.value;
+                const iconColor = selected ? D.accent : D.textSub;
                 return (
                   <Form key={opt.value} method="post" style={{ display: 'contents' }} onChange={e => { setDiscountModeLocal(opt.value); e.currentTarget.requestSubmit(); }}>
                     <input type="hidden" name="intent" value="setDiscountMode" />
@@ -601,7 +653,7 @@ export default function PortalAdmin() {
                     }}>
                       <input type="radio" name="_modeRadio" value={opt.value} checked={selected} onChange={() => {}} style={{ display: 'none' }} />
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontSize: '18px', lineHeight: 1 }}>{opt.icon}</span>
+                        <span style={{ lineHeight: 1, display: 'flex' }}>{opt.icon(iconColor)}</span>
                         <div>
                           <span style={{ fontSize: '13px', fontWeight: '700', color: selected ? 'var(--pt-accent)' : D.text }}>
                             {opt.title}

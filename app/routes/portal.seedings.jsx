@@ -160,7 +160,7 @@ export default function PortalSeedings() {
           <p style={{ margin: '2px 0 0', fontSize: '13px', color: D.textSub }}>{total} seeding{total !== 1 ? 's' : ''}{hasFilters ? ' matching filters' : ''}</p>
         </div>
         {canCreate && (
-          <Link to="/portal/new" style={{ padding: '8px 18px', background: 'linear-gradient(135deg, #7C6FF7 0%, #9C8FFF 100%)', color: '#fff', borderRadius: '8px', textDecoration: 'none', fontSize: '13px', fontWeight: '700', boxShadow: '0 2px 6px rgba(124,111,247,0.35)' }}>
+          <Link to="/portal/new" style={{ padding: '8px 18px', background: `linear-gradient(135deg, ${D.accent} 0%, ${D.purple} 100%)`, color: '#fff', borderRadius: '8px', textDecoration: 'none', fontSize: '13px', fontWeight: '700', boxShadow: '0 2px 6px rgba(124,111,247,0.35)' }}>
             {t('seedings.newSeeding')}
           </Link>
         )}
@@ -214,7 +214,9 @@ export default function PortalSeedings() {
         <div style={{ textAlign: 'center', padding: '56px 32px', border: `2px dashed ${D.border}`, borderRadius: '14px' }}>
           {hasFilters ? (
             <>
-              <div style={{ fontSize: '28px', marginBottom: '10px' }}>🔍</div>
+              <div style={{ marginBottom: '12px', color: D.textMuted, display: 'flex', justifyContent: 'center' }}>
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              </div>
               <div style={{ fontSize: '15px', fontWeight: '700', color: D.text, marginBottom: '6px' }}>No seedings match your filters</div>
               <button type="button" onClick={() => setSearchParams(new URLSearchParams())}
                 style={{ marginTop: '6px', padding: '8px 18px', fontSize: '13px', fontWeight: '700', borderRadius: '8px',
@@ -224,7 +226,9 @@ export default function PortalSeedings() {
             </>
           ) : (
             <>
-              <div style={{ fontSize: '36px', marginBottom: '12px' }}>📦</div>
+              <div style={{ marginBottom: '14px', color: D.textMuted, display: 'flex', justifyContent: 'center' }}>
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+              </div>
               <div style={{ fontSize: '16px', fontWeight: '700', color: D.text, marginBottom: '6px' }}>No seedings yet</div>
               <div style={{ fontSize: '13px', color: D.textMuted, marginBottom: '20px', lineHeight: 1.5 }}>
                 Create your first seeding to start tracking influencer gifting.
@@ -259,7 +263,7 @@ export default function PortalSeedings() {
                         <div style={{ fontWeight: '700', color: D.text }}>@{s.influencer.handle}</div>
                         <div style={{ fontSize: '11px', color: D.textMuted, marginTop: '1px' }}>{s.influencer.name}</div>
                         {s.seedingType === 'InStore' && (
-                          <span style={{ display: 'inline-block', marginTop: '3px', fontSize: '9px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.4px', backgroundColor: '#FFF7ED', color: '#92400E', border: '1px solid #FED7AA', borderRadius: '4px', padding: '1px 5px' }}>
+                          <span style={{ display: 'inline-block', marginTop: '3px', fontSize: '9px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.4px', backgroundColor: D.warningBg, color: D.warningText, border: `1px solid ${D.warningText}33`, borderRadius: '4px', padding: '1px 5px' }}>
                             {t('seedings.inStoreBadge')}
                           </span>
                         )}
@@ -331,8 +335,8 @@ export default function PortalSeedings() {
                       </td>
                       <td style={{ padding: '12px 14px' }}>
                         {s.seedingType === 'InStore' ? (
-                          <span style={{ fontSize: '11px', color: '#92400E', fontWeight: '600' }}>
-                            📍 {s.storeLocationName || 'In-Store'}
+                          <span style={{ fontSize: '11px', color: D.warningText, fontWeight: '600' }}>
+                            {s.storeLocationName || 'In-Store'}
                           </span>
                         ) : s.invoiceUrl ? (
                           <button type="button"

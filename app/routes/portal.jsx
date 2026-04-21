@@ -146,6 +146,31 @@ function IconChevronsRight({ size = 14 }) {
     </svg>
   );
 }
+function IconClock({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <polyline points="12 6 12 12 16 14" />
+    </svg>
+  );
+}
+function IconAlertTriangle({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+      <line x1="12" y1="9" x2="12" y2="13" />
+      <line x1="12" y1="17" x2="12.01" y2="17" />
+    </svg>
+  );
+}
+function IconLock({ size = 36 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+    </svg>
+  );
+}
 
 // ── Role colours ──────────────────────────────────────────────────────────────
 const ROLE_LIGHT = {
@@ -569,8 +594,9 @@ function PortalLayoutInner() {
             borderRadius: '10px',
             display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap',
           }}>
-            <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--pt-accent)' }}>
-              ⏳ {billing.daysRemaining} day{billing.daysRemaining !== 1 ? 's' : ''} left in your free trial
+            <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--pt-accent)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <IconClock size={14} color="var(--pt-accent)" />
+              {billing.daysRemaining} day{billing.daysRemaining !== 1 ? 's' : ''} left in your free trial
             </span>
             <a href={billing.upgradeUrl} target="_blank" rel="noreferrer"
               style={{ fontSize: '12px', fontWeight: '700', color: 'var(--pt-accent)', textDecoration: 'none' }}>
@@ -601,7 +627,7 @@ function PortalLayoutInner() {
               textAlign: 'center',
               boxShadow: '0 8px 40px rgba(124,111,247,0.15)',
             }}>
-              <div style={{ fontSize: '40px', marginBottom: '16px' }}>⛔</div>
+              <div style={{ marginBottom: '16px', color: 'var(--pt-accent)', opacity: 0.7 }}><IconLock size={40} /></div>
               <h2 style={{ margin: '0 0 10px', fontSize: '22px', fontWeight: '800', color: 'var(--pt-text)', letterSpacing: '-0.3px' }}>
                 Your free trial has ended
               </h2>
@@ -658,7 +684,7 @@ export function ErrorBoundary() {
         textAlign: 'center',
         boxShadow: '0 4px 24px rgba(124,111,247,0.08)',
       }}>
-        <div style={{ fontSize: '32px', marginBottom: '12px' }}>⚠️</div>
+        <div style={{ marginBottom: '12px', color: '#B45309' }}><IconAlertTriangle size={32} /></div>
         <h2 style={{ margin: '0 0 8px', fontSize: '18px', fontWeight: '800', color: '#1A1523' }}>
           Something went wrong
         </h2>

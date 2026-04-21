@@ -686,9 +686,15 @@ function OnboardingChecklist({ onboarding, discountMode }) {
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-        <div style={{ width: '34px', height: '34px', borderRadius: '9px', backgroundColor: 'rgba(124,111,247,0.1)',
+        <div style={{ width: '34px', height: '34px', borderRadius: '9px', backgroundColor: D.accentFaint,
           display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          <span style={{ fontSize: '16px' }}>🚀</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={D.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2z" opacity="0"/>
+            <path d="M4.5 16.5c-1.5 1.5-4 1.5-4 1.5s0-2.5 1.5-4l6-6c.5-.5 1.5-1.5 3-1.5s3 1 4 2l-4 4-1.5 1.5L4.5 16.5z"/>
+            <path d="M15 9l3-3 2-1-1 2-3 3" />
+            <path d="M9 15c-2 2-4 3-4 3s1-2 3-4"/>
+            <circle cx="17" cy="7" r="1" fill={D.accent} stroke="none"/>
+          </svg>
         </div>
         <div>
           <div style={{ fontSize: '14px', fontWeight: '700', color: 'var(--pt-text)' }}>
@@ -704,7 +710,7 @@ function OnboardingChecklist({ onboarding, discountMode }) {
       <div style={{ height: '4px', borderRadius: '99px', backgroundColor: 'var(--pt-surface-high)',
         marginBottom: '16px', overflow: 'hidden' }}>
         <div style={{ height: '100%', width: `${pct}%`, borderRadius: '99px',
-          background: 'linear-gradient(90deg, #7C6FF7, #A78BFA)', transition: 'width 0.4s' }} />
+          background: `linear-gradient(90deg, ${D.accent}, ${D.purple})`, transition: 'width 0.4s' }} />
       </div>
 
       {/* Steps */}
@@ -714,7 +720,7 @@ function OnboardingChecklist({ onboarding, discountMode }) {
             display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div style={{
               width: '18px', height: '18px', borderRadius: '50%', flexShrink: 0,
-              backgroundColor: step.done ? '#10B981' : 'var(--pt-surface-high)',
+              backgroundColor: step.done ? D.statusDelivered.dot : 'var(--pt-surface-high)',
               border: step.done ? 'none' : '1.5px solid var(--pt-border)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
@@ -756,7 +762,7 @@ function OnboardingChecklist({ onboarding, discountMode }) {
             </fetcher.Form>
             <Link to="/portal/new"
               style={{ padding: '6px 14px', fontSize: '12px', fontWeight: '700', borderRadius: '8px',
-                background: 'linear-gradient(135deg, #7C6FF7 0%, #A78BFA 100%)',
+                background: `linear-gradient(135deg, ${D.accent} 0%, ${D.purple} 100%)`,
                 color: '#fff', textDecoration: 'none', whiteSpace: 'nowrap',
                 boxShadow: '0 2px 8px rgba(124,111,247,0.28)' }}>
               Create first seeding →
@@ -899,8 +905,8 @@ export default function PortalDashboard() {
     padding: '5px 12px', borderRadius: '99px', cursor: 'pointer',
     fontSize: '12px', fontWeight: '600', border: 'none',
     transition: 'all 0.12s',
-    backgroundColor: active ? '#7C6FF7'                       : 'transparent',
-    color:           active ? '#fff'                          : 'var(--pt-text-muted)',
+    backgroundColor: active ? D.accent                          : 'transparent',
+    color:           active ? '#fff'                            : 'var(--pt-text-muted)',
     boxShadow:       active ? '0 1px 4px rgba(124,111,247,0.3)' : 'none',
   });
 
@@ -919,8 +925,8 @@ export default function PortalDashboard() {
         label={t('dashboard.stat.cogs')}
         value={`€${fmtNum(totalCogs)}`}
         icon={<IconTag />}
-        iconColor="#7C6FF7"
-        iconBg="rgba(124,111,247,0.1)"
+        iconColor={D.accent}
+        iconBg={D.accentFaint}
       />
       <StatCard
         label={t('dashboard.stat.units')}
@@ -1103,8 +1109,8 @@ export default function PortalDashboard() {
 
   const renderLocations = () => {
     const LOC_COLORS = {
-      Online:  { bg: 'rgba(59,130,246,0.10)', text: '#3B82F6' },
-      InStore: { bg: 'rgba(16,185,129,0.10)', text: '#10B981' },
+      Online:  { bg: D.statusOrdered.bg,   text: D.statusOrdered.color   },
+      InStore: { bg: D.statusDelivered.bg, text: D.statusDelivered.color  },
     };
     return (
       <div>

@@ -251,8 +251,8 @@ export default function PortalCampaigns() {
               <label style={labelStyle}>{t('campaigns.form.type')}</label>
               <div style={{ display: 'flex', gap: '8px' }}>
                 {[
-                  { value: 'seeding', label: t('campaigns.form.typeSeeding'), icon: '📦' },
-                  { value: 'event',   label: t('campaigns.form.typeEvent'),   icon: '🎯' },
+                  { value: 'seeding', label: t('campaigns.form.typeSeeding') },
+                  { value: 'event',   label: t('campaigns.form.typeEvent')   },
                 ].map(opt => (
                   <button key={opt.value} type="button"
                     onClick={() => setCampaignType(opt.value)}
@@ -264,7 +264,7 @@ export default function PortalCampaigns() {
                       color: campaignType === opt.value ? D.accent : D.textSub,
                       transition: 'all 0.12s',
                     }}>
-                    {opt.icon} {opt.label}
+                    {opt.label}
                   </button>
                 ))}
               </div>
@@ -348,7 +348,9 @@ export default function PortalCampaigns() {
                         )}
                         {prod.image
                           ? <img src={prod.image} alt={prod.name} style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block' }} />
-                          : <div style={{ width: '100%', aspectRatio: '1', backgroundColor: D.surfaceHigh, display: 'flex', alignItems: 'center', justifyContent: 'center', color: D.textMuted, fontSize: '22px' }}>📦</div>
+                          : <div style={{ width: '100%', aspectRatio: '1', backgroundColor: D.surfaceHigh, display: 'flex', alignItems: 'center', justifyContent: 'center', color: D.textMuted }}>
+                              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+                            </div>
                         }
                         <div style={{ padding: '5px 7px' }}>
                           <div style={{ fontSize: '11px', fontWeight: '700', color: D.text, lineHeight: 1.3, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
@@ -394,7 +396,7 @@ export default function PortalCampaigns() {
             )}
 
             {actionData?.error && (
-              <div style={{ padding: '10px 14px', backgroundColor: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '8px', color: '#DC2626', fontSize: '13px', marginBottom: '12px' }}>
+              <div style={{ padding: '10px 14px', backgroundColor: D.errorBg, border: `1px solid ${D.errorText}33`, borderRadius: '8px', color: D.errorText, fontSize: '13px', marginBottom: '12px' }}>
                 {actionData.error}
               </div>
             )}
@@ -438,7 +440,7 @@ export default function PortalCampaigns() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '5px', flexWrap: 'wrap' }}>
                       <span style={{ fontSize: '15px', fontWeight: '800', color: D.text }}>{c.title}</span>
                       {c.type === 'event' && (
-                        <span style={{ fontSize: '10px', fontWeight: '700', color: '#7C3AED', backgroundColor: 'rgba(124,58,237,0.1)', borderRadius: '99px', padding: '2px 8px' }}>🎯 EVENT</span>
+                        <span style={{ fontSize: '10px', fontWeight: '700', color: D.accent, backgroundColor: D.accentFaint, borderRadius: '99px', padding: '2px 8px', letterSpacing: '0.4px' }}>EVENT</span>
                       )}
                       {allocFull && <span style={{ fontSize: '10px', fontWeight: '700', color: '#DC2626', backgroundColor: 'rgba(239,68,68,0.1)', borderRadius: '99px', padding: '2px 8px' }}>FULL</span>}
                       {budgetOver && <span style={{ fontSize: '10px', fontWeight: '700', color: '#D97706', backgroundColor: 'rgba(245,158,11,0.1)', borderRadius: '99px', padding: '2px 8px' }}>OVER BUDGET</span>}
@@ -452,7 +454,7 @@ export default function PortalCampaigns() {
                         </span>
                       )}
                       {c.type === 'event' && c.eventDate && (
-                        <span>📅 {fmtDate(c.eventDate, 'short')}{c.eventLocation ? ` · ${c.eventLocation}` : ''}</span>
+                        <span>{fmtDate(c.eventDate, 'short')}{c.eventLocation ? ` · ${c.eventLocation}` : ''}</span>
                       )}
                       {c.type !== 'event' && c.startDate && <span>{fmtDate(c.startDate, 'short')} – {c.endDate ? fmtDate(c.endDate, 'short') : '…'}</span>}
                       {c.type !== 'event' && !c.startDate && <span>{fmtDate(c.createdAt, 'medium')}</span>}

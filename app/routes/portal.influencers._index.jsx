@@ -274,7 +274,7 @@ export default function PortalInfluencers() {
           )}
           {canCreate && (
             <button onClick={() => { setShowForm(v => !v); setShowImport(false); setTierPick(null); }}
-              style={{ padding: '7px 16px', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', border: 'none', background: showForm ? D.surfaceHigh : 'linear-gradient(135deg, #7C6FF7 0%, #9C8FFF 100%)', color: showForm ? D.textSub : '#fff', boxShadow: showForm ? 'none' : '0 2px 6px rgba(124,111,247,0.35)' }}>
+              style={{ padding: '7px 16px', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', border: 'none', background: showForm ? D.surfaceHigh : `linear-gradient(135deg, ${D.accent} 0%, ${D.purple} 100%)`, color: showForm ? D.textSub : '#fff', boxShadow: showForm ? 'none' : '0 2px 6px rgba(124,111,247,0.35)' }}>
               {showForm ? t('common.cancel') : t('influencers.addInfluencer')}
             </button>
           )}
@@ -530,7 +530,9 @@ export default function PortalInfluencers() {
           </div>
         ) : (
           <div style={{ textAlign: 'center', padding: '56px 32px', border: `2px dashed ${D.border}`, borderRadius: '14px' }}>
-            <div style={{ fontSize: '36px', marginBottom: '12px' }}>👤</div>
+            <div style={{ marginBottom: '14px', color: D.textMuted, display: 'flex', justifyContent: 'center' }}>
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
             <div style={{ fontSize: '16px', fontWeight: '700', color: D.text, marginBottom: '6px' }}>
               No influencers yet
             </div>
