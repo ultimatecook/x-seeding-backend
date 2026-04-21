@@ -123,9 +123,11 @@ export async function action({ request }) {
     const handle    = String(formData.get('handle')    || '').slice(0, 100).trim();
     const country   = String(formData.get('country')   || '').slice(0, 100).trim();
     const followers = Math.max(0, parseInt(formData.get('followers') || '0') || 0);
+    const genderRaw = String(formData.get('gender') || '').trim();
+    const gender    = ['Male', 'Female'].includes(genderRaw) ? genderRaw : null;
     if (!handle) return { error: 'Handle is required.' };
     const inf = await prisma.influencer.create({
-      data: { shop, handle, name: handle.replace(/^@/, ''), followers, country },
+      data: { shop, handle, name: handle.replace(/^@/, ''), followers, country, gender },
     });
     await audit({ shop, portalUser, action: 'created_influencer', entityType: 'influencer', entityId: inf.id, detail: `Created ${handle}` });
     return { created: true };
@@ -202,12 +204,13 @@ export default function PortalInfluencers() {
   const [showImport,   setShowImport]   = useState(false);
   const [selected,     setSelected]     = useState(new Set());
   const [tierPick,     setTierPick]     = useState(null);
+  const [newGender,    setNewGender]    = useState('');
   const [localQ,       setLocalQ]       = useState(initQ);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   // Close forms / reset state after successful actions
   useEffect(() => {
-    if (actionData?.created)              { setShowForm(false); setTierPick(null); }
+    if (actionData?.created)              { setShowForm(false); setTierPick(null); setNewGender(''); }
     if (actionData?.imported)             { setShowImport(false); }
     if (actionData?.bulkDeleted != null)  { setSelected(new Set()); setConfirmDelete(false); }
   }, [actionData]);
@@ -222,9 +225,9 @@ export default function PortalInfluencers() {
     { key: 'gt100k',   label: '100K+' },
   ];
   const GENDERS = [
-    { key: 'all',    label: 'Any gender' },
-    { key: 'Female', label: '♀ Female' },
-    { key: 'Male',   label: '♂ Male' },
+    { key: 'all',    label: 'Any' },
+    { key: 'Male',   label: 'Male' },
+    { key: 'Female', label: 'Female' },
   ];
 
   // Navigate with updated search params
@@ -332,13 +335,35 @@ export default function PortalInfluencers() {
             <input type="hidden" name="intent" value="create" />
             <input type="hidden" name="followers" value={tierPick?.value ?? 0} />
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px', marginBottom: '16px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '14px', marginBottom: '16px' }}>
               {/* Handle */}
               <div>
                 <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.6px', color: D.textSub, marginBottom: '6px' }}>
                   Instagram Handle *
                 </label>
                 <input name="handle" required placeholder="@sofia_gs" style={inputSt} />
+              </div>
+
+              {/* Gender */}
+              <div>
+                <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.6px', color: D.textSub, marginBottom: '6px' }}>Gender</div>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  {['Male', 'Female'].map(g => {
+                    const active = newGender === g;
+                    return (
+                      <button key={g} type="button" onClick={() => setNewGender(active ? '' : g)} style={{
+                        padding: '6px 12px', borderRadius: '8px', cursor: 'pointer',
+                        border: `1.5px solid ${active ? D.accent : D.border}`,
+                        backgroundColor: active ? D.accentLight : 'transparent',
+                        color: active ? D.accent : D.textSub,
+                        fontSize: '12px', fontWeight: active ? '700' : '500',
+                      }}>
+                        {g}
+                      </button>
+                    );
+                  })}
+                </div>
+                <input type="hidden" name="gender" value={newGender} />
               </div>
 
               {/* Tier pills */}

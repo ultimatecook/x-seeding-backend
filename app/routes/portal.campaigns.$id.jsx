@@ -655,14 +655,14 @@ export default function PortalCampaignDetail() {
               </div>
               {/* Gender + follower filters */}
               <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', marginBottom: '8px' }}>
-                {['all', 'Female', 'Male'].map(g => (
+                {['all', 'Male', 'Female'].map(g => (
                   <button key={g} type="button" onClick={() => setGuestGenderFilter(g)} style={{
                     padding: '3px 10px', borderRadius: '20px', cursor: 'pointer', fontSize: '11px', fontWeight: '600',
                     border: `1.5px solid ${guestGenderFilter === g ? 'var(--pt-accent)' : 'var(--pt-border)'}`,
                     backgroundColor: guestGenderFilter === g ? 'var(--pt-accent-light)' : 'transparent',
                     color: guestGenderFilter === g ? 'var(--pt-accent)' : 'var(--pt-text-muted)',
                   }}>
-                    {g === 'all' ? 'Any' : g === 'Female' ? '♀ F' : '♂ M'}
+                    {g === 'all' ? 'Any' : g}
                   </button>
                 ))}
                 <div style={{ width: '1px', backgroundColor: 'var(--pt-border)', margin: '0 2px' }} />
