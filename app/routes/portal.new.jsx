@@ -315,11 +315,9 @@ export async function action({ request }) {
     }
   }
 
-  let shopifyDraftOrderId  = null;
-  let shopifyOrderName     = null;
-  let invoiceUrl           = null;
-  let draftOrderNumericId  = null; // kept so we can update the draft order after codes are assigned
-  let draftOrderSession    = null; // same
+  let shopifyDraftOrderId = null;
+  let shopifyOrderName    = null;
+  let invoiceUrl          = null;
 
   // Only create a Shopify draft order for online seedings
   if (seedingType === 'Online') {
@@ -357,8 +355,6 @@ export async function action({ request }) {
             shopifyDraftOrderId = `gid://shopify/DraftOrder/${draft.id}`;
             shopifyOrderName    = draft.name;
             invoiceUrl          = draft.invoice_url ?? null;
-            draftOrderNumericId = draft.id;
-            draftOrderSession   = session;
             console.log('Portal: draft order created via REST, invoiceUrl:', invoiceUrl);
           } else {
             console.warn('Portal: REST draft order not returned. Body:', JSON.stringify(body));
@@ -402,19 +398,19 @@ export async function action({ request }) {
     }
   }
 
-  // Assign discount codes from pool, then wire up both discounts on the checkout:
+  // Assign discount codes from pool, then build a /discount/ redirect chain so
+  // Shopify pre-applies BOTH codes before the influencer reaches checkout.
   //
-  //   Products free  → applied_discount on the draft order (100 % off, title = product code)
-  //                    This is an order-level inline discount — works on every Shopify plan,
-  //                    bypasses store password, and makes products free regardless of whether
-  //                    the code exists as a Shopify discount code in the store.
+  // Pattern (Shopify Plus — supports multiple codes per order):
+  //   https://SHOP/discount/PRODUCT_CODE?redirect=/discount/SHIPPING_CODE?redirect=INVOICE_PATH
   //
-  //   Shipping free  → ?discount=SHIPPING_CODE appended to the invoice URL
-  //                    Invoice URLs bypass the store password. Shopify checkout picks up the
-  //                    ?discount= param and applies the shipping discount code.
+  // Each hop applies the code to the buyer's session then follows the redirect.
+  // The invoice URL is the final destination — Shopify loads the checkout with
+  // both codes already active so everything is €0 with no manual entry required.
   //
-  // Together: the influencer clicks the link → products already free (inline discount)
-  //           → shipping code pre-applied → everything costs €0.
+  // Note: this chain goes through the storefront, so it requires the store to NOT
+  // be password-protected. Password protection is a dev/test-only setting and is
+  // never present on live merchant stores.
   let assignedCodes = null;
   try {
     assignedCodes = await assignDiscountCodes(shop, seeding.id);
@@ -427,34 +423,26 @@ export async function action({ request }) {
     const productCode  = updated?.productDiscountCode;
     const shippingCode = updated?.shippingDiscountCode;
 
-    // ── 1. Update draft order: add 100 % applied_discount using pool code as title ──
-    if (draftOrderNumericId && draftOrderSession?.accessToken) {
+    if ((productCode || shippingCode) && invoiceUrl) {
       try {
-        await fetch(`https://${shop}/admin/api/2025-10/draft_orders/${draftOrderNumericId}.json`, {
-          method:  'PUT',
-          headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': draftOrderSession.accessToken },
-          body: JSON.stringify({
-            draft_order: {
-              applied_discount: {
-                value:       '100.0',
-                value_type:  'percentage',
-                title:       productCode ?? 'Seeding Gift',
-              },
-            },
-          }),
-        });
-        console.log('Portal: draft order updated with applied_discount, title:', productCode);
-      } catch (e) {
-        console.warn('Portal: could not update draft order discount:', e.message);
-      }
-    }
+        const invoicePath = new URL(invoiceUrl).pathname;
+        let discountUrl;
 
-    // ── 2. Append shipping code to invoice URL so checkout pre-applies it ──────
-    if (shippingCode && invoiceUrl) {
-      const sep          = invoiceUrl.includes('?') ? '&' : '?';
-      const urlWithCode  = `${invoiceUrl}${sep}discount=${shippingCode}`;
-      await prisma.seeding.update({ where: { id: seeding.id }, data: { invoiceUrl: urlWithCode } });
-      console.log('Portal: invoice URL updated with shipping code:', shippingCode);
+        if (productCode && shippingCode) {
+          // Chain: apply product → apply shipping → land on invoice checkout
+          const inner = `/discount/${encodeURIComponent(shippingCode)}?redirect=${encodeURIComponent(invoicePath)}`;
+          discountUrl = `https://${shop}/discount/${encodeURIComponent(productCode)}?redirect=${encodeURIComponent(inner)}`;
+        } else if (productCode) {
+          discountUrl = `https://${shop}/discount/${encodeURIComponent(productCode)}?redirect=${encodeURIComponent(invoicePath)}`;
+        } else {
+          discountUrl = `https://${shop}/discount/${encodeURIComponent(shippingCode)}?redirect=${encodeURIComponent(invoicePath)}`;
+        }
+
+        await prisma.seeding.update({ where: { id: seeding.id }, data: { invoiceUrl: discountUrl } });
+        console.log('Portal: discount chain URL built:', productCode, '+', shippingCode);
+      } catch (urlErr) {
+        console.warn('Portal: could not build discount chain URL:', urlErr.message);
+      }
     }
   } catch (e) {
     console.warn('Portal: could not assign discount codes:', e.message);
