@@ -265,12 +265,19 @@ export async function action({ request }) {
   const billingRow   = await prisma.shopBilling.findUnique({ where: { shop }, select: { discountMode: true } });
   const discountMode = billingRow?.discountMode ?? 'simple';
 
-  // Analytics mode: codes are required from the pool.
-  // Simple mode: no codes needed — discount is applied inline to the draft order.
-  if (discountMode === 'analytics') {
+  // Analytics mode: pool codes required for every seeding.
+  // Simple mode + Online: no codes needed — discount baked inline into draft order.
+  // Simple mode + InStore: pool codes still required — the POS always needs a real
+  //   Shopify discount code to apply; there's no draft-order alternative at a till.
+  const needsPoolCode = discountMode === 'analytics' || seedingType === 'InStore';
+  if (needsPoolCode) {
     const availableProductCount = await prisma.discountCode.count({ where: { shop, poolType: 'Product', status: 'Available' } });
     if (availableProductCount === 0) {
-      return { error: 'No product discount codes available. Please add codes to the pool in Admin → Discounts, or switch to Simple checkout mode.' };
+      return {
+        error: seedingType === 'InStore'
+          ? 'In-store seedings require a Shopify discount code for the retail POS. Add product codes in Admin → Discount Codes.'
+          : 'No product discount codes available. Please add codes to the pool in Admin → Discounts, or switch to Simple checkout mode.',
+      };
     }
   }
 
@@ -424,38 +431,40 @@ export async function action({ request }) {
 
   // ── Discount code assignment + checkout URL ───────────────────────────────
   //
-  // Simple mode: discount was baked into the draft order inline (applied_discount + shipping_line).
-  //   → invoiceUrl is used as-is; no codes assigned from pool.
-  //
-  // Analytics mode:
-  //   No shipping pool  → /discount/PRODUCT?redirect=INVOICE_PATH
-  //   Shipping pool     → /discount/PRODUCT?redirect=/discount/SHIPPING?redirect=INVOICE_PATH
-  if (discountMode === 'analytics') {
+  // Simple mode + Online:  discount baked into draft order — no pool code needed.
+  // Simple mode + InStore: assign a pool code for the POS; no checkout URL built.
+  // Analytics mode + Online:  assign code, build /discount/ redirect URL.
+  // Analytics mode + InStore: assign code for POS; no checkout URL needed.
+  if (needsPoolCode) {
     try {
       await assignDiscountCodes(shop, seeding.id);
-      const updated = await prisma.seeding.findUnique({
-        where:  { id: seeding.id },
-        select: { productDiscountCode: true, shippingDiscountCode: true },
-      });
 
-      const productCode  = updated?.productDiscountCode  ?? null;
-      const shippingCode = updated?.shippingDiscountCode ?? null;
+      // Build the /discount/ checkout redirect only for analytics + online seedings.
+      if (discountMode === 'analytics' && seedingType === 'Online') {
+        const updated = await prisma.seeding.findUnique({
+          where:  { id: seeding.id },
+          select: { productDiscountCode: true, shippingDiscountCode: true },
+        });
 
-      if (productCode && invoiceUrl) {
-        let finalUrl;
-        if (shippingCode) {
-          // Shopify Plus chain: product code → shipping code → invoice checkout
-          const invoicePath   = new URL(invoiceUrl).pathname + new URL(invoiceUrl).search;
-          const innerRedirect = `/discount/${shippingCode}?redirect=${encodeURIComponent(invoicePath)}`;
-          finalUrl = `https://${shop}/discount/${productCode}?redirect=${encodeURIComponent(innerRedirect)}`;
-          console.log('Portal: Plus chain URL built, productCode:', productCode, 'shippingCode:', shippingCode);
-        } else {
-          // Single code: pre-apply product code then redirect to invoice checkout
-          const invoicePath = new URL(invoiceUrl).pathname + new URL(invoiceUrl).search;
-          finalUrl = `https://${shop}/discount/${productCode}?redirect=${encodeURIComponent(invoicePath)}`;
-          console.log('Portal: analytics /discount/ URL, productCode:', productCode);
+        const productCode  = updated?.productDiscountCode  ?? null;
+        const shippingCode = updated?.shippingDiscountCode ?? null;
+
+        if (productCode && invoiceUrl) {
+          let finalUrl;
+          if (shippingCode) {
+            // Shopify Plus chain: product code → shipping code → invoice checkout
+            const invoicePath   = new URL(invoiceUrl).pathname + new URL(invoiceUrl).search;
+            const innerRedirect = `/discount/${shippingCode}?redirect=${encodeURIComponent(invoicePath)}`;
+            finalUrl = `https://${shop}/discount/${productCode}?redirect=${encodeURIComponent(innerRedirect)}`;
+            console.log('Portal: Plus chain URL built, productCode:', productCode, 'shippingCode:', shippingCode);
+          } else {
+            // Single code: pre-apply product code then redirect to invoice checkout
+            const invoicePath = new URL(invoiceUrl).pathname + new URL(invoiceUrl).search;
+            finalUrl = `https://${shop}/discount/${productCode}?redirect=${encodeURIComponent(invoicePath)}`;
+            console.log('Portal: analytics /discount/ URL, productCode:', productCode);
+          }
+          await prisma.seeding.update({ where: { id: seeding.id }, data: { invoiceUrl: finalUrl } });
         }
-        await prisma.seeding.update({ where: { id: seeding.id }, data: { invoiceUrl: finalUrl } });
       }
     } catch (e) {
       console.warn('Portal: could not assign discount codes:', e.message);
@@ -772,8 +781,11 @@ export default function PortalNewSeeding() {
     : storeLocations.length > 0;
   const hasSelectedStore = seedingType === 'InStore' ? selectedStore !== null : true;
   // In analytics mode codes are consumed from the pool, so we gate submission on availability.
-  // In simple mode discount is baked inline — no pool codes needed.
-  const hasProductCodes = discountMode === 'analytics' ? availableProductCodes > 0 : true;
+  // Online + simple: discount baked inline, no pool needed.
+  // InStore (any mode) or analytics: pool codes are required.
+  const hasProductCodes = (discountMode === 'analytics' || seedingType === 'InStore')
+    ? availableProductCodes > 0
+    : true;
   const canSubmit = !submitting && selectedInfluencer && selectedProducts.length > 0 && allHaveSizes && hasEnabledLocation && hasSelectedStore && hasProductCodes;
 
   async function handleSubmit(e) {
@@ -805,25 +817,25 @@ export default function PortalNewSeeding() {
           </p>
 
           {productCode ? (
-            <div style={{ backgroundColor: '#F3F0FF', border: '1.5px solid #C4B5FD', borderRadius: '12px', padding: '20px' }}>
-              <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.6px', color: '#6D28D9', marginBottom: '8px' }}>
+            <div style={{ backgroundColor: D.accentFaint, border: `1.5px solid ${D.accent}44`, borderRadius: '12px', padding: '20px' }}>
+              <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.6px', color: D.accent, marginBottom: '8px' }}>
                 {t('newSeeding.success.code')}
               </div>
               <div style={{
                 fontFamily: 'monospace', fontSize: '28px', fontWeight: '800',
-                color: '#4C1D95', letterSpacing: '3px', userSelect: 'all',
+                color: D.text, letterSpacing: '3px', userSelect: 'all',
               }}>
                 {productCode}
               </div>
               <button
                 type="button"
                 onClick={() => navigator.clipboard.writeText(productCode)}
-                style={{ marginTop: '10px', padding: '5px 14px', fontSize: '11px', fontWeight: '700', borderRadius: '6px', border: '1px solid #C4B5FD', backgroundColor: '#EDE9FE', color: '#5B21B6', cursor: 'pointer' }}>
+                style={{ marginTop: '10px', padding: '5px 14px', fontSize: '11px', fontWeight: '700', borderRadius: '6px', border: `1px solid ${D.border}`, backgroundColor: D.accentLight, color: D.accent, cursor: 'pointer' }}>
                 {t('newSeeding.success.copyCode')}
               </button>
             </div>
           ) : (
-            <div style={{ padding: '16px', backgroundColor: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: '10px', fontSize: '13px', color: '#92400E' }}>
+            <div style={{ padding: '16px', backgroundColor: D.warningBg, border: `1px solid ${D.warningText}44`, borderRadius: '10px', fontSize: '13px', color: D.warningText }}>
               {t('newSeeding.success.noCode')}
             </div>
           )}
