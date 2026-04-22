@@ -9,6 +9,55 @@ import { D, Pinput as input } from '../utils/portal-theme';
 import { useT } from '../utils/i18n';
 import { releaseDiscountCodes } from '../utils/discount-codes.server';
 
+// ── SVG icons ─────────────────────────────────────────────────────────────────
+function IconTarget({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: 'inline', flexShrink: 0, verticalAlign: 'middle' }}>
+      <circle cx="8" cy="8" r="6.5" stroke={color} strokeWidth="1.4"/>
+      <circle cx="8" cy="8" r="3.5" stroke={color} strokeWidth="1.4"/>
+      <circle cx="8" cy="8" r="1" fill={color}/>
+    </svg>
+  );
+}
+function IconCalendar({ size = 14, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: 'inline', flexShrink: 0, verticalAlign: 'middle' }}>
+      <rect x="1.5" y="3" width="13" height="11.5" rx="2" stroke={color} strokeWidth="1.4"/>
+      <path d="M1.5 7h13" stroke={color} strokeWidth="1.4"/>
+      <path d="M5 1.5V4M11 1.5V4" stroke={color} strokeWidth="1.4" strokeLinecap="round"/>
+    </svg>
+  );
+}
+function IconPin({ size = 14, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: 'inline', flexShrink: 0, verticalAlign: 'middle' }}>
+      <path d="M8 1.5C5.79 1.5 4 3.29 4 5.5c0 3 4 8.5 4 8.5s4-5.5 4-8.5c0-2.21-1.79-4-4-4z" stroke={color} strokeWidth="1.4" strokeLinejoin="round"/>
+      <circle cx="8" cy="5.5" r="1.5" fill={color}/>
+    </svg>
+  );
+}
+function IconBox({ size = 16, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: 'inline', flexShrink: 0, verticalAlign: 'middle' }}>
+      <path d="M2 5l6-3 6 3v6l-6 3-6-3V5z" stroke={color} strokeWidth="1.3" strokeLinejoin="round"/>
+      <path d="M2 5l6 3 6-3M8 8v6" stroke={color} strokeWidth="1.3"/>
+    </svg>
+  );
+}
+function IconWarning({ size = 14, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: 'inline', flexShrink: 0, verticalAlign: 'middle' }}>
+      <path d="M8 2L1.5 13.5h13L8 2z" stroke={color} strokeWidth="1.4" strokeLinejoin="round"/>
+      <path d="M8 6.5v3.5" stroke={color} strokeWidth="1.5" strokeLinecap="round"/>
+      <circle cx="8" cy="12" r="0.75" fill={color}/>
+    </svg>
+  );
+}
+
+// ── Semantic gender colours (not in D.* — brand-agnostic pink/blue) ───────────
+const FEMALE_COLOR = '#EC4899';
+const MALE_COLOR   = '#3B82F6';
+
 // ── Status config ─────────────────────────────────────────────────────────────
 const STATUS_META = {
   Pending:   { bg: D.statusPending.bg,   text: D.statusPending.color,   dot: D.statusPending.dot   },
@@ -20,15 +69,15 @@ const STATUS_META = {
 const STATUSES = ['Pending', 'Ordered', 'Shipped', 'Delivered', 'Posted'];
 
 const GUEST_STATUS = {
-  invited:       { label: 'Invited',       bg: 'rgba(100,116,139,0.10)', text: '#475569', dot: '#94A3B8' },
-  confirmed:     { label: 'Confirmed',     bg: 'rgba(59,130,246,0.10)',  text: '#2563EB', dot: '#3B82F6' },
-  not_available: { label: 'Not Available', bg: 'rgba(239,68,68,0.08)',   text: '#DC2626', dot: '#EF4444' },
+  invited:       { label: 'Invited',       bg: D.surfaceHigh,           text: D.textSub,              dot: D.textMuted              },
+  confirmed:     { label: 'Confirmed',     bg: D.statusOrdered.bg,      text: D.statusOrdered.color,  dot: D.statusOrdered.dot      },
+  not_available: { label: 'Not Available', bg: D.errorBg,               text: D.errorText,             dot: D.errorText              },
 };
 
 const ALLOC = {
-  ok:   { bar: '#7C6FF7', badge: 'rgba(124,111,247,0.10)', text: '#7C6FF7' },
-  warn: { bar: '#F59E0B', badge: 'rgba(245,158,11,0.12)',  text: '#D97706' },
-  full: { bar: '#EF4444', badge: 'rgba(239,68,68,0.10)',   text: '#DC2626' },
+  ok:   { bar: D.accent,             badge: D.accentFaint,          text: D.accent     },
+  warn: { bar: D.statusPending.dot,  badge: D.statusPending.bg,     text: D.statusPending.color },
+  full: { bar: D.errorText,          badge: D.errorBg,              text: D.errorText  },
 };
 function allocTier(used, allocated) {
   if (!allocated) return 'ok';
@@ -502,7 +551,7 @@ export default function PortalCampaignDetail() {
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
             <h2 style={{ margin: 0, fontSize: '22px', fontWeight: '800', color: D.text, letterSpacing: '-0.3px' }}>
-              {isEvent && <span style={{ marginRight: '8px' }}>🎯</span>}
+              {isEvent && <span style={{ marginRight: '8px', display: 'inline-flex', verticalAlign: 'middle' }}><IconTarget size={18} color={D.accent} /></span>}
               {campaign.title}
             </h2>
             {campaign.archived && (
@@ -513,10 +562,10 @@ export default function PortalCampaignDetail() {
           </div>
           <div style={{ fontSize: '13px', color: D.textSub, display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
             {isEvent && campaign.eventDate && (
-              <span>📅 {fmtDate(campaign.eventDate, 'medium')}</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}><IconCalendar size={12} color={D.textSub} /> {fmtDate(campaign.eventDate, 'medium')}</span>
             )}
             {isEvent && campaign.eventLocation && (
-              <span>📍 {campaign.eventLocation}</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}><IconPin size={12} color={D.textSub} /> {campaign.eventLocation}</span>
             )}
             {!isEvent && campaign.startDate && (
               <span>{fmtDate(campaign.startDate, 'short')} – {campaign.endDate ? fmtDate(campaign.endDate, 'short') : '…'}</span>
@@ -551,7 +600,7 @@ export default function PortalCampaignDetail() {
             </>
           )}
           {canCreate && !campaign.archived && !isEvent && (
-            <Link to="/portal/new" style={{ padding: '8px 18px', background: 'linear-gradient(135deg, #7C6FF7 0%, #9C8FFF 100%)', color: '#fff', borderRadius: '8px', textDecoration: 'none', fontSize: '13px', fontWeight: '700', boxShadow: '0 2px 6px rgba(124,111,247,0.35)' }}>
+            <Link to="/portal/new" style={{ padding: '8px 18px', background: `linear-gradient(135deg, ${D.accent}, ${D.purple})`, color: '#fff', borderRadius: '8px', textDecoration: 'none', fontSize: '13px', fontWeight: '700', boxShadow: `0 2px 6px ${D.accent}55` }}>
               {t('campaign.addSeeding')}
             </Link>
           )}
@@ -581,12 +630,19 @@ export default function PortalCampaignDetail() {
               <label style={sLabel}>Type</label>
               <input type="hidden" name="type" value={editType} />
               <div style={{ display: 'flex', gap: '8px' }}>
-                {[{ value: 'seeding', icon: '📦', label: 'Seeding' }, { value: 'event', icon: '🎯', label: 'PR Event' }].map(opt => (
-                  <button key={opt.value} type="button" onClick={() => setEditType(opt.value)}
-                    style={{ padding: '8px 18px', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600', border: `2px solid ${editType === opt.value ? D.accent : D.border}`, backgroundColor: editType === opt.value ? D.accentFaint : 'transparent', color: editType === opt.value ? D.accent : D.textSub, transition: 'all 0.12s' }}>
-                    {opt.icon} {opt.label}
-                  </button>
-                ))}
+                {[
+                  { value: 'seeding', icon: (c) => <IconBox size={14} color={c} />,    label: 'Seeding'  },
+                  { value: 'event',   icon: (c) => <IconTarget size={14} color={c} />, label: 'PR Event' },
+                ].map(opt => {
+                  const active = editType === opt.value;
+                  const ic = active ? D.accent : D.textSub;
+                  return (
+                    <button key={opt.value} type="button" onClick={() => setEditType(opt.value)}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 18px', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600', border: `2px solid ${active ? D.accent : D.border}`, backgroundColor: active ? D.accentFaint : 'transparent', color: ic, transition: 'all 0.12s' }}>
+                      {opt.icon(ic)} {opt.label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -658,24 +714,24 @@ export default function PortalCampaignDetail() {
 
       {/* ── Budget panel ─────────────────────────────────────────── */}
       {budgetTotal != null && (
-        <div style={{ backgroundColor: D.surface, border: `1px solid ${budgetOver ? '#FECACA' : D.border}`, borderRadius: '12px', padding: '20px 24px', boxShadow: D.shadow }}>
+        <div style={{ backgroundColor: D.surface, border: `1px solid ${budgetOver ? D.errorText + '44' : D.border}`, borderRadius: '12px', padding: '20px 24px', boxShadow: D.shadow }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
             <span style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.8px', color: D.textMuted }}>
               {t('campaign.budgetPanel.title')}
             </span>
             {budgetOver && (
-              <span style={{ fontSize: '11px', fontWeight: '700', color: '#DC2626', backgroundColor: 'rgba(239,68,68,0.1)', borderRadius: '99px', padding: '3px 10px' }}>
-                ⚠ {t('campaign.budgetPanel.overBudget')}
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '11px', fontWeight: '700', color: D.errorText, backgroundColor: D.errorBg, borderRadius: '99px', padding: '3px 10px' }}>
+                <IconWarning size={12} color={D.errorText} /> {t('campaign.budgetPanel.overBudget')}
               </span>
             )}
           </div>
           <div style={{ height: '8px', backgroundColor: D.surfaceHigh, borderRadius: '99px', overflow: 'hidden', marginBottom: '14px' }}>
-            <div style={{ height: '100%', width: `${Math.min(budgetPct, 100)}%`, backgroundColor: budgetOver ? '#EF4444' : budgetPct >= 80 ? '#F59E0B' : '#7C6FF7', borderRadius: '99px', transition: 'width 0.3s' }} />
+            <div style={{ height: '100%', width: `${Math.min(budgetPct, 100)}%`, backgroundColor: budgetOver ? D.errorText : budgetPct >= 80 ? D.statusPending.dot : D.accent, borderRadius: '99px', transition: 'width 0.3s' }} />
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
             <BudgetStat label={t('campaign.budgetPanel.total')}     value={`€${fmtNum(budgetTotal)}`}          color={D.text} />
-            <BudgetStat label={t('campaign.budgetPanel.used')}      value={`€${fmtNum(budgetUsed)}`}           color={budgetOver ? '#DC2626' : D.text} />
-            <BudgetStat label={budgetOver ? t('campaign.budgetPanel.exceeded') : t('campaign.budgetPanel.remaining')} value={`€${fmtNum(Math.abs(budgetRemain))}`} color={budgetOver ? '#DC2626' : '#10B981'} />
+            <BudgetStat label={t('campaign.budgetPanel.used')}      value={`€${fmtNum(budgetUsed)}`}           color={budgetOver ? D.errorText : D.text} />
+            <BudgetStat label={budgetOver ? t('campaign.budgetPanel.exceeded') : t('campaign.budgetPanel.remaining')} value={`€${fmtNum(Math.abs(budgetRemain))}`} color={budgetOver ? D.errorText : D.statusDelivered.dot} />
           </div>
         </div>
       )}
@@ -698,7 +754,7 @@ export default function PortalCampaignDetail() {
                     {guests.length} total
                   </span>
                   {guestConfirmed > 0 && (
-                    <span style={{ padding: '2px 9px', borderRadius: '99px', backgroundColor: 'rgba(59,130,246,0.10)', fontSize: '11px', fontWeight: '700', color: '#2563EB' }}>
+                    <span style={{ padding: '2px 9px', borderRadius: '99px', backgroundColor: D.statusOrdered.bg, fontSize: '11px', fontWeight: '700', color: D.statusOrdered.color }}>
                       ✓ {guestConfirmed} confirmed
                     </span>
                   )}
@@ -718,12 +774,12 @@ export default function PortalCampaignDetail() {
             <div style={{ padding: '10px 20px', borderBottom: `1px solid ${D.borderLight}`, display: 'flex', alignItems: 'center', gap: '12px' }}>
               <span style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.6px', color: D.textMuted, flexShrink: 0 }}>Audience</span>
               <div style={{ flex: 1, display: 'flex', height: '5px', borderRadius: '99px', overflow: 'hidden', backgroundColor: D.surfaceHigh }}>
-                {genderStats.female > 0 && <div style={{ width: `${(genderStats.female / genderStats.total) * 100}%`, backgroundColor: '#EC4899', transition: 'width 0.4s' }} />}
-                {genderStats.male > 0   && <div style={{ width: `${(genderStats.male   / genderStats.total) * 100}%`, backgroundColor: '#3B82F6', transition: 'width 0.4s' }} />}
+                {genderStats.female > 0 && <div style={{ width: `${(genderStats.female / genderStats.total) * 100}%`, backgroundColor: FEMALE_COLOR, transition: 'width 0.4s' }} />}
+                {genderStats.male > 0   && <div style={{ width: `${(genderStats.male   / genderStats.total) * 100}%`, backgroundColor: MALE_COLOR, transition: 'width 0.4s' }} />}
               </div>
               <div style={{ display: 'flex', gap: '10px', flexShrink: 0 }}>
-                {genderStats.female > 0 && <span style={{ fontSize: '11px', fontWeight: '700', color: '#EC4899' }}>{Math.round((genderStats.female / genderStats.total) * 100)}% F</span>}
-                {genderStats.male   > 0 && <span style={{ fontSize: '11px', fontWeight: '700', color: '#3B82F6' }}>{Math.round((genderStats.male   / genderStats.total) * 100)}% M</span>}
+                {genderStats.female > 0 && <span style={{ fontSize: '11px', fontWeight: '700', color: FEMALE_COLOR }}>{Math.round((genderStats.female / genderStats.total) * 100)}% F</span>}
+                {genderStats.male   > 0 && <span style={{ fontSize: '11px', fontWeight: '700', color: MALE_COLOR }}>{Math.round((genderStats.male   / genderStats.total) * 100)}% M</span>}
                 <span style={{ fontSize: '11px', color: D.textMuted }}>({genderStats.total} known)</span>
               </div>
             </div>
@@ -734,13 +790,16 @@ export default function PortalCampaignDetail() {
             <div style={{ padding: '8px 20px', borderBottom: `1px solid ${D.borderLight}`, display: 'flex', gap: '4px', flexWrap: 'wrap', alignItems: 'center' }}>
               {[['all','All'], ['invited','Invited'], ['confirmed','Confirmed'], ['not_available','Not Available']].map(([k, l]) => {
                 const isActive = guestStatusFilter === k;
-                const statusColor = k === 'confirmed' ? '#2563EB' : k === 'invited' ? '#475569' : k === 'not_available' ? '#DC2626' : null;
+                const meta = GUEST_STATUS[k];
+                const activeBg   = meta ? meta.bg  : D.surfaceHigh;
+                const activeText = meta ? meta.text : D.textSub;
+                const activeBorder = meta ? meta.dot : D.border;
                 return (
                   <button key={k} type="button" onClick={() => setGuestStatusFilter(k)} style={{
                     padding: '3px 10px', borderRadius: '99px', cursor: 'pointer', fontSize: '11px', fontWeight: '600',
-                    border: `1.5px solid ${isActive ? (statusColor || D.border) : 'transparent'}`,
-                    backgroundColor: isActive ? (k === 'confirmed' ? 'rgba(59,130,246,0.08)' : k === 'invited' ? 'rgba(71,85,105,0.08)' : k === 'not_available' ? 'rgba(239,68,68,0.08)' : D.surfaceHigh) : 'transparent',
-                    color: isActive ? (statusColor || D.textSub) : D.textMuted,
+                    border: `1.5px solid ${isActive ? activeBorder : 'transparent'}`,
+                    backgroundColor: isActive ? activeBg : 'transparent',
+                    color: isActive ? activeText : D.textMuted,
                   }}>
                     {l}{k !== 'all' && <span style={{ marginLeft: '4px', opacity: 0.65 }}>{guests.filter(g => g.status === k).length}</span>}
                   </button>
@@ -749,7 +808,7 @@ export default function PortalCampaignDetail() {
               <div style={{ width: '1px', height: '14px', backgroundColor: D.border, margin: '0 3px', flexShrink: 0 }} />
               {['all', 'Male', 'Female'].map(g => {
                 const isActive = guestGenderListFilter === g;
-                const gc = g === 'Female' ? '#EC4899' : g === 'Male' ? '#3B82F6' : null;
+                const gc = g === 'Female' ? FEMALE_COLOR : g === 'Male' ? MALE_COLOR : null;
                 return (
                   <button key={g} type="button" onClick={() => setGuestGenderListFilter(g)} style={{
                     padding: '3px 10px', borderRadius: '99px', cursor: 'pointer', fontSize: '11px', fontWeight: '600',
@@ -834,7 +893,7 @@ export default function PortalCampaignDetail() {
           {/* Guest cards */}
           {guests.length === 0 && !showAddGuest ? (
             <div style={{ padding: '52px 20px', textAlign: 'center' }}>
-              <div style={{ fontSize: '28px', marginBottom: '10px' }}>🎯</div>
+              <div style={{ marginBottom: '10px', display: 'flex', justifyContent: 'center' }}><IconTarget size={28} color={D.accent} /></div>
               <div style={{ fontSize: '14px', fontWeight: '700', color: D.text, marginBottom: '5px' }}>No guests yet</div>
               <div style={{ fontSize: '12px', color: D.textMuted }}>Add your first guests to this event to get started.</div>
             </div>
@@ -847,7 +906,7 @@ export default function PortalCampaignDetail() {
               {filteredGuests.map(guest => {
                 const isExpanded = expandedGuest === guest.id;
                 const fulfilledItems = guest.items.filter(i => i.fulfilled);
-                const genderColor = guest.influencer?.gender?.toLowerCase() === 'female' ? '#EC4899' : guest.influencer?.gender?.toLowerCase() === 'male' ? '#3B82F6' : null;
+                const genderColor = guest.influencer?.gender?.toLowerCase() === 'female' ? FEMALE_COLOR : guest.influencer?.gender?.toLowerCase() === 'male' ? MALE_COLOR : null;
                 const fmtF = f => !f ? null : f >= 1000000 ? `${(f/1000000).toFixed(1)}M` : f >= 1000 ? `${Math.round(f/1000)}K` : String(f);
 
                 return (
@@ -886,7 +945,7 @@ export default function PortalCampaignDetail() {
                         <div style={{ fontSize: '11px', color: D.textMuted, display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                           {guest.influencer?.followers && <span>{fmtF(guest.influencer.followers)} followers</span>}
                           {guest.email && <span>{guest.email}</span>}
-                          {guest.seedingId && <span style={{ color: '#10B981', fontWeight: '600' }}>✓ Seeding created</span>}
+                          {guest.seedingId && <span style={{ color: D.statusDelivered.dot, fontWeight: '600' }}>✓ Seeding created</span>}
                         </div>
                       </div>
 
@@ -903,9 +962,9 @@ export default function PortalCampaignDetail() {
                       {/* Seeding CTA */}
                       {canCreate && !campaign.archived && (
                         guest.seedingId
-                          ? <span style={{ fontSize: '10px', color: '#10B981', fontWeight: '700', flexShrink: 0 }}>✓</span>
+                          ? <span style={{ fontSize: '10px', color: D.statusDelivered.dot, fontWeight: '700', flexShrink: 0 }}>✓</span>
                           : <Link to={`/portal/new?guestId=${guest.id}&campaignId=${campaign.id}`}
-                              style={{ padding: '5px 10px', borderRadius: '7px', background: 'linear-gradient(135deg, #7C6FF7 0%, #9C8FFF 100%)', color: '#fff', textDecoration: 'none', fontSize: '11px', fontWeight: '700', whiteSpace: 'nowrap', boxShadow: '0 1px 4px rgba(124,111,247,0.28)', flexShrink: 0 }}>
+                              style={{ padding: '5px 10px', borderRadius: '7px', background: `linear-gradient(135deg, ${D.accent}, ${D.purple})`, color: '#fff', textDecoration: 'none', fontSize: '11px', fontWeight: '700', whiteSpace: 'nowrap', boxShadow: `0 1px 4px ${D.accent}44`, flexShrink: 0 }}>
                               + Seeding
                             </Link>
                       )}
@@ -916,7 +975,7 @@ export default function PortalCampaignDetail() {
                           <input type="hidden" name="intent" value="removeGuest" />
                           <input type="hidden" name="guestId" value={guest.id} />
                           <button type="submit" style={{ background: 'none', border: 'none', color: D.textMuted, cursor: 'pointer', fontSize: '15px', lineHeight: 1, padding: '3px 4px', borderRadius: '4px', transition: 'color 0.1s' }}
-                            onMouseOver={e => { e.currentTarget.style.color='#EF4444'; }}
+                            onMouseOver={e => { e.currentTarget.style.color=D.errorText; }}
                             onMouseOut={e => { e.currentTarget.style.color=D.textMuted; }}>×</button>
                         </Form>
                       )}
@@ -931,12 +990,12 @@ export default function PortalCampaignDetail() {
                             <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.7px', color: D.textMuted, marginBottom: '8px' }}>Assigned Items</div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                               {guest.items.map(item => (
-                                <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '7px 10px', backgroundColor: D.surface, borderRadius: '7px', border: `1px solid ${item.fulfilled ? 'rgba(16,185,129,0.2)' : D.borderLight}` }}>
+                                <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '7px 10px', backgroundColor: D.surface, borderRadius: '7px', border: `1px solid ${item.fulfilled ? D.statusDelivered.dot + '44' : D.borderLight}` }}>
                                   {item.imageUrl && <img src={item.imageUrl} alt="" style={{ width: '24px', height: '24px', objectFit: 'cover', borderRadius: '4px', flexShrink: 0 }} />}
                                   <span style={{ flex: 1, fontSize: '12px', fontWeight: '600', color: D.text }}>{item.productName}</span>
                                   <span style={{ fontSize: '11px', color: D.textMuted }}>× {item.quantity}</span>
                                   {item.fulfilled ? (
-                                    <span style={{ fontSize: '11px', fontWeight: '700', color: '#10B981' }}>✓ Fulfilled</span>
+                                    <span style={{ fontSize: '11px', fontWeight: '700', color: D.statusDelivered.dot }}>✓ Fulfilled</span>
                                   ) : (
                                     <Form method="post">
                                       <input type="hidden" name="intent" value="removeGuestItem" />
@@ -1042,7 +1101,7 @@ export default function PortalCampaignDetail() {
                     onMouseOut={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}>
                     {prod.image
                       ? <img src={prod.image} alt={prod.name} style={{ width: '32px', height: '32px', objectFit: 'cover', borderRadius: '6px', flexShrink: 0 }} />
-                      : <div style={{ width: '32px', height: '32px', backgroundColor: D.surfaceHigh, borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', flexShrink: 0 }}>📦</div>
+                      : <div style={{ width: '32px', height: '32px', backgroundColor: D.surfaceHigh, borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><IconBox size={16} color={D.textMuted} /></div>
                     }
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: '13px', fontWeight: '600', color: D.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{prod.name}</div>
@@ -1070,14 +1129,14 @@ export default function PortalCampaignDetail() {
                 <div key={cp.id} style={{
                   display: 'grid', gridTemplateColumns: '36px 1fr auto', gap: '12px', alignItems: 'center',
                   padding: '12px 14px',
-                  border: `1px solid ${tier === 'full' ? '#FECACA' : tier === 'warn' ? '#FDE68A' : D.border}`,
+                  border: `1px solid ${tier === 'full' ? D.errorText + '55' : tier === 'warn' ? D.statusPending.dot + '55' : D.border}`,
                   borderRadius: '10px',
-                  backgroundColor: tier === 'full' ? 'rgba(239,68,68,0.04)' : tier === 'warn' ? 'rgba(245,158,11,0.04)' : D.bg,
+                  backgroundColor: tier === 'full' ? D.errorBg : tier === 'warn' ? D.warningBg : D.bg,
                 }}>
                   <div>
                     {cp.imageUrl
                       ? <img src={cp.imageUrl} alt={cp.productName} style={{ width: '36px', height: '36px', objectFit: 'cover', borderRadius: '7px' }} />
-                      : <div style={{ width: '36px', height: '36px', backgroundColor: D.surfaceHigh, borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px' }}>📦</div>
+                      : <div style={{ width: '36px', height: '36px', backgroundColor: D.surfaceHigh, borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><IconBox size={18} color={D.textMuted} /></div>
                     }
                   </div>
                   <div>
@@ -1129,7 +1188,7 @@ export default function PortalCampaignDetail() {
                         <input type="hidden" name="campaignProductId" value={cp.id} />
                         <button type="submit" title="Remove from campaign"
                           style={{ background: 'none', border: 'none', color: D.textMuted, cursor: 'pointer', fontSize: '18px', lineHeight: 1, padding: '0 2px' }}
-                          onMouseOver={e => { e.currentTarget.style.color = '#EF4444'; }}
+                          onMouseOver={e => { e.currentTarget.style.color = D.errorText; }}
                           onMouseOut={e => { e.currentTarget.style.color = D.textMuted; }}>
                           ×
                         </button>
