@@ -74,12 +74,35 @@ export async function action({ request }) {
     const handle  = String(formData.get('handle')  || '').slice(0, 100).trim();
     const country = String(formData.get('country') || '').slice(0, 100).trim();
     if (!handle) return { error: 'Handle is required.' };
+
+    // Opportunistically fetch the profile photo from Instagram's CDN.
+    // The URL is fresh (just returned by the search), so this usually succeeds.
+    // Failure is silently ignored — initials are shown instead.
+    let profilePicData = null;
+    const picUrl = String(formData.get('profilePicUrl') || '').trim();
+    if (picUrl) {
+      try {
+        const picRes = await fetch(picUrl, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36' },
+          signal: AbortSignal.timeout(5000),
+          redirect: 'follow',
+        });
+        if (picRes.ok) {
+          const buf = await picRes.arrayBuffer();
+          if (buf.byteLength > 2000) profilePicData = Buffer.from(buf);
+        }
+      } catch {
+        // Photo fetch failed — proceed without it
+      }
+    }
+
     await prisma.influencer.create({
       data: {
         shop, handle,
-        name:      handle.replace(/^@/, ''),
-        followers: Math.max(0, parseInt(formData.get('followers') || '0') || 0),
+        name:           handle.replace(/^@/, ''),
+        followers:      Math.max(0, parseInt(formData.get('followers') || '0') || 0),
         country,
+        ...(profilePicData ? { profilePicData } : {}),
       },
     });
     return null;
@@ -359,6 +382,9 @@ export default function Influencers() {
           style={{ padding: '24px', backgroundColor: C.surface, border: `1px solid ${C.border}`, borderLeft: `3px solid ${C.accent}`, borderRadius: '8px', marginBottom: '24px' }}>
           <input type="hidden" name="intent" value="create" />
           <input type="hidden" name="followers" value={tierPick?.value ?? 0} />
+          {igLookup?.profilePic && (
+            <input type="hidden" name="profilePicUrl" value={igLookup.profilePic} />
+          )}
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px', alignItems: 'end' }}>
             {/* Handle */}

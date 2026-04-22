@@ -294,7 +294,7 @@ export default function PortalInfluencerDetail() {
       <Card>
         <div style={{ padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <InstagramAvatar handle={handle} size={52} />
+            <InstagramAvatar handle={handle} influencerId={influencer.id} size={52} />
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
                 <span style={{ fontSize: '20px', fontWeight: '800', color: 'var(--pt-text)', letterSpacing: '-0.4px' }}>

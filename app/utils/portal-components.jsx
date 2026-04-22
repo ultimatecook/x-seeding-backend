@@ -43,18 +43,23 @@ const AVATAR_GRADIENTS = [
   ['#8B5CF6','#A78BFA'],
 ];
 
-export function InstagramAvatar({ handle, size = 36 }) {
+// InstagramAvatar
+// ─────────────────────────────────────────────────────────────────────────────
+// Pass `influencerId` (number) to use the photo stored in the DB
+// (served via /portal/ig-photo/:id). Falls back to gradient initials on error.
+//
+// If `influencerId` is not provided the component renders initials only —
+// unavatar.io is no longer used because Instagram blocks third-party access.
+export function InstagramAvatar({ handle, influencerId, size = 36 }) {
   const clean    = (handle || '').replace(/^@/, '');
   const initials = clean.slice(0, 2).toUpperCase() || '?';
   const idx      = clean.split('').reduce((s, c) => s + c.charCodeAt(0), 0) % AVATAR_GRADIENTS.length;
   const [c1, c2] = AVATAR_GRADIENTS[idx];
   const fontSize = Math.round(size * 0.38);
 
-  // Load directly from unavatar.io in the browser — img tags are not subject to
-  // the server-side IP allowlist that blocks proxy fetches. The gradient initials
-  // are always rendered underneath; the photo fades in if/when it loads.
+  const photoSrc = influencerId ? `/portal/ig-photo/${influencerId}` : null;
   const [visible, setVisible] = React.useState(false);
-  React.useEffect(() => { setVisible(false); }, [clean]);
+  React.useEffect(() => { setVisible(false); }, [photoSrc]);
 
   return (
     <div style={{
@@ -64,14 +69,14 @@ export function InstagramAvatar({ handle, size = 36 }) {
       fontSize, fontWeight: '900', color: '#fff', letterSpacing: '-0.5px',
       overflow: 'hidden', position: 'relative',
     }}>
-      {/* Fallback initials — always visible underneath until photo loads */}
+      {/* Gradient initials always rendered underneath as fallback */}
       <span style={{ position: 'relative', zIndex: 1, userSelect: 'none' }}>{initials}</span>
 
-      {/* Photo loaded directly by the browser — bypasses server IP restrictions */}
-      {clean && (
+      {/* Stored photo served from our DB — no external dependency */}
+      {photoSrc && (
         <img
-          key={clean}
-          src={`https://unavatar.io/instagram/${encodeURIComponent(clean)}`}
+          key={photoSrc}
+          src={photoSrc}
           alt=""
           onLoad={() => setVisible(true)}
           onError={() => setVisible(false)}

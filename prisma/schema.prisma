@@ -99,6 +99,7 @@ model Influencer {
   shippingNotes          String?
   styleTags              String?
   productPreferences     String?
+  profilePicData         Bytes?               // JPEG bytes fetched at creation from Instagram CDN
   archived               Boolean              @default(false)
   isDemo                 Boolean              @default(false)
   createdAt              DateTime             @default(now())

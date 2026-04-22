@@ -580,7 +580,7 @@ export default function PortalInfluencers() {
                   )}
                   <td style={{ padding: '12px 16px', fontWeight: '700' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <InstagramAvatar handle={inf.handle} size={32} />
+                      <InstagramAvatar handle={inf.handle} influencerId={inf.id} size={32} />
                       <Link to={`/portal/influencers/${inf.id}`} style={{ color: D.accent, textDecoration: 'none', fontWeight: '700' }}>@{inf.handle.replace(/^@/, '')}</Link>
                     </div>
                   </td>

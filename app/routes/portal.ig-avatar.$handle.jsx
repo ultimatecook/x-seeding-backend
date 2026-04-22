@@ -1,11 +1,10 @@
 /**
- * ⚠️  This route is no longer used by InstagramAvatar.
+ * ⚠️  This route is no longer used.
  *
- * unavatar.io blocks server-side fetches with a 403 (X-Proxy-Error: blocked-by-allowlist).
- * InstagramAvatar now loads https://unavatar.io/instagram/:handle directly in the browser,
- * which is not subject to the server IP restriction.
+ * Profile photos are now fetched once at influencer-creation time and stored in
+ * Influencer.profilePicData (BYTEA). They are served via /portal/ig-photo/:id.
  *
- * Kept as a stub so any cached references don't 404.
+ * Kept as a stub so any bookmarked/cached URLs don't 404.
  */
 export async function loader() {
   return new Response(null, { status: 404 });
