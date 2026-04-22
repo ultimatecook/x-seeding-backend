@@ -160,7 +160,7 @@ export default function PortalSeedings() {
           <p style={{ margin: '2px 0 0', fontSize: '13px', color: D.textSub }}>{total} seeding{total !== 1 ? 's' : ''}{hasFilters ? ' matching filters' : ''}</p>
         </div>
         {canCreate && (
-          <Link to="/portal/new" style={{ padding: '8px 18px', background: `linear-gradient(135deg, ${D.accent} 0%, ${D.purple} 100%)`, color: '#fff', borderRadius: '8px', textDecoration: 'none', fontSize: '13px', fontWeight: '700', boxShadow: '0 2px 6px rgba(124,111,247,0.35)' }}>
+          <Link to="/portal/new" style={{ padding: '8px 18px', background: `linear-gradient(135deg, ${D.accent}, ${D.purple})`, color: '#fff', borderRadius: '8px', textDecoration: 'none', fontSize: '13px', fontWeight: '700', boxShadow: `0 2px 6px ${D.accent}55` }}>
             {t('seedings.newSeeding')}
           </Link>
         )}
@@ -237,7 +237,7 @@ export default function PortalSeedings() {
                 style={{ display: 'inline-block', padding: '9px 22px', fontSize: '13px', fontWeight: '700', borderRadius: '9px',
                   background: `linear-gradient(135deg, ${D.accent} 0%, ${D.purple} 100%)`,
                   color: '#fff', textDecoration: 'none',
-                  boxShadow: '0 4px 14px rgba(124,111,247,0.28)' }}>
+                  boxShadow: `0 4px 14px ${D.accent}44` }}>
                 Create your first seeding →
               </Link>
             </>
@@ -355,12 +355,12 @@ export default function PortalSeedings() {
                         {(s.productDiscountCode || s.shippingDiscountCode) ? (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                             {s.productDiscountCode && (
-                              <span title="Product code" style={{ fontFamily: 'monospace', fontSize: '10px', fontWeight: '700', color: '#5B21B6', backgroundColor: '#EDE9FE', borderRadius: '4px', padding: '2px 6px', whiteSpace: 'nowrap' }}>
+                              <span title="Product code" style={{ fontFamily: 'monospace', fontSize: '10px', fontWeight: '700', color: D.statusShipped.color, backgroundColor: D.statusShipped.bg, borderRadius: '4px', padding: '2px 6px', whiteSpace: 'nowrap' }}>
                                 P: {s.productDiscountCode}
                               </span>
                             )}
                             {s.shippingDiscountCode && (
-                              <span title="Shipping code" style={{ fontFamily: 'monospace', fontSize: '10px', fontWeight: '700', color: '#1E40AF', backgroundColor: '#DBEAFE', borderRadius: '4px', padding: '2px 6px', whiteSpace: 'nowrap' }}>
+                              <span title="Shipping code" style={{ fontFamily: 'monospace', fontSize: '10px', fontWeight: '700', color: D.statusOrdered.color, backgroundColor: D.statusOrdered.bg, borderRadius: '4px', padding: '2px 6px', whiteSpace: 'nowrap' }}>
                                 S: {s.shippingDiscountCode}
                               </span>
                             )}

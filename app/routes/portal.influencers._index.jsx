@@ -274,7 +274,7 @@ export default function PortalInfluencers() {
           )}
           {canCreate && (
             <button onClick={() => { setShowForm(v => !v); setShowImport(false); setTierPick(null); }}
-              style={{ padding: '7px 16px', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', border: 'none', background: showForm ? D.surfaceHigh : `linear-gradient(135deg, ${D.accent} 0%, ${D.purple} 100%)`, color: showForm ? D.textSub : '#fff', boxShadow: showForm ? 'none' : '0 2px 6px rgba(124,111,247,0.35)' }}>
+              style={{ padding: '7px 16px', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', border: 'none', background: showForm ? D.surfaceHigh : `linear-gradient(135deg, ${D.accent}, ${D.purple})`, color: showForm ? D.textSub : '#fff', boxShadow: showForm ? 'none' : `0 2px 6px ${D.accent}55` }}>
               {showForm ? t('common.cancel') : t('influencers.addInfluencer')}
             </button>
           )}
@@ -425,7 +425,7 @@ export default function PortalInfluencers() {
             marginBottom: '-1px',
           }}>
             {tab.label}
-            <span style={{ marginLeft: '6px', fontSize: '11px', fontWeight: '700', backgroundColor: view === tab.key ? D.accent : D.surfaceHigh, color: view === tab.key ? '#0D0F14' : D.textSub, borderRadius: '10px', padding: '1px 7px' }}>
+            <span style={{ marginLeft: '6px', fontSize: '11px', fontWeight: '700', backgroundColor: view === tab.key ? D.accent : D.surfaceHigh, color: view === tab.key ? D.bg : D.textSub, borderRadius: '10px', padding: '1px 7px' }}>
               {tab.count}
             </span>
           </button>
@@ -496,7 +496,7 @@ export default function PortalInfluencers() {
           {/* Delete — two-step confirmation */}
           {!confirmDelete ? (
             <button type="button" onClick={() => setConfirmDelete(true)}
-              style={{ padding: '7px 14px', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', border: 'none', background: 'linear-gradient(135deg, #DC2626 0%, #B91C1C 100%)', color: '#FFFFFF', boxShadow: '0 1px 3px rgba(220,38,38,0.25)' }}>
+              style={{ padding: '7px 14px', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', border: 'none', background: `linear-gradient(135deg, ${D.errorText}, ${D.errorText}CC)`, color: '#fff', boxShadow: `0 1px 3px ${D.errorText}40` }}>
               Delete selected
             </button>
           ) : (
@@ -544,7 +544,7 @@ export default function PortalInfluencers() {
                 style={{ padding: '9px 20px', fontSize: '13px', fontWeight: '700', borderRadius: '9px',
                   background: `linear-gradient(135deg, ${D.accent} 0%, ${D.purple} 100%)`,
                   color: '#fff', border: 'none', cursor: 'pointer',
-                  boxShadow: '0 4px 14px rgba(124,111,247,0.28)' }}>
+                  boxShadow: `0 4px 14px ${D.accent}44` }}>
                 + Add your first influencer
               </button>
               <button type="button" onClick={() => setShowImport(true)}
@@ -591,8 +591,8 @@ export default function PortalInfluencers() {
                       {inf.gender && (
                         <span style={{
                           fontSize: '10px', fontWeight: '700', lineHeight: 1,
-                          color: inf.gender.toLowerCase() === 'female' ? '#EC4899'
-                               : inf.gender.toLowerCase() === 'male'   ? '#3B82F6'
+                          color: inf.gender.toLowerCase() === 'female' ? '#EC4899'  // semantic brand pink — intentional
+                               : inf.gender.toLowerCase() === 'male'   ? '#3B82F6'  // semantic brand blue — intentional
                                : D.textMuted,
                         }}>
                           {inf.gender}

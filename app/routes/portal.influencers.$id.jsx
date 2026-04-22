@@ -150,7 +150,7 @@ function Card({ children, style = {} }) {
       backgroundColor: 'var(--pt-surface)',
       border: '1px solid var(--pt-border)',
       borderRadius: '14px',
-      boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+      boxShadow: D.shadow,
       overflow: 'hidden',
       ...style,
     }}>
@@ -263,8 +263,8 @@ export default function PortalInfluencerDetail() {
   const btnPrimary = {
     padding: '8px 18px', borderRadius: '8px', border: 'none', cursor: 'pointer',
     fontSize: '13px', fontWeight: '700',
-    background: 'linear-gradient(135deg, #7C6FF7 0%, #6558E8 100%)',
-    color: '#fff', boxShadow: '0 1px 3px rgba(124,111,247,0.25)',
+    background: `linear-gradient(135deg, ${D.accent}, ${D.accentHover})`,
+    color: '#fff', boxShadow: `0 1px 3px ${D.accent}40`,
   };
   const btnNeutral = {
     padding: '8px 14px', borderRadius: '8px', cursor: 'pointer',
@@ -312,7 +312,8 @@ export default function PortalInfluencerDetail() {
               <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
                 {(influencer.city || influencer.country) && (
                   <span style={{ fontSize: '12px', color: 'var(--pt-text-muted)' }}>
-                    📍 {[influencer.city, influencer.country].filter(Boolean).join(', ')}
+                    <svg width="11" height="11" viewBox="0 0 16 16" fill="none" style={{ display: 'inline', verticalAlign: 'middle', marginRight: '3px' }}><path d="M8 1.5C5.79 1.5 4 3.29 4 5.5c0 3 4 8.5 4 8.5s4-5.5 4-8.5c0-2.21-1.79-4-4-4z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/><circle cx="8" cy="5.5" r="1.5" fill="currentColor"/></svg>
+                    {[influencer.city, influencer.country].filter(Boolean).join(', ')}
                   </span>
                 )}
                 {influencer.gender && (
@@ -416,7 +417,7 @@ export default function PortalInfluencerDetail() {
             border: '1px solid var(--pt-border)',
             borderRadius: '14px',
             padding: '16px 18px',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+            boxShadow: D.shadow,
           }}>
             <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--pt-text-muted)', marginBottom: '6px' }}>{label}</div>
             <div style={{ fontSize: '22px', fontWeight: '800', letterSpacing: '-0.5px', lineHeight: 1, color: accent || 'var(--pt-text)' }}>{value}</div>
@@ -658,7 +659,7 @@ export default function PortalInfluencerDetail() {
 
             {!confirmDelete ? (
               <button type="button" onClick={() => setConfirmDelete(true)}
-                style={{ padding: '8px 18px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: '700', background: 'linear-gradient(135deg, #DC2626 0%, #B91C1C 100%)', color: '#fff', boxShadow: '0 1px 3px rgba(220,38,38,0.2)' }}>
+                style={{ padding: '8px 18px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: '700', background: `linear-gradient(135deg, ${D.errorText}, ${D.errorText}CC)`, color: '#fff', boxShadow: `0 1px 3px ${D.errorText}33` }}>
                 {t('influencer.danger.delete')}
               </button>
             ) : (
@@ -670,7 +671,7 @@ export default function PortalInfluencerDetail() {
                   <Form method="post">
                     <input type="hidden" name="intent" value="delete" />
                     <button type="submit" disabled={isSubmitting}
-                      style={{ padding: '7px 14px', borderRadius: '7px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: '700', background: 'linear-gradient(135deg, #DC2626 0%, #B91C1C 100%)', color: '#fff', opacity: isSubmitting ? 0.7 : 1 }}>
+                      style={{ padding: '7px 14px', borderRadius: '7px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: '700', background: `linear-gradient(135deg, ${D.errorText}, ${D.errorText}CC)`, color: '#fff', opacity: isSubmitting ? 0.7 : 1 }}>
                       {isSubmitting ? t('influencer.danger.deleting') : t('influencer.danger.confirmYes')}
                     </button>
                   </Form>
