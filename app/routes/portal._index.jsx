@@ -342,7 +342,7 @@ function Delta({ delta }) {
   if (delta === null || delta === undefined) return null;
   const up = delta >= 0;
   return (
-    <span style={{ fontSize: '11px', fontWeight: '600', color: up ? '#15803D' : '#B91C1C' }}>
+    <span style={{ fontSize: '11px', fontWeight: '600', color: up ? D.statusDelivered.dot : D.errorText }}>
       {up ? '↑' : '↓'}{Math.abs(delta)}%
     </span>
   );
@@ -547,14 +547,14 @@ function LineChart({ days, seedingsLabel }) {
           padding:         '8px 14px',
           pointerEvents:   'none',
           whiteSpace:      'nowrap',
-          boxShadow:       '0 4px 16px rgba(0,0,0,0.08)',
+          boxShadow:       D.shadow,
           zIndex:          20,
           minWidth:        '110px',
         }}>
           <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--pt-text)', marginBottom: '4px' }}>
             {hData.label}
           </div>
-          <div style={{ fontSize: '12px', fontWeight: '600', color: '#7C6FF7' }}>
+          <div style={{ fontSize: '12px', fontWeight: '600', color: D.accent }}>
             {hData.seedings} {seedingsLabel}
           </div>
         </div>
@@ -764,7 +764,7 @@ function OnboardingChecklist({ onboarding, discountMode }) {
               style={{ padding: '6px 14px', fontSize: '12px', fontWeight: '700', borderRadius: '8px',
                 background: `linear-gradient(135deg, ${D.accent} 0%, ${D.purple} 100%)`,
                 color: '#fff', textDecoration: 'none', whiteSpace: 'nowrap',
-                boxShadow: '0 2px 8px rgba(124,111,247,0.28)' }}>
+                boxShadow: `0 2px 8px ${D.accent}44` }}>
               Create first seeding →
             </Link>
           </>
@@ -907,7 +907,7 @@ export default function PortalDashboard() {
     transition: 'all 0.12s',
     backgroundColor: active ? D.accent                          : 'transparent',
     color:           active ? '#fff'                            : 'var(--pt-text-muted)',
-    boxShadow:       active ? '0 1px 4px rgba(124,111,247,0.3)' : 'none',
+    boxShadow:       active ? `0 1px 4px ${D.accent}4C` : 'none',
   });
 
   // ── Section renderers ──────────────────────────────────────────────────────
@@ -918,8 +918,8 @@ export default function PortalDashboard() {
         value={`€${fmtNum(totalSpend)}`}
         delta={spendDelta}
         icon={<IconEuro />}
-        iconColor="#F59E0B"
-        iconBg="rgba(245,158,11,0.1)"
+        iconColor={D.statusPending.dot}
+        iconBg={D.statusPending.bg}
       />
       <StatCard
         label={t('dashboard.stat.cogs')}
@@ -932,15 +932,15 @@ export default function PortalDashboard() {
         label={t('dashboard.stat.units')}
         value={totalUnits}
         icon={<IconBox />}
-        iconColor="#3B82F6"
-        iconBg="rgba(59,130,246,0.1)"
+        iconColor={D.statusOrdered.dot}
+        iconBg={D.statusOrdered.bg}
       />
       <StatCard
         label={t('dashboard.stat.influencers')}
         value={totalInfluencers}
         icon={<IconUsers />}
-        iconColor="#10B981"
-        iconBg="rgba(16,185,129,0.1)"
+        iconColor={D.statusDelivered.dot}
+        iconBg={D.statusDelivered.bg}
       />
     </div>
   );
@@ -1047,7 +1047,7 @@ export default function PortalDashboard() {
                     </span>
                   </div>
                   <div style={{ height: '3px', borderRadius: '99px', backgroundColor: 'var(--pt-surface-high)', overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${(d.seedings / maxS) * 100}%`, backgroundColor: isActive ? 'var(--pt-accent)' : 'rgba(124,111,247,0.35)', borderRadius: '99px', transition: 'width 0.4s' }} />
+                    <div style={{ height: '100%', width: `${(d.seedings / maxS) * 100}%`, backgroundColor: isActive ? D.accent : `${D.accent}55`, borderRadius: '99px', transition: 'width 0.4s' }} />
                   </div>
                 </button>
               );
@@ -1076,10 +1076,10 @@ export default function PortalDashboard() {
                 onMouseOver={e => { e.currentTarget.style.backgroundColor = 'var(--pt-surface-high)'; }}
                 onMouseOut={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}>
                 <div style={{ width: '30px', height: '30px', borderRadius: '50%', flexShrink: 0,
-                  background: gc ? `linear-gradient(135deg, ${gc}cc, ${gc}44)` : 'linear-gradient(135deg, #7C6FF7cc, #A78BFA44)',
+                  background: gc ? `linear-gradient(135deg, ${gc}cc, ${gc}44)` : `linear-gradient(135deg, ${D.accent}cc, ${D.purple}44)`,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: '12px', fontWeight: '800', color: '#fff',
-                  boxShadow: `0 1px 4px ${gc || '#7C6FF7'}33` }}>
+                  boxShadow: `0 1px 4px ${gc || D.accent}33` }}>
                   {(inf.handle?.[0] ?? '?').toUpperCase()}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -1203,6 +1203,7 @@ export default function PortalDashboard() {
     const hasData = (segmentData.gender.length > 0 || segmentData.followerTier.length > 0) && totalSeedings > 0;
     if (!hasData) return null;
 
+    // SVG fill values — CSS vars not supported in SVG stopColor/fill attributes
     const TIER_COLORS = ['#7C6FF7', '#A78BFA', '#C4B5FD', '#DDD6FE', 'var(--pt-text-muted)'];
     const maxT = Math.max(...segmentData.followerTier.map(r => r.seedings), 1);
 

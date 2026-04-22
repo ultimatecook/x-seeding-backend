@@ -405,7 +405,7 @@ function AnalyticsPoolSection({ poolStats, busy }) {
       }}>
         <span style={{ flexShrink: 0, paddingTop: '1px' }}><IconWarning size={14} color={D.warningText} /></span>
         <div style={{ fontSize: '12px', color: D.warningText, lineHeight: 1.5 }}>
-          <strong>Requires a live production store.</strong> The <code style={{ fontSize: '11px', backgroundColor: 'rgba(0,0,0,0.06)', padding: '1px 4px', borderRadius: '3px' }}>/discount/</code> redirect
+          <strong>Requires a live production store.</strong> The <code style={{ fontSize: '11px', backgroundColor: D.surfaceHigh, padding: '1px 4px', borderRadius: '3px' }}>/discount/</code> redirect
           is blocked on password-protected stores. Switch to <strong>Simple</strong> mode if you're testing on a development store.
         </div>
       </div>
