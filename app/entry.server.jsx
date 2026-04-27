@@ -13,12 +13,21 @@ export default async function handleRequest(
   responseHeaders,
   reactRouterContext,
 ) {
+  const url = new URL(request.url);
+  const isAppRoute = url.pathname.startsWith('/app') || url.pathname.startsWith('/auth');
+
   // Portal routes are standalone (not embedded in Shopify iframe) — skip Shopify's
   // frame-ancestors CSP header which would block them from loading in a regular browser tab.
-  const url = new URL(request.url);
-  const isPortalRoute = url.pathname.startsWith('/portal');
-  if (!isPortalRoute) {
+  if (isAppRoute) {
     addDocumentResponseHeaders(request, responseHeaders);
+  }
+
+  // Security headers for HTML responses.
+  // X-Frame-Options is only set on non-/app routes; for /app routes the
+  // Shopify library already sets a frame-ancestors CSP that takes precedence
+  // in modern browsers and governs iframe embedding inside Shopify admin.
+  if (!isAppRoute) {
+    responseHeaders.set('X-Frame-Options', 'SAMEORIGIN');
   }
   const userAgent = request.headers.get("user-agent");
   const callbackName = isbot(userAgent ?? "") ? "onAllReady" : "onShellReady";
