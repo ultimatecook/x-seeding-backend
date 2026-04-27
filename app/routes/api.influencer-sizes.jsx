@@ -1,11 +1,15 @@
 import { authenticate } from '../shopify.server';
 import prisma from '../db.server';
+import { handlePreflight } from '../utils/security.server';
 
 /**
  * GET /api/influencer-sizes?influencerId=123
  * Returns saved sizes for an influencer
  */
 export async function loader({ request }) {
+  const preflight = handlePreflight(request);
+  if (preflight) return preflight;
+
   const { session } = await authenticate.admin(request);
   const shop = session.shop;
   const url = new URL(request.url);
