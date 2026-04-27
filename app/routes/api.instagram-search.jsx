@@ -1,7 +1,11 @@
 import { authenticate } from '../shopify.server';
 import { rateLimit, getClientIp, tooManyRequests } from '../utils/rate-limit.server';
+import { handlePreflight } from '../utils/security.server';
 
 export async function loader({ request }) {
+  const preflight = handlePreflight(request);
+  if (preflight) return preflight;
+
   await authenticate.admin(request);
 
   // 30 lookups per minute per IP — debounce in UI already reduces this naturally
