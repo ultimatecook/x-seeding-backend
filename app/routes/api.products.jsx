@@ -1,6 +1,10 @@
 import { authenticate } from "../shopify.server";
+import { handlePreflight } from "../utils/security.server";
 
 export async function loader({ request }) {
+  const preflight = handlePreflight(request);
+  if (preflight) return preflight;
+
   const { admin } = await authenticate.admin(request);
 
   try {

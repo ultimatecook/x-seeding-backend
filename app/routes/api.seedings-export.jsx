@@ -1,7 +1,11 @@
 import prisma from '../db.server';
 import { authenticate } from '../shopify.server';
+import { handlePreflight } from '../utils/security.server';
 
 export async function loader({ request }) {
+  const preflight = handlePreflight(request);
+  if (preflight) return preflight;
+
   await authenticate.admin(request);
 
   const url      = new URL(request.url);
